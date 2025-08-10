@@ -225,7 +225,6 @@ export default function AgentPage() {
         <div className="xl:col-span-2 space-y-6">
           {/* Agents */}
           {activeTab === 'Agents' && (
-          {activeTab === 'Customers' && (
           <Card>
             <CardHeader title="Agents" subtitle="Manage and browse agents" actions={
               <div className="hidden md:flex items-center gap-2">
@@ -333,10 +332,10 @@ export default function AgentPage() {
             </CardBody>
           </Card>
           )}
-          )}
 
           {/* Verticals management */}
           {activeTab === 'Verticals' && (
+          {activeTab === 'Customers' && (
           <Card>
             <CardHeader title="Verticals" subtitle="Create, rename, or delete verticals" actions={
               <div className="hidden md:flex items-center gap-2">
@@ -385,6 +384,7 @@ export default function AgentPage() {
               </table>
             </CardBody>
           </Card>
+          )}
           )}
 
           {/* Campaigns management */}
