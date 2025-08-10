@@ -189,7 +189,7 @@ export default function ProfilePage() {
           </Card>
         )}
 
-        {profile ? (
+        {!isOnboarding && profile ? (
           <Card>
             <CardHeader
               title="Account"
@@ -542,15 +542,9 @@ export default function ProfilePage() {
       if (!/^[a-z0-9_]{3,20}$/.test(obUsername)) { setDialogError('Username must be 3–20 chars, lowercase letters, numbers, underscore.'); setObBusy(false); return; }
       if (obNewPassword.length < 8 || !/[A-Za-z]/.test(obNewPassword) || !/[0-9]/.test(obNewPassword)) { setDialogError('Password must be at least 8 characters and include letters and numbers.'); setObBusy(false); return; }
       if (obNewPassword !== obConfirmPassword) { setDialogError('Passwords do not match'); setObBusy(false); return; }
-      const token = await getAccessToken();
+      let token = await getAccessToken();
       if (!token) { setDialogError('You are not signed in.'); setObBusy(false); return; }
-      // 1) Set username
-      {
-        const res = await fetch('/api/profile', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ username: obUsername.trim().toLowerCase() }) });
-        const j = await res.json().catch(() => ({ ok: false }));
-        if (!j.ok) { setDialogError(j?.error?.message || 'Failed to set username'); setObBusy(false); return; }
-      }
-      // 2) Set password (no current required during onboarding)
+      // 1) Set password (no current required during onboarding) — this bumps token_version
       {
         const res = await fetch('/api/profile/password', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ currentPassword: '', newPassword: obNewPassword }) });
         const j = await res.json().catch(() => ({ ok: false }));
@@ -558,7 +552,15 @@ export default function ProfilePage() {
         try {
           if (j?.data?.refreshToken) localStorage.setItem('auth.refreshToken', j.data.refreshToken);
           if (j?.data?.user) { localStorage.setItem('auth.user', JSON.stringify(j.data.user)); setProfile(j.data.user); }
+          // Use new access token for subsequent calls
+          if (j?.data?.accessToken) token = j.data.accessToken as string; else token = await getAccessToken();
         } catch {}
+      }
+      // 2) Set username using fresh token
+      {
+        const res = await fetch('/api/profile', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ username: obUsername.trim().toLowerCase() }) });
+        const j = await res.json().catch(() => ({ ok: false }));
+        if (!j.ok) { setDialogError(j?.error?.message || 'Failed to set username'); setObBusy(false); return; }
       }
       // 3) Optional avatar
       if (obAvatarFile) {
