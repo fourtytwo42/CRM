@@ -37,6 +37,15 @@ export default function ProfilePage() {
   // Resend cooldown
   const [resendCooldownMs, setResendCooldownMs] = useState<number>(0);
 
+  // Onboarding unified card state
+  const [isOnboarding, setIsOnboarding] = useState<boolean>(false);
+  const [obUsername, setObUsername] = useState<string>('');
+  const [obNewPassword, setObNewPassword] = useState<string>('');
+  const [obConfirmPassword, setObConfirmPassword] = useState<string>('');
+  const [obAvatarFile, setObAvatarFile] = useState<File | null>(null);
+  const [obAvatarPreview, setObAvatarPreview] = useState<string | null>(null);
+  const [obBusy, setObBusy] = useState<boolean>(false);
+
   useEffect(() => {
     const u = localStorage.getItem('auth.user');
     if (u) {
@@ -96,8 +105,9 @@ export default function ProfilePage() {
       const onboarding = params.get('onboarding');
       if (onboarding === '1') {
         setGlobalNotice('Welcome! Please set your username, password, and optional avatar.');
-        setEditUsernameOpen(true);
-        setEditPasswordOpen(true);
+        setIsOnboarding(true);
+        // Do not prefill username during onboarding
+        setObUsername('');
       }
     } catch {}
   }, []);
@@ -124,6 +134,59 @@ export default function ProfilePage() {
               <div className="mb-2 rounded-lg bg-red-100 text-red-900 dark:bg-red-900/20 dark:text-red-200 px-4 py-2">{globalError}</div>
             )}
           </div>
+        )}
+
+        {isOnboarding && (
+          <Card>
+            <CardHeader title="Complete your account" subtitle="Choose a username, set a password, and optionally add an avatar" />
+            <CardBody>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="text-sm block">
+                  <span className="text-xs opacity-70">Username</span>
+                  <Input value={obUsername} onChange={(e) => setObUsername(e.target.value)} placeholder="your_name" />
+                  <span className="text-xs opacity-60">3–20 chars, lowercase letters, numbers, underscore.</span>
+                </label>
+                <div className="grid gap-3">
+                  <label className="text-sm block">
+                    <span className="text-xs opacity-70">New password</span>
+                    <Input type="password" value={obNewPassword} onChange={(e) => setObNewPassword(e.target.value)} placeholder="********" />
+                  </label>
+                  <label className="text-sm block">
+                    <span className="text-xs opacity-70">Confirm password</span>
+                    <Input type="password" value={obConfirmPassword} onChange={(e) => setObConfirmPassword(e.target.value)} placeholder="********" />
+                  </label>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4 items-center">
+                <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 ring-2 ring-black/10 dark:ring-white/10 flex items-center justify-center">
+                  {obAvatarPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={obAvatarPreview} alt="preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-sm opacity-70">Preview</span>
+                  )}
+                </div>
+                <label className="text-sm block">
+                  <span className="text-xs opacity-70">Avatar (optional)</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] || null;
+                      setObAvatarFile(f);
+                      if (obAvatarPreview) URL.revokeObjectURL(obAvatarPreview);
+                      setObAvatarPreview(f ? URL.createObjectURL(f) : null);
+                    }}
+                    className="block w-full text-sm"
+                  />
+                </label>
+              </div>
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <Button variant="secondary" onClick={() => { setIsOnboarding(false); }}>Skip</Button>
+                <Button onClick={handleOnboardingSave} disabled={obBusy}>{obBusy ? 'Saving…' : 'Save'}</Button>
+              </div>
+            </CardBody>
+          </Card>
         )}
 
         {profile ? (
@@ -470,6 +533,50 @@ export default function ProfilePage() {
     if (avatarPreview) URL.revokeObjectURL(avatarPreview);
     setAvatarPreview(null);
     setAvatarFile(null);
+  }
+
+  async function handleOnboardingSave() {
+    setObBusy(true);
+    setDialogError(null); setGlobalError(null); setGlobalNotice(null);
+    try {
+      if (!/^[a-z0-9_]{3,20}$/.test(obUsername)) { setDialogError('Username must be 3–20 chars, lowercase letters, numbers, underscore.'); setObBusy(false); return; }
+      if (obNewPassword.length < 8 || !/[A-Za-z]/.test(obNewPassword) || !/[0-9]/.test(obNewPassword)) { setDialogError('Password must be at least 8 characters and include letters and numbers.'); setObBusy(false); return; }
+      if (obNewPassword !== obConfirmPassword) { setDialogError('Passwords do not match'); setObBusy(false); return; }
+      const token = await getAccessToken();
+      if (!token) { setDialogError('You are not signed in.'); setObBusy(false); return; }
+      // 1) Set username
+      {
+        const res = await fetch('/api/profile', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ username: obUsername.trim().toLowerCase() }) });
+        const j = await res.json().catch(() => ({ ok: false }));
+        if (!j.ok) { setDialogError(j?.error?.message || 'Failed to set username'); setObBusy(false); return; }
+      }
+      // 2) Set password (no current required during onboarding)
+      {
+        const res = await fetch('/api/profile/password', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ currentPassword: '', newPassword: obNewPassword }) });
+        const j = await res.json().catch(() => ({ ok: false }));
+        if (!j.ok) { setDialogError(j?.error?.message || 'Failed to set password'); setObBusy(false); return; }
+        try {
+          if (j?.data?.refreshToken) localStorage.setItem('auth.refreshToken', j.data.refreshToken);
+          if (j?.data?.user) { localStorage.setItem('auth.user', JSON.stringify(j.data.user)); setProfile(j.data.user); }
+        } catch {}
+      }
+      // 3) Optional avatar
+      if (obAvatarFile) {
+        const fd = new FormData();
+        fd.set('avatar', obAvatarFile);
+        const res = await fetch('/api/profile', { method: 'PUT', headers: { authorization: `Bearer ${token}` }, body: fd });
+        const j = await res.json().catch(() => ({ ok: false }));
+        if (!j.ok) { setDialogError(j?.error?.message || 'Failed to upload avatar'); setObBusy(false); return; }
+        try {
+          const u = localStorage.getItem('auth.user');
+          if (u && j.data?.avatar_url) { const parsed = JSON.parse(u); parsed.avatar_url = j.data.avatar_url; localStorage.setItem('auth.user', JSON.stringify(parsed)); setProfile(parsed); }
+        } catch {}
+      }
+      setGlobalNotice('Account setup complete.');
+      setIsOnboarding(false);
+    } finally {
+      setObBusy(false);
+    }
   }
 }
 
