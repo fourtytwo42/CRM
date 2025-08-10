@@ -116,7 +116,7 @@ export async function fetchModels(config: AiProviderConfig): Promise<string[]> {
 
 export async function chatCompletion(config: AiProviderConfig, messages: ChatMessage[]): Promise<ChatResult> {
   const provider = config.provider;
-  const timeout = config.timeoutMs || env.aiRequestTimeoutMs;
+  const timeout = (config.timeoutMs ?? (provider === 'ollama' ? 60000 : env.aiRequestTimeoutMs));
   const controller = new AbortController();
   const baseUrl = (config.baseUrl || '').replace(/\/$/, '');
   try {
