@@ -58,7 +58,7 @@ export default function AdminPage() {
   const [chatInput, setChatInput] = useState('');
   const [chatSystem, setChatSystem] = useState('');
   const [chatBusy, setChatBusy] = useState<'idle'|'sending'>('idle');
-  const [chatMeta, setChatMeta] = useState<{ provider?: string; model?: string; tried?: Array<{ provider: string; code: string; message: string }> } | null>(null);
+  const [chatMeta, setChatMeta] = useState<{ provider?: string; model?: string; tried?: Array<{ provider: string; code: string; message: string }>; details?: any } | null>(null);
 
   const fetchUsers = useCallback(async (reset = false) => {
     if (loadingRef.current) return;
@@ -637,10 +637,13 @@ export default function AdminPage() {
       const json = await res.json();
       if (json.ok) {
         setChatMessages((prev) => [...prev, { role: 'assistant', content: json.data?.content || '' }]);
-        setChatMeta({ provider: json.data?.provider, model: json.data?.model, tried: json.data?.tried });
+        setChatMeta({ provider: json.data?.provider, model: json.data?.model, tried: json.data?.tried, details: null });
       } else {
-        setChatMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${json?.error?.message || 'Failed'}` }]);
-        setChatMeta(json?.error?.details || null);
+        const details = json?.error?.details;
+        let extra = '';
+        if (details?.tried && Array.isArray(details.tried)) extra = ` Tried: ${details.tried.map((t: any) => `${t.provider}(${t.code})`).join(' → ')}`;
+        setChatMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${json?.error?.message || 'Failed'}.${extra}` }]);
+        setChatMeta({ provider: undefined, model: undefined, tried: details?.tried || [], details });
       }
     } catch (e: any) {
       setChatMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${e?.message || 'Network error'}` }]);

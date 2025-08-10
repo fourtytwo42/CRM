@@ -1,4 +1,8 @@
 import { env } from './env';
+import { generateText } from 'ai';
+import { createOpenAI } from '@ai-sdk/openai';
+import { createAnthropic } from '@ai-sdk/anthropic';
+// Omit ollama ai-sdk provider to avoid additional dependency; keep native HTTP path for ollama
 
 export type AiProviderId = 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'openrouter' | 'groq';
 
@@ -116,55 +120,91 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
   const controller = new AbortController();
   const baseUrl = (config.baseUrl || '').replace(/\/$/, '');
   try {
-    if (provider === 'openai' || provider === 'openrouter' || provider === 'groq' || provider === 'lmstudio') {
+    // Use Vercel AI SDK where possible for stability and consistent parsing
+    const system = messages.find((m) => m.role === 'system')?.content;
+    const userAndAssistant = messages.filter((m) => m.role !== 'system');
+    if (provider === 'openai' || provider === 'groq') {
+      const base = baseUrl || (provider === 'groq' ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1');
+      const openai = createOpenAI({ apiKey: config.apiKey || '', baseURL: base });
+      const model = openai.chat(config.model || 'gpt-4o-mini');
+      const result = await withTimeout(generateText({
+        model,
+        system,
+        messages: userAndAssistant as any,
+        temperature: 0.2,
+      }), timeout, controller.signal);
+      return { ok: true, provider, model: config.model || '', content: result.text };
+    }
+    else if (provider === 'anthropic') {
+      const base = baseUrl || 'https://api.anthropic.com';
+      const anthropic = createAnthropic({ apiKey: config.apiKey || '', baseURL: base });
+      const model = anthropic.messages(config.model || 'claude-3-5-sonnet-latest');
+      const result = await withTimeout(generateText({
+        model,
+        system,
+        messages: userAndAssistant as any,
+        temperature: 0.2,
+      }), timeout, controller.signal);
+      return { ok: true, provider, model: config.model || '', content: result.text };
+    }
+    else if (provider === 'ollama') {
+      // handled below with native HTTP path
+    }
+    else if (provider === 'openrouter' || provider === 'lmstudio') {
       const base = baseUrl || providerCatalog().find(p => p.id === (provider === 'lmstudio' ? 'lmstudio' : provider))!.defaultBaseUrl!;
-      const url = `${base}/chat/completions`;
       const headers: Record<string, string> = { 'content-type': 'application/json' };
       if (provider !== 'lmstudio') headers['authorization'] = `Bearer ${config.apiKey || ''}`;
-      const res = await withTimeout(fetch(url, {
+
+      // First try Chat Completions
+      const chatUrl = `${base}/chat/completions`;
+      const ccRes = await withTimeout(fetch(chatUrl, {
         method: 'POST',
         signal: controller.signal,
         headers,
         cache: 'no-store',
-        body: JSON.stringify({
-          model: config.model,
-          messages,
-          temperature: 0.2,
-          stream: false,
-        }),
+        body: JSON.stringify({ model: config.model, messages, temperature: 0.2, stream: false }),
       }), timeout, controller.signal);
-      if (!res.ok) return { ok: false, error: { code: `HTTP_${res.status}`, message: await safeText(res) } };
-      const json: any = await res.json();
-      const content: string | undefined = json?.choices?.[0]?.message?.content;
-      if (!content) return { ok: false, error: { code: 'NO_CONTENT', message: 'No content' } };
-      return { ok: true, provider, model: config.model || '', content };
-    }
+      if (ccRes.ok) {
+        const json: any = await ccRes.json();
+        const content: string | undefined = json?.choices?.[0]?.message?.content;
+        if (!content) return { ok: false, error: { code: 'NO_CONTENT', message: 'No content' } };
+        return { ok: true, provider, model: config.model || '', content };
+      }
 
-    if (provider === 'anthropic') {
-      const base = baseUrl || providerCatalog().find(p => p.id === 'anthropic')!.defaultBaseUrl!;
-      const res = await withTimeout(fetch(`${base}/v1/messages`, {
-        method: 'POST',
-        signal: controller.signal,
-        cache: 'no-store',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': config.apiKey || '',
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: config.model,
-          max_tokens: 512,
-          system: messages.find((m) => m.role === 'system')?.content,
-          messages: messages
-            .filter((m) => m.role !== 'system')
-            .map((m) => ({ role: m.role, content: m.content })),
-        }),
-      }), timeout, controller.signal);
-      if (!res.ok) return { ok: false, error: { code: `HTTP_${res.status}`, message: await safeText(res) } };
-      const json: any = await res.json();
-      const content: string | undefined = json?.content?.[0]?.text || json?.content?.[0]?.content?.[0]?.text;
-      if (!content) return { ok: false, error: { code: 'NO_CONTENT', message: 'No content' } };
-      return { ok: true, provider, model: config.model || '', content };
+      const ccStatus = ccRes.status;
+      const ccText = await safeText(ccRes);
+
+      // Optional fallback to Responses API for providers that support it (OpenRouter)
+      if (provider === 'openrouter') {
+        try {
+          const responsesUrl = `${base}/responses`;
+          const input = messages.map((m) => ({
+            role: m.role,
+            content: [{ type: 'text', text: m.content }],
+          }));
+          const rRes = await withTimeout(fetch(responsesUrl, {
+            method: 'POST',
+            signal: controller.signal,
+            headers,
+            cache: 'no-store',
+            body: JSON.stringify({ model: config.model, input }),
+          }), timeout, controller.signal);
+          if (rRes.ok) {
+            const rJson: any = await rRes.json();
+            const content: string | undefined = rJson?.output_text
+              || rJson?.output?.[0]?.content?.[0]?.text
+              || rJson?.content?.[0]?.text;
+            if (!content) return { ok: false, error: { code: 'NO_CONTENT', message: 'No content' } };
+            return { ok: true, provider, model: config.model || '', content };
+          }
+          const rText = await safeText(rRes);
+          return { ok: false, error: { code: `HTTP_${rRes.status}`, message: rText || `Chat failed (CC ${ccStatus}: ${ccText})` } };
+        } catch (e: any) {
+          return { ok: false, error: { code: 'ERR', message: e?.message || `Chat failed (CC ${ccStatus}: ${ccText})` } };
+        }
+      }
+
+      return { ok: false, error: { code: `HTTP_${ccStatus}`, message: ccText } };
     }
 
     if (provider === 'ollama') {

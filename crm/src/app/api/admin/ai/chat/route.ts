@@ -32,7 +32,17 @@ export async function POST(req: NextRequest) {
   }));
   if (configs.length === 0) return jsonError('NO_PROVIDERS', { status: 400, message: 'No enabled providers' });
   const result = await chatWithFailover(configs as any, messages);
-  if (!result.ok) return jsonError(result.error?.code || 'FAILED', { status: 400, message: result.error?.message, details: { tried: result.tried } });
+  if (!result.ok) {
+    // Attach more diagnostics for debugging
+    return jsonError(result.error?.code || 'FAILED', {
+      status: 400,
+      message: result.error?.message,
+      details: {
+        tried: result.tried,
+        providers: configs.map((c) => ({ provider: c.provider, model: c.model, baseUrl: c.baseUrl ? redactUrl(c.baseUrl) : null })),
+      },
+    });
+  }
   return jsonOk({ content: result.content, provider: result.provider, model: result.model, tried: result.tried });
 }
 
@@ -42,6 +52,10 @@ export function DELETE() { return jsonError('METHOD_NOT_ALLOWED', { status: 405 
 
 function safeJsonParse(s?: string | null): any {
   if (!s) return null; try { return JSON.parse(s); } catch { return null; }
+}
+
+function redactUrl(u: string): string {
+  try { const url = new URL(u); url.username = ''; url.password = ''; return url.toString(); } catch { return u; }
 }
 
 
