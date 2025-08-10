@@ -52,6 +52,7 @@ export default function AdminPage() {
   const [editOpenForId, setEditOpenForId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<{ label: string; baseUrl: string; apiKey: string; model: string; timeoutMs: number | '' ; priority: number | '' }|null>(null);
   const [editModels, setEditModels] = useState<string[]>([]);
+  const editingProviderHasKey = useMemo(() => aiProviders.find(x => x.id === editOpenForId)?.hasApiKey || false, [editOpenForId, aiProviders]);
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'user'|'assistant'|'system'; content: string }>>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatSystem, setChatSystem] = useState('');
@@ -437,7 +438,8 @@ export default function AdminPage() {
                 </div>
                 <label className="text-sm block">
                   <span className="text-xs opacity-70">API Key</span>
-                  <Input value={editForm.apiKey} onChange={(e) => setEditForm({ ...(editForm as any), apiKey: e.target.value })} placeholder="sk-…" />
+                  <Input value={editForm.apiKey} onChange={(e) => setEditForm({ ...(editForm as any), apiKey: e.target.value })} placeholder={editingProviderHasKey ? '•••••• (stored)' : 'sk-…'} />
+                  <div className="mt-1 text-xs opacity-70">For security, the saved key is not shown. Leave blank to keep existing; enter a new key to update.</div>
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
                   <label className="text-sm block">
@@ -554,17 +556,19 @@ export default function AdminPage() {
     try {
       const token = await getAccessToken();
       if (!token) return;
+      const payload: any = {
+        label: editForm.label || null,
+        baseUrl: editForm.baseUrl || null,
+        // Only include apiKey when user entered a value; blank means don't change
+        model: editForm.model || null,
+        timeoutMs: editForm.timeoutMs || null,
+        priority: editForm.priority || 1000,
+      };
+      if ((editForm.apiKey || '').trim().length > 0) payload.apiKey = editForm.apiKey;
       const res = await fetch(`/api/admin/ai/providers/${editOpenForId}`, {
         method: 'PUT',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          label: editForm.label || null,
-          baseUrl: editForm.baseUrl || null,
-          apiKey: (editForm.apiKey || '').length ? editForm.apiKey : null,
-          model: editForm.model || null,
-          timeoutMs: editForm.timeoutMs || null,
-          priority: editForm.priority || 1000,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (json.ok) {

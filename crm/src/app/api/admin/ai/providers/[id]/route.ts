@@ -22,7 +22,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     switch (key) {
       case 'label': fields.push('label = ?'); values.push(body[key]); break;
       case 'baseUrl': fields.push('base_url = ?'); values.push(body[key]); break;
-      case 'apiKey': fields.push('api_key = ?'); values.push(body[key] || null); break;
+      case 'apiKey':
+        // Only update when provided; allow clearing with explicit null
+        if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
+          fields.push('api_key = ?'); values.push(body[key] ?? null);
+        }
+        break;
       case 'model': fields.push('model = ?'); values.push(body[key] || null); break;
       case 'enabled': fields.push('enabled = ?'); values.push(body[key] ? 1 : 0); break;
       case 'timeoutMs': fields.push('timeout_ms = ?'); values.push(Number.isFinite(Number(body[key])) ? Number(body[key]) : null); break;

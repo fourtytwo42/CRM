@@ -27,9 +27,10 @@ export async function POST(req: NextRequest) {
   try {
     const models = await fetchModels({
       provider: cfg.provider,
-      apiKey: cfg.api_key || body?.apiKey || null,
-      baseUrl: cfg.base_url || body?.baseUrl || null,
-      timeoutMs: cfg.timeout_ms || body?.timeoutMs || null,
+      // Prefer explicit overrides from request body; fall back to stored config
+      apiKey: body?.apiKey || cfg.api_key || null,
+      baseUrl: body?.baseUrl || cfg.base_url || null,
+      timeoutMs: body?.timeoutMs || cfg.timeout_ms || null,
     } as any);
     return jsonOk({ models });
   } catch (e: any) {

@@ -61,9 +61,7 @@ export async function fetchModels(config: AiProviderConfig): Promise<string[]> {
     // OpenAI-compatible endpoint: GET /models
     const controller = new AbortController();
     const headers: Record<string, string> = { 'content-type': 'application/json' };
-    if (provider === 'openai') headers['authorization'] = `Bearer ${config.apiKey || ''}`;
-    if (provider === 'openrouter') headers['authorization'] = `Bearer ${config.apiKey || ''}`;
-    if (provider === 'groq') headers['authorization'] = `Bearer ${config.apiKey || ''}`;
+    if (provider !== 'lmstudio') headers['authorization'] = `Bearer ${config.apiKey || ''}`;
     // LM Studio typically does not need auth
     const url = `${baseUrl || providerCatalog().find(p => p.id === (provider === 'lmstudio' ? 'lmstudio' : provider))?.defaultBaseUrl}/models`;
     const res = await withTimeout(fetch(url, { signal: controller.signal, headers, cache: 'no-store' }), timeout, controller.signal);
