@@ -37,6 +37,8 @@ export default function AdminPage() {
   const [emailCfg, setEmailCfg] = useState<{ host: string; port: number; secure: boolean; username?: string|null; password?: string|null; from_email: string; from_name?: string|null }>(
     { host: '', port: 465, secure: true, username: '', password: '', from_email: '', from_name: '' }
   );
+  const [smtpHasPassword, setSmtpHasPassword] = useState(false);
+  const [smtpClearPassword, setSmtpClearPassword] = useState(false);
   const [testTo, setTestTo] = useState('');
   const [emailBusy, setEmailBusy] = useState<'idle'|'saving'|'testing'>('idle');
   const [emailMsg, setEmailMsg] = useState<string | null>(null);
@@ -112,10 +114,13 @@ export default function AdminPage() {
             port: Number(json.data?.port || 587),
             secure: !!json.data?.secure,
             username: json.data?.username || '',
-            password: json.data?.password || '',
+            // Never load password from server; only track presence via hasPassword
+            password: '',
             from_email: json.data?.from_email || '',
             from_name: json.data?.from_name || '',
           });
+          setSmtpHasPassword(!!json.data?.hasPassword);
+          setSmtpClearPassword(false);
         }
       } catch {}
     };
@@ -255,12 +260,31 @@ export default function AdminPage() {
                 setEmailBusy('saving'); setEmailMsg(null);
                 const token = await getAccessToken();
                 if (!token) { setEmailBusy('idle'); setEmailMsg('Not authorized. Please sign in again.'); return; }
-                const payload = { ...emailCfg } as any;
-                if ((emailCfg.password || '').length === 0) payload.password = null; // explicitly clear if empty
+                const payload: any = { ...emailCfg };
+                // Apply password intent:
+                // - If Clear is checked, set to null (remove from DB)
+                // - Else if user typed a new password, send it
+                // - Else omit the field to preserve stored value
+                if (smtpClearPassword) {
+                  payload.password = null;
+                } else if ((emailCfg.password || '').length > 0) {
+                  payload.password = emailCfg.password;
+                } else {
+                  delete payload.password;
+                }
                 const res = await fetch('/api/admin/settings/email', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
                 const json = await res.json();
                 setEmailBusy('idle');
                 setEmailMsg(json.ok ? 'Saved.' : 'Failed to save');
+                if (json.ok) {
+                  if (smtpClearPassword) {
+                    setSmtpHasPassword(false);
+                  } else if ((emailCfg.password || '').length > 0) {
+                    setSmtpHasPassword(true);
+                  }
+                  setEmailCfg((cfg) => ({ ...cfg, password: '' }));
+                  setSmtpClearPassword(false);
+                }
               }}>
                 <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input placeholder="From Email" type="email" value={emailCfg.from_email} onChange={e => setEmailCfg({ ...(emailCfg as any), from_email: e.target.value })} />
@@ -277,8 +301,12 @@ export default function AdminPage() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <Input placeholder="Username (optional)" value={emailCfg.username || ''} onChange={e => setEmailCfg({ ...(emailCfg as any), username: e.target.value })} />
-                    <Input placeholder={emailCfg.password ? '•••••• (stored)' : 'Password (optional)'} value={emailCfg.password || ''} onChange={e => setEmailCfg({ ...(emailCfg as any), password: e.target.value })} />
+                    <Input placeholder={smtpHasPassword ? '•••••• (stored)' : 'Password (optional)'} value={emailCfg.password || ''} onChange={e => setEmailCfg({ ...(emailCfg as any), password: e.target.value })} />
                   </div>
+                  <label className="md:col-span-2 text-xs flex items-center gap-2">
+                    <input type="checkbox" checked={smtpClearPassword} onChange={(e) => setSmtpClearPassword(e.target.checked)} />
+                    Clear saved SMTP password
+                  </label>
                 </div>
                 <div className="md:col-span-2 flex items-center justify-end gap-2">
                   <Button type="button" variant="secondary" onClick={async () => {
