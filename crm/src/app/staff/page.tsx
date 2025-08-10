@@ -23,7 +23,7 @@ type Agent = {
   name: string;
   title: string;
 };
-type AgentRow = { id: number; username: string; email?: string; role: string; status: string };
+type AgentRow = { id: number; username: string; email?: string; role: string; status: string; campaigns?: string[] };
 
 type Case = {
   id: number;
@@ -216,6 +216,7 @@ export default function AgentPage() {
                       <th className="px-6 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'username', dir: s.col==='username' && s.dir==='asc' ? 'desc' : 'asc' }))}>Username</th>
                       <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'email', dir: s.col==='email' && s.dir==='asc' ? 'desc' : 'asc' }))}>Email</th>
                       <th className="px-3 py-3 font-medium">Role</th>
+                      <th className="px-3 py-3 font-medium">Campaigns</th>
                       <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'status', dir: s.col==='status' && s.dir==='asc' ? 'desc' : 'asc' }))}>Status</th>
                       <th className="px-3 py-3 font-medium text-right">Actions</th>
                     </tr>
@@ -226,6 +227,20 @@ export default function AgentPage() {
                         <td className="px-6 py-3">{a.username}</td>
                         <td className="px-3 py-3">{a.email}</td>
                         <td className="px-3 py-3">{a.role}</td>
+                        <td className="px-3 py-3">
+                          {(a.campaigns && a.campaigns.length) ? (
+                            <div className="flex flex-wrap gap-1">
+                              {a.campaigns.slice(0, 3).map((c) => (
+                                <span key={c} className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">{c}</span>
+                              ))}
+                              {a.campaigns.length > 3 && (
+                                <span className="text-xs opacity-70">+{a.campaigns.length - 3} more</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="opacity-60">—</span>
+                          )}
+                        </td>
                         <td className="px-3 py-3">{a.status}</td>
                         <td className="px-3 py-3 text-right">
                           <a href={`/agent/${a.id}`} className="underline">Open</a>

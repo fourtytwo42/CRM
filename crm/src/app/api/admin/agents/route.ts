@@ -24,7 +24,21 @@ export async function GET(req: NextRequest) {
     LIMIT 200
   `).all(`%${q}%`, `%${q}%`);
 
-  return jsonOk({ agents: rows });
+  // Attach campaigns assigned to each agent for glance visibility
+  const campaignRows = db.prepare(`
+    SELECT ac.agent_user_id AS user_id, c.name AS campaign_name
+    FROM agent_campaigns ac
+    JOIN campaigns c ON c.id = ac.campaign_id
+  `).all() as Array<{ user_id: number; campaign_name: string }>;
+  const campaignsByUserId = new Map<number, string[]>();
+  for (const r of campaignRows) {
+    const list = campaignsByUserId.get(r.user_id) || [];
+    list.push(r.campaign_name);
+    campaignsByUserId.set(r.user_id, list);
+  }
+  const agents = rows.map((r: any) => ({ ...r, campaigns: campaignsByUserId.get(r.id) || [] }));
+
+  return jsonOk({ agents });
 }
 
 
