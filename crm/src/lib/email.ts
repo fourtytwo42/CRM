@@ -24,11 +24,17 @@ export function getEmailSettings(): EmailSettings | null {
 }
 
 export function createTransporterFromSettings(settings: EmailSettings): Transporter {
+  // Fallback to from_email as SMTP username when explicit username is blank
+  const user = (settings.username && String(settings.username).trim().length > 0)
+    ? String(settings.username)
+    : String(settings.from_email);
+  const pass = settings.password || '';
+  const useAuth = user && pass.length > 0;
   return nodemailer.createTransport({
     host: settings.host,
     port: Number(settings.port || 465),
     secure: settings.secure ? true : false,
-    auth: settings.username ? { user: settings.username, pass: settings.password || '' } : undefined,
+    auth: useAuth ? { user, pass } : undefined,
     requireTLS: !(settings.secure ? true : false),
     connectionTimeout: env.smtpConnectionTimeoutMs,
     greetingTimeout: env.smtpGreetingTimeoutMs,
