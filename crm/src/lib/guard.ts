@@ -5,7 +5,7 @@ import { getDb } from './db';
 export type AuthenticatedUser = {
   id: number;
   username: string;
-  role: 'admin'|'power'|'user';
+  role: 'admin'|'power'|'manager'|'lead'|'agent';
   status: 'active'|'suspended'|'banned';
   avatar_url?: string|null;
   theme_preference: 'light'|'dark'|'system';

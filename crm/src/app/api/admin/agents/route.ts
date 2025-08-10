@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const rows = db.prepare(`
     SELECT id, username, email, role, status, created_at, last_login_at, last_seen_at
     FROM users
-    WHERE role IN ('power','user')
+    WHERE role IN ('power','manager','lead','agent')
       AND (LOWER(username) LIKE ? OR LOWER(COALESCE(email,'')) LIKE ?)
     ORDER BY ${sortCol} ${dir}
     LIMIT 200

@@ -12,7 +12,7 @@ function getKey(): Uint8Array {
 export type AccessTokenClaims = JWTPayload & {
   sub: string;
   username: string;
-  role: 'admin' | 'power' | 'user';
+  role: 'admin' | 'power' | 'manager' | 'lead' | 'agent' | 'user';
   status: 'active' | 'suspended' | 'banned';
   ver: number;
   jti: string;

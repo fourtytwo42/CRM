@@ -191,6 +191,14 @@ export default function AgentPage() {
                 <Button variant="secondary"><IconFilter size={18} className="mr-2" />Filters</Button>
                 <Button><IconSearch size={18} className="mr-2" />Search</Button>
                 <Button variant="primary" onClick={() => setAddOpen(true)}>Add Customer</Button>
+                <Button variant="secondary" onClick={async () => {
+                  const email = prompt('Enter agent email to invite');
+                  if (!email) return;
+                  const token = await getAccessToken();
+                  if (!token) return;
+                  await fetch('/api/admin/agents/invite', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ email, role: 'agent' }) });
+                  alert('Invitation sent if email is valid.');
+                }}>Invite Agent</Button>
               </div>
             } />
             <CardBody>

@@ -49,7 +49,7 @@ function migrate(db: Database.Database): void {
       username TEXT NOT NULL UNIQUE,
       email TEXT,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('admin','power','user')),
+      role TEXT NOT NULL CHECK (role IN ('admin','power','manager','lead','agent','user')),
       status TEXT NOT NULL CHECK (status IN ('active','suspended','banned')),
       ban_reason TEXT,
       avatar_url TEXT,
@@ -66,7 +66,7 @@ function migrate(db: Database.Database): void {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
-
+ 
     CREATE TABLE IF NOT EXISTS site_settings (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       registration_enabled INTEGER NOT NULL DEFAULT 1,
@@ -256,6 +256,36 @@ function migrate(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_agent_campaigns_campaign ON agent_campaigns(campaign_id);
   `);
 
+  // Agent assignments to verticals (many-to-many)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS agent_verticals (
+      agent_user_id INTEGER NOT NULL,
+      vertical_id INTEGER NOT NULL,
+      assigned_at TEXT NOT NULL,
+      PRIMARY KEY (agent_user_id, vertical_id),
+      FOREIGN KEY(agent_user_id) REFERENCES users(id),
+      FOREIGN KEY(vertical_id) REFERENCES verticals(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_verticals_agent ON agent_verticals(agent_user_id);
+    CREATE INDEX IF NOT EXISTS idx_agent_verticals_vertical ON agent_verticals(vertical_id);
+  `);
+
+  // Supervisor relations (manager/lead supervising an agent)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS agent_supervisors (
+      agent_user_id INTEGER NOT NULL,
+      supervisor_user_id INTEGER NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('manager','lead')),
+      assigned_at TEXT NOT NULL,
+      PRIMARY KEY (agent_user_id, supervisor_user_id, kind),
+      FOREIGN KEY(agent_user_id) REFERENCES users(id),
+      FOREIGN KEY(supervisor_user_id) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_supervisors_agent ON agent_supervisors(agent_user_id);
+    CREATE INDEX IF NOT EXISTS idx_agent_supervisors_supervisor ON agent_supervisors(supervisor_user_id);
+    CREATE INDEX IF NOT EXISTS idx_agent_supervisors_kind ON agent_supervisors(kind);
+  `);
+
   // Customer assignments to campaigns
   db.exec(`
     CREATE TABLE IF NOT EXISTS customer_campaigns (
@@ -390,6 +420,57 @@ function migrate(db: Database.Database): void {
   // Ensure unique index on email when present (nullable allowed)
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email) WHERE email IS NOT NULL`);
 
+  // Backfill: upgrade role enum and map legacy 'user' -> 'agent'
+  try {
+    const info = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get() as { sql?: string } | undefined;
+    if (info && info.sql && !info.sql.includes("'manager'")) {
+      db.exec('BEGIN');
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS users_tmp (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          username TEXT NOT NULL UNIQUE,
+          email TEXT,
+          password_hash TEXT NOT NULL,
+          role TEXT NOT NULL CHECK (role IN ('admin','power','manager','lead','agent')),
+          status TEXT NOT NULL CHECK (status IN ('active','suspended','banned')),
+          ban_reason TEXT,
+          avatar_url TEXT,
+          theme_preference TEXT NOT NULL DEFAULT 'system' CHECK (theme_preference IN ('light','dark','system')),
+          token_version INTEGER NOT NULL DEFAULT 0,
+          email_verified_at TEXT,
+          email_verification_code TEXT,
+          email_verification_sent_at TEXT,
+          new_email TEXT,
+          new_email_verification_code TEXT,
+          new_email_verification_sent_at TEXT,
+          last_login_at TEXT,
+          last_seen_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+      db.exec(`
+        INSERT INTO users_tmp (
+          id, username, email, password_hash, role, status, ban_reason, avatar_url, theme_preference, token_version,
+          email_verified_at, email_verification_code, email_verification_sent_at, new_email, new_email_verification_code, new_email_verification_sent_at,
+          last_login_at, last_seen_at, created_at, updated_at
+        )
+        SELECT
+          id, username, email, password_hash,
+          CASE role WHEN 'user' THEN 'agent' ELSE role END,
+          status, ban_reason, avatar_url, theme_preference, token_version,
+          email_verified_at, email_verification_code, email_verification_sent_at, new_email, new_email_verification_code, new_email_verification_sent_at,
+          last_login_at, last_seen_at, created_at, updated_at
+        FROM users;
+      `);
+      db.exec(`DROP TABLE users;`);
+      db.exec(`ALTER TABLE users_tmp RENAME TO users;`);
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique ON users(username);`);
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email) WHERE email IS NOT NULL`);
+      db.exec('COMMIT');
+    }
+  } catch {}
+
   // Backfill for site_settings new column
   try {
     const cols = db.prepare(`PRAGMA table_info(site_settings)`).all() as Array<{ name: string }>;
@@ -448,7 +529,9 @@ function seed(db: Database.Database): void {
 
   insertUser.run({ username: 'admin', email: 'admin@example.com', password_hash: defaultHash, role: 'admin', created_at: now, updated_at: now });
   insertUser.run({ username: 'power', email: 'power@example.com', password_hash: defaultHash, role: 'power', created_at: now, updated_at: now });
-  insertUser.run({ username: 'user', email: 'user@example.com', password_hash: defaultHash, role: 'user', created_at: now, updated_at: now });
+  insertUser.run({ username: 'manager', email: 'manager@example.com', password_hash: defaultHash, role: 'manager', created_at: now, updated_at: now });
+  insertUser.run({ username: 'lead', email: 'lead@example.com', password_hash: defaultHash, role: 'lead', created_at: now, updated_at: now });
+  insertUser.run({ username: 'agent', email: 'agent@example.com', password_hash: defaultHash, role: 'agent', created_at: now, updated_at: now });
 
   // Default settings for development
   db.prepare(`INSERT OR IGNORE INTO site_settings (id, registration_enabled) VALUES (1, 1)`).run();
@@ -519,11 +602,23 @@ function seed(db: Database.Database): void {
     const uid = (u: string) => (db.prepare(`SELECT id FROM users WHERE username = ?`).get(u) as { id: number }).id;
     const adminId = uid('admin');
     const powerId = uid('power');
-    const agentId = uid('user');
+    const managerId = uid('manager');
+    const leadId = uid('lead');
+    const agentId = uid('agent');
     [cSellShoes, cSellHats].forEach((cid) => insertAgentCampaign.run(agentId, cid, nowIso));
     [cSellShoes, cSellHats, cBackToSchool, cQ4Expansion].forEach((cid) => insertAgentCampaign.run(powerId, cid, nowIso));
     // Optionally assign admin as observer
     [cQ4Expansion].forEach((cid) => insertAgentCampaign.run(adminId, cid, nowIso));
+
+    // Assign manager/lead to verticals
+    const insertAgentVertical = db.prepare(`INSERT OR IGNORE INTO agent_verticals (agent_user_id, vertical_id, assigned_at) VALUES (?, ?, ?)`);
+    [vDicks, vAcme, vInitech].forEach((vid) => insertAgentVertical.run(managerId, vid, nowIso));
+    [vDicks].forEach((vid) => insertAgentVertical.run(leadId, vid, nowIso));
+
+    // Supervisors for agent
+    const insertSupervisor = db.prepare(`INSERT OR IGNORE INTO agent_supervisors (agent_user_id, supervisor_user_id, kind, assigned_at) VALUES (?, ?, ?, ?)`);
+    insertSupervisor.run(agentId, managerId, 'manager', nowIso);
+    insertSupervisor.run(agentId, leadId, 'lead', nowIso);
 
     // Assign customers to campaigns
     const getCustomerIdByEmail = (email: string) => (db.prepare(`SELECT id FROM customers WHERE email = ?`).get(email) as { id: number } | undefined)?.id;

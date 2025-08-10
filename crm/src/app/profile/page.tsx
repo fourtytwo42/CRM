@@ -67,13 +67,19 @@ export default function ProfilePage() {
     return () => bc.close();
   }, []);
 
-  // Handle verify-email redirect banner
+  // Handle verify-email and onboarding
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const verified = params.get('verified');
       if (verified === '1') setGlobalNotice('Email verified successfully.');
       if (verified === '0') setGlobalError('Email verification failed or expired.');
+      const onboarding = params.get('onboarding');
+      if (onboarding === '1') {
+        setGlobalNotice('Welcome! Please set your username, password, and optional avatar.');
+        setEditUsernameOpen(true);
+        setEditPasswordOpen(true);
+      }
     } catch {}
   }, []);
 

@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const campaign = url.searchParams.get('campaign') || '';
   const sort = url.searchParams.get('sort') || 'username';
   const dir = (url.searchParams.get('dir') || 'asc').toLowerCase() === 'desc' ? 'DESC' : 'ASC';
-  const isElevated = me.role === 'admin' || me.role === 'power';
+  const isElevated = me.role === 'admin' || me.role === 'power' || me.role === 'manager' || me.role === 'lead';
 
   const base = `
     SELECT DISTINCT u.id, u.username, u.email, u.role, u.status,
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     JOIN agent_campaigns ac ON ac.agent_user_id = u.id
     JOIN campaigns c ON c.id = ac.campaign_id
     JOIN verticals v ON v.id = c.vertical_id
-    WHERE u.role IN ('power','user')
+    WHERE u.role IN ('power','manager','lead','agent')
   `;
 
   const where: string[] = [];
