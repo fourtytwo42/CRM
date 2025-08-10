@@ -157,12 +157,13 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
 
       // First try Chat Completions
       const chatUrl = `${base}/chat/completions`;
+      const payload = { model: config.model, messages, temperature: 0.2, stream: false };
       const ccRes = await withTimeout(fetch(chatUrl, {
         method: 'POST',
         signal: controller.signal,
         headers,
         cache: 'no-store',
-        body: JSON.stringify({ model: config.model, messages, temperature: 0.2, stream: false }),
+        body: JSON.stringify(payload),
       }), timeout, controller.signal);
       if (ccRes.ok) {
         const json: any = await ccRes.json();
@@ -173,6 +174,10 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
 
       const ccStatus = ccRes.status;
       const ccText = await safeText(ccRes);
+      try {
+        // eslint-disable-next-line no-console
+        console.error('[ai-chat] CC failed', { provider, status: ccStatus, text: ccText, base: baseUrl });
+      } catch {}
 
       // Optional fallback to Responses API for providers that support it (OpenRouter)
       if (provider === 'openrouter') {
@@ -182,12 +187,13 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
             role: m.role,
             content: [{ type: 'text', text: m.content }],
           }));
+          const rPayload = { model: config.model, input } as any;
           const rRes = await withTimeout(fetch(responsesUrl, {
             method: 'POST',
             signal: controller.signal,
             headers,
             cache: 'no-store',
-            body: JSON.stringify({ model: config.model, input }),
+            body: JSON.stringify(rPayload),
           }), timeout, controller.signal);
           if (rRes.ok) {
             const rJson: any = await rRes.json();
@@ -198,8 +204,10 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
             return { ok: true, provider, model: config.model || '', content };
           }
           const rText = await safeText(rRes);
+          try { console.error('[ai-chat] Responses failed', { provider, status: rRes.status, text: rText }); } catch {}
           return { ok: false, error: { code: `HTTP_${rRes.status}`, message: rText || `Chat failed (CC ${ccStatus}: ${ccText})` } };
         } catch (e: any) {
+          try { console.error('[ai-chat] Responses exception', { provider, error: e?.message }); } catch {}
           return { ok: false, error: { code: 'ERR', message: e?.message || `Chat failed (CC ${ccStatus}: ${ccText})` } };
         }
       }

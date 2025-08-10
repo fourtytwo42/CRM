@@ -33,14 +33,25 @@ export async function POST(req: NextRequest) {
   if (configs.length === 0) return jsonError('NO_PROVIDERS', { status: 400, message: 'No enabled providers' });
   const result = await chatWithFailover(configs as any, messages);
   if (!result.ok) {
-    // Attach more diagnostics for debugging
+    // Attach more diagnostics for debugging and log on server
+    const details = {
+      tried: result.tried,
+      providers: configs.map((c) => ({ provider: c.provider, model: c.model, baseUrl: c.baseUrl ? redactUrl(c.baseUrl) : null })),
+      messageCount: messages.length,
+      roles: messages.map((m) => m.role),
+    };
+    try {
+      // eslint-disable-next-line no-console
+      console.error('[ai-chat] failure', {
+        code: result.error?.code,
+        message: result.error?.message,
+        ...details,
+      });
+    } catch {}
     return jsonError(result.error?.code || 'FAILED', {
       status: 400,
       message: result.error?.message,
-      details: {
-        tried: result.tried,
-        providers: configs.map((c) => ({ provider: c.provider, model: c.model, baseUrl: c.baseUrl ? redactUrl(c.baseUrl) : null })),
-      },
+      details,
     });
   }
   return jsonOk({ content: result.content, provider: result.provider, model: result.model, tried: result.tried });

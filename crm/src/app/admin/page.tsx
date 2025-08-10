@@ -414,7 +414,15 @@ export default function AdminPage() {
                 )}
               </div>
               {chatMeta && (
-                <div className="text-xs opacity-70">Replied by {displayProviderName(chatMeta.provider || '')} {chatMeta.model ? `(${chatMeta.model})` : ''}{chatMeta.tried && chatMeta.tried.length ? `; tried: ${chatMeta.tried.map(t => t.provider).join(' → ')}` : ''}</div>
+                <div className="text-xs opacity-70">
+                  {chatMeta.provider ? (
+                    <>Replied by {displayProviderName(chatMeta.provider || '')} {chatMeta.model ? `(${chatMeta.model})` : ''}</>
+                  ) : (
+                    <>No reply</>
+                  )}
+                  {chatMeta.tried && chatMeta.tried.length ? `; tried: ${chatMeta.tried.map(t => `${t.provider}(${t.code})`).join(' → ')}` : ''}
+                  {chatMeta.details?.providers ? `; providers: ${chatMeta.details.providers.map((p: any) => `${p.provider}${p.model ? '(' + p.model + ')' : ''}`).join(', ')}` : ''}
+                </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
                 <Input placeholder="Type a message…" value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }} />
