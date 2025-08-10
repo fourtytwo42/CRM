@@ -208,6 +208,25 @@ export default function AgentPage() {
                         <td className="px-3 py-3">{a.status}</td>
                         <td className="px-3 py-3 text-right">
                           <a href={`/agent/${a.id}`} className="underline">Open</a>
+                          <button
+                            className="underline ml-2 text-red-600"
+                            onClick={async () => {
+                              if (!confirm('Delete this user? This cannot be undone.')) return;
+                              const token = await getAccessToken();
+                              if (!token) return;
+                              await fetch(`/api/admin/agents/${a.id}?force=1`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+                              // Refresh agents list
+                              try {
+                                const qs = new URLSearchParams();
+                                if (agentQ) qs.set('q', agentQ);
+                                const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
+                                const ja = await resAgents.json().catch(() => null);
+                                if (ja && ja.ok) setAgents(ja.data.agents || []);
+                              } catch {}
+                            }}
+                          >
+                            Delete
+                          </button>
                         </td>
                       </tr>
                     ))}
