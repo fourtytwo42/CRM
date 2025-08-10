@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --surface: 255 255 255;
+    --surface-muted: 248 250 252; /* slate-50 */
+    --text: 17 24 39; /* gray-900 */
+    --border: 0 0 0; /* black */
+    --accent: 0 0 0; /* black */
+  }
+  .dark {
+    --surface: 3 7 18; /* gray-950 */
+    --surface-muted: 2 6 23; /* slate-950 */
+    --text: 243 244 246; /* gray-100 */
+    --border: 255 255 255;
+    --accent: 255 255 255;
+  }
+}
+
+html, body {
+  min-height: 100%;
+}
+
+body {
+  color: rgb(var(--text));
+  background: radial-gradient(1200px 600px at 10% -10%, rgba(0,0,0,0.04), transparent),
+              radial-gradient(1200px 600px at 90% -10%, rgba(0,0,0,0.04), transparent),
+              rgb(var(--surface));
+}
+.dark body {
+  background: radial-gradient(1200px 600px at 10% -10%, rgba(255,255,255,0.06), transparent),
+              radial-gradient(1200px 600px at 90% -10%, rgba(255,255,255,0.06), transparent),
+              rgb(var(--surface));
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .container-hero { @apply max-w-7xl mx-auto px-6; }
+  .gradient-title { background: linear-gradient(180deg, #111111, #666666); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .dark .gradient-title { background: linear-gradient(180deg, #ffffff, #a3a3a3); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+}
