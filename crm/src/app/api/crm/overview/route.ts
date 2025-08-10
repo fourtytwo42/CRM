@@ -54,7 +54,11 @@ export async function GET(req: NextRequest) {
         LIMIT 100
       `).all(me.id);
 
-  return jsonOk({ campaigns, usersByCampaign, activeCasesByAgent, tasks: { overdue: overdueTasks.n, completed: completedTasks.n }, customers });
+  // Managers and Leads lists
+  const managers = db.prepare(`SELECT id, username FROM users WHERE role = 'manager' ORDER BY username ASC`).all();
+  const leads = db.prepare(`SELECT id, username FROM users WHERE role = 'lead' ORDER BY username ASC`).all();
+
+  return jsonOk({ campaigns, usersByCampaign, activeCasesByAgent, tasks: { overdue: overdueTasks.n, completed: completedTasks.n }, customers, managers, leads });
 }
 
 

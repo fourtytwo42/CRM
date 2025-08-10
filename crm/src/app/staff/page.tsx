@@ -65,6 +65,11 @@ export default function AgentPage() {
   const [uniqueCampaigns, setUniqueCampaigns] = useState<string[]>([]);
   const [rows, setRows] = useState<Customer[]>([]);
   const [agents, setAgents] = useState<AgentRow[]>([]);
+  const [agentQ, setAgentQ] = useState('');
+  const [managerId, setManagerId] = useState<string>('');
+  const [leadId, setLeadId] = useState<string>('');
+  const [managers, setManagers] = useState<Array<{ id:number; username:string }>>([]);
+  const [leads, setLeads] = useState<Array<{ id:number; username:string }>>([]);
   const [agentSort, setAgentSort] = useState<{ col: 'username'|'email'|'status'; dir: 'asc'|'desc' }>({ col: 'username', dir: 'asc' });
 
   const filtered = useMemo(() => {
@@ -80,6 +85,9 @@ export default function AgentPage() {
   const [counts, setCounts] = useState({ usersByCampaign: [] as Array<{ name: string; count: number }>, activeCasesByAgent: [] as Array<{ name: string; count: number }>, tasks: { overdue: 0, completed: 0 } });
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState({ full_name: '', email: '', phone: '', company: '', title: '', notes: '', campaign_id: '' });
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'agent'|'manager'|'lead'>('agent');
 
   useEffect(() => {
     (async () => {
@@ -93,12 +101,16 @@ export default function AgentPage() {
         setRows(json.data.customers || []);
         setUniqueVerticals(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.vertical))));
         setUniqueCampaigns(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.name))));
+        setManagers(json.data.managers || []);
+        setLeads(json.data.leads || []);
       }
-      const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}`, { headers: { authorization: `Bearer ${token}` } });
+      const qs = new URLSearchParams();
+      if (agentQ) qs.set('q', agentQ);
+      const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
       const ja = await resAgents.json().catch(() => null);
       if (ja && ja.ok) setAgents(ja.data.agents || []);
     })();
-  }, [agentSort]);
+  }, [agentSort, agentQ]);
 
   return (
     <main className="container-hero py-8">
@@ -155,8 +167,27 @@ export default function AgentPage() {
         <div className="xl:col-span-2 space-y-6">
           {/* Agents table (admin/power) */}
           <Card>
-            <CardHeader title="Agents" subtitle="Manage and browse agents" />
+            <CardHeader title="Agents" subtitle="Manage and browse agents" actions={
+              <div className="hidden md:flex items-center gap-2">
+                <Button variant="primary" onClick={() => setInviteOpen(true)}>Invite Agent</Button>
+              </div>
+            } />
             <CardBody>
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-4">
+                <div className="md:col-span-4"><Input placeholder="Search by username" value={agentQ} onChange={(e) => setAgentQ(e.target.value)} /></div>
+                <div className="md:col-span-4">
+                  <Select value={managerId} onChange={(e) => setManagerId(e.target.value)}>
+                    <option value="">All Managers</option>
+                    {managers.map(m => <option key={m.id} value={String(m.id)}>{m.username}</option>)}
+                  </Select>
+                </div>
+                <div className="md:col-span-4">
+                  <Select value={leadId} onChange={(e) => setLeadId(e.target.value)}>
+                    <option value="">All Leads</option>
+                    {leads.map(l => <option key={l.id} value={String(l.id)}>{l.username}</option>)}
+                  </Select>
+                </div>
+              </div>
               <div className="overflow-auto -mx-6">
                 <table className="min-w-full table-auto text-sm">
                   <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
@@ -191,14 +222,7 @@ export default function AgentPage() {
                 <Button variant="secondary"><IconFilter size={18} className="mr-2" />Filters</Button>
                 <Button><IconSearch size={18} className="mr-2" />Search</Button>
                 <Button variant="primary" onClick={() => setAddOpen(true)}>Add Customer</Button>
-                <Button variant="secondary" onClick={async () => {
-                  const email = prompt('Enter agent email to invite');
-                  if (!email) return;
-                  const token = await getAccessToken();
-                  if (!token) return;
-                  await fetch('/api/admin/agents/invite', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ email, role: 'agent' }) });
-                  alert('Invitation sent if email is valid.');
-                }}>Invite Agent</Button>
+                
               </div>
             } />
             <CardBody>
@@ -299,6 +323,29 @@ export default function AgentPage() {
                 await fetch('/api/crm/customers/new', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ ...addForm, campaign_id: campId }) });
                 setAddOpen(false);
               }}>Save</Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Invite Agent Dialog */}
+          <Dialog open={inviteOpen} onOpenChange={setInviteOpen} title="Invite Agent">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <Input placeholder="Agent email" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+              <Select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as any)}>
+                <option value="agent">Agent</option>
+                <option value="manager">Manager</option>
+                <option value="lead">Lead</option>
+              </Select>
+            </div>
+            <DialogActions>
+              <Button variant="secondary" onClick={() => setInviteOpen(false)}>Cancel</Button>
+              <Button onClick={async () => {
+                const token = await getAccessToken();
+                if (!token || !inviteEmail) { setInviteOpen(false); return; }
+                await fetch('/api/admin/agents/invite', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ email: inviteEmail, role: inviteRole }) });
+                setInviteOpen(false);
+                setInviteEmail('');
+                setInviteRole('agent');
+              }}>Send Invite</Button>
             </DialogActions>
           </Dialog>
 
