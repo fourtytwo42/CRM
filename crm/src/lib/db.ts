@@ -17,7 +17,19 @@ function ensureDirectoryExists(directoryPath: string): void {
 }
 
 function getDb(): Database.Database {
-  if (dbInstance) return dbInstance;
+  // If an instance already exists (hot-reload in dev), still ensure migrations run
+  if (dbInstance) {
+    try {
+      const currentVersion = Number((dbInstance as any).pragma('user_version', { simple: true }));
+      if (Number.isFinite(currentVersion) && currentVersion < SCHEMA_VERSION) {
+        migrate(dbInstance);
+        try { (dbInstance as any).pragma(`user_version = ${SCHEMA_VERSION}`); } catch {}
+        migratedOnce = true;
+        g.__dbMigratedOnce = migratedOnce;
+      }
+    } catch {}
+    return dbInstance;
+  }
 
   const dbFilePath = path.resolve(process.cwd(), env.databasePath);
   ensureDirectoryExists(path.dirname(dbFilePath));
