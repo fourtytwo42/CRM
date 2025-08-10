@@ -208,6 +208,18 @@ export default function AgentPage() {
                         <td className="px-3 py-3">{a.status}</td>
                         <td className="px-3 py-3 text-right">
                           <a href={`/agent/${a.id}`} className="underline">Open</a>
+                          {a.status === 'suspended' && (
+                            <button
+                              className="underline ml-2"
+                              onClick={async () => {
+                                const token = await getAccessToken();
+                                if (!token) return;
+                                await fetch(`/api/admin/agents/${a.id}/resend`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` } });
+                              }}
+                            >
+                              Resend Invite
+                            </button>
+                          )}
                           <button
                             className="underline ml-2 text-red-600"
                             onClick={async () => {
