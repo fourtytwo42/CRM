@@ -389,6 +389,17 @@ export default function ProfilePage() {
     });
     const json = await res.json().catch(() => ({ ok: false }));
     if (!json.ok) { setDialogError(json?.error?.message || 'Failed to change password'); return; }
+    // Persist new session tokens if provided
+    try {
+      if ((json as any).data?.refreshToken) {
+        localStorage.setItem('auth.refreshToken', (json as any).data.refreshToken);
+      }
+      if ((json as any).data?.user) {
+        localStorage.setItem('auth.user', JSON.stringify((json as any).data.user));
+        new BroadcastChannel('auth').postMessage({ type: 'profile' });
+        setProfile((json as any).data.user);
+      }
+    } catch {}
     setDialogSuccess('Password updated.');
     setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
     setEditPasswordOpen(false);

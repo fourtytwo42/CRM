@@ -3,6 +3,9 @@ import { requireAuth } from '@/lib/guard';
 import { getDb } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { jsonOk, jsonError, methodNotAllowed } from '@/lib/http';
+import { createAccessToken } from '@/lib/auth';
+import { createHash, randomUUID } from 'crypto';
+import { env } from '@/lib/env';
 
 export const runtime = 'nodejs';
 
@@ -29,7 +32,23 @@ export async function PUT(req: NextRequest) {
     db.prepare('UPDATE users SET password_hash = ?, token_version = token_version + 1, updated_at = ? WHERE id = ?').run(hash, nowIso, user.id);
     // Revoke all existing refresh tokens for this user to prevent session continuation
     db.prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL').run(nowIso, user.id);
-    return jsonOk();
+    // Issue new refresh + access token to keep user signed in
+    const refreshToken = randomUUID() + randomUUID();
+    const refreshHash = createHash('sha256').update(refreshToken).digest('hex');
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + env.refreshTokenDays * 24 * 60 * 60 * 1000);
+    db.prepare(`INSERT INTO refresh_tokens (user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?)`)
+      .run(user.id, refreshHash, now.toISOString(), expiresAt.toISOString());
+    const profile = db.prepare('SELECT id, username, email, role, status, avatar_url, theme_preference, token_version FROM users WHERE id = ?').get(user.id) as any;
+    const accessToken = await createAccessToken({
+      sub: String(profile.id),
+      username: profile.username,
+      role: profile.role,
+      status: profile.status,
+      ver: profile.token_version,
+      jti: randomUUID(),
+    });
+    return jsonOk({ accessToken, refreshToken, user: profile });
   } catch (e: any) {
     return jsonError(e?.message || 'UNAUTHORIZED', { status: 401 });
   }
