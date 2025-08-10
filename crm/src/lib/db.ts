@@ -8,7 +8,7 @@ const g = globalThis as any;
 let dbInstance: Database.Database | null = g.__dbInstance || null;
 let migratedOnce = g.__dbMigratedOnce || false;
 
-const SCHEMA_VERSION = 3; // bump when schema/backfills change
+const SCHEMA_VERSION = 4; // bump when schema/backfills change
 
 function ensureDirectoryExists(directoryPath: string): void {
   if (!fs.existsSync(directoryPath)) {
@@ -66,7 +66,7 @@ function migrate(db: Database.Database): void {
       username TEXT NOT NULL UNIQUE,
       email TEXT,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('admin','power','manager','lead','agent','user')),
+      role TEXT NOT NULL CHECK (role IN ('admin','power','manager','lead','agent')),
       status TEXT NOT NULL CHECK (status IN ('active','suspended','banned')),
       ban_reason TEXT,
       avatar_url TEXT,
@@ -440,7 +440,7 @@ function migrate(db: Database.Database): void {
   // Backfill: upgrade role enum and map legacy 'user' -> 'agent'
   try {
     const info = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get() as { sql?: string } | undefined;
-    if (info && info.sql && !info.sql.includes("'manager'")) {
+    if (info && info.sql && (!info.sql.includes("'manager'") || info.sql.includes("'user'))")) {
       db.exec('BEGIN');
       db.exec(`
         CREATE TABLE IF NOT EXISTS users_tmp (
