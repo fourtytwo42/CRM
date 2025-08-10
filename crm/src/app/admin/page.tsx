@@ -129,19 +129,31 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-    // Load registration + email verification toggles
-    (async () => {
+    // Load registration + email verification toggles with a couple retries to avoid token races
+    let cancelled = false;
+    let attempts = 0;
+    const load = async () => {
+      attempts += 1;
       try {
         const token = await getAccessToken();
-        if (!token) return;
+        if (!token) {
+          if (attempts < 3) setTimeout(load, 300);
+          return;
+        }
         const res = await fetch('/api/admin/settings/registration', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-        const json = await res.json();
-        if (json.ok) {
+        const json = await res.json().catch(() => ({ ok: false }));
+        if (!cancelled && json.ok) {
           setRegEnabled(!!json.data?.registrationEnabled);
           setEmailVerificationEnabled(!!json.data?.emailVerificationEnabled);
+        } else if (!cancelled && attempts < 3) {
+          setTimeout(load, 300);
         }
-      } catch {}
-    })();
+      } catch {
+        if (!cancelled && attempts < 3) setTimeout(load, 300);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   // Auto-load AI providers when switching to AI tab

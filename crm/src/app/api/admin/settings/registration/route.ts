@@ -27,7 +27,7 @@ export async function PUT(req: NextRequest) {
   }
   const body = await req.json().catch(() => null) as { enabled?: boolean, emailVerificationEnabled?: boolean };
   const db = getDb();
-  db.prepare('INSERT OR IGNORE INTO site_settings (id, registration_enabled) VALUES (1, 1)').run();
+  db.prepare('INSERT OR IGNORE INTO site_settings (id, registration_enabled, email_verification_enabled) VALUES (1, 1, 0)').run();
   const current = db.prepare('SELECT registration_enabled, email_verification_enabled FROM site_settings WHERE id = 1').get() as { registration_enabled: number; email_verification_enabled: number };
   const newRegistrationEnabled = body?.enabled === undefined ? (current?.registration_enabled === 1) : !!body.enabled;
   const newEmailVerificationEnabled = body?.emailVerificationEnabled === undefined ? (current?.email_verification_enabled === 1) : !!body.emailVerificationEnabled;
