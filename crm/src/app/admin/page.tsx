@@ -277,7 +277,7 @@ export default function AdminPage() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <Input placeholder="Username (optional)" value={emailCfg.username || ''} onChange={e => setEmailCfg({ ...(emailCfg as any), username: e.target.value })} />
-                    <Input placeholder="Password (optional)" value={emailCfg.password || ''} onChange={e => setEmailCfg({ ...(emailCfg as any), password: e.target.value })} />
+                    <Input placeholder={emailCfg.password ? '•••••• (stored)' : 'Password (optional)'} value={emailCfg.password || ''} onChange={e => setEmailCfg({ ...(emailCfg as any), password: e.target.value })} />
                   </div>
                 </div>
                 <div className="md:col-span-2 flex items-center justify-end gap-2">

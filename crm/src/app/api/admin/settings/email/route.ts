@@ -26,10 +26,12 @@ export async function GET(req: NextRequest) {
     return jsonError('FORBIDDEN', { status: 403 });
   }
   const db = getDb();
-  const row = db.prepare('SELECT host, port, secure, username, from_email, from_name FROM email_settings WHERE id = 1').get() as any;
+  const row = db.prepare('SELECT host, port, secure, username, password, from_email, from_name FROM email_settings WHERE id = 1').get() as any;
   if (row) {
     row.port = Number(row.port || 0);
     row.secure = !!row.secure;
+    row.hasPassword = !!(row.password && String(row.password).length > 0);
+    delete row.password;
   }
   return jsonOk(row || null);
 }
