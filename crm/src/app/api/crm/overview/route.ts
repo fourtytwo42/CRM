@@ -8,8 +8,8 @@ export async function GET(req: NextRequest) {
   if (me.status !== 'active') return jsonError('FORBIDDEN', { status: 403 });
   const db = getDb();
 
-  // Campaigns I can see (if admin/power: all; if user(agent): only assigned)
-  const isElevated = me.role === 'admin' || me.role === 'power';
+  // Campaigns I can see (if admin/power/manager/lead: all; if agent: only assigned)
+  const isElevated = me.role === 'admin' || me.role === 'power' || me.role === 'manager' || me.role === 'lead';
   const campaigns = isElevated
     ? db.prepare(`SELECT c.id, c.name, c.status, v.name as vertical FROM campaigns c JOIN verticals v ON v.id = c.vertical_id ORDER BY v.name, c.name`).all()
     : db.prepare(`SELECT c.id, c.name, c.status, v.name as vertical FROM campaigns c JOIN verticals v ON v.id = c.vertical_id JOIN agent_campaigns ac ON ac.campaign_id = c.id WHERE ac.agent_user_id = ? ORDER BY v.name, c.name`).all(me.id);

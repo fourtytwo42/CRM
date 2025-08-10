@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useSession } from '@/components/SessionProvider';
 
-type User = { id: number; username: string; role: 'admin'|'power'|'user'; status: 'active'|'suspended'|'banned'; avatar_url?: string|null };
+type User = { id: number; username: string; role: 'admin'|'power'|'manager'|'lead'|'agent'|'user'; status: 'active'|'suspended'|'banned'; avatar_url?: string|null };
 // email is used on admin, but header session user type can omit it
 
 export default function Header() {
@@ -64,8 +64,8 @@ export default function Header() {
               {user.role === 'admin' && (
                 <Link href="/admin" className="text-sm opacity-80 hover:opacity-100">Admin</Link>
               )}
-              {/* Staff dashboard is visible to power users and admins */}
-              {(user.role === 'admin' || user.role === 'power') && (
+              {/* Agent CRM visible to all staff roles */}
+              {(user.role === 'admin' || user.role === 'power' || user.role === 'manager' || user.role === 'lead' || user.role === 'agent') && (
                 <Link href="/agent" className="text-sm opacity-80 hover:opacity-100">Agent</Link>
               )}
               {/* Customer portal is visible to everyone */}
