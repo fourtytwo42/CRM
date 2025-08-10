@@ -33,8 +33,27 @@ export async function POST(req: NextRequest) {
       subject: 'Test Email',
       text: 'This is a test email from your SMTP settings.',
     });
+    // eslint-disable-next-line no-console
+    console.log('[email:test] sent', {
+      to,
+      subject: 'Test Email',
+      messageId: (info as any)?.messageId,
+      accepted: (info as any)?.accepted,
+      rejected: (info as any)?.rejected,
+      response: (info as any)?.response,
+    });
     return jsonOk({ messageId: info.messageId });
   } catch (e: any) {
+    // eslint-disable-next-line no-console
+    console.error('[email:test] failed', {
+      message: e?.message || String(e),
+      code: e?.code,
+      command: e?.command,
+      response: e?.response,
+      responseCode: e?.responseCode,
+      to,
+      subject: 'Test Email',
+    });
     const details = { code: e?.code, command: e?.command, response: e?.response, responseCode: e?.responseCode };
     return jsonError('SMTP_ERROR', { status: 400, message: e?.message || 'Failed to send.', details });
   }
