@@ -90,9 +90,12 @@ export default function AgentPage() {
 
   useEffect(() => {
     (async () => {
-      const res = await fetch('/api/crm/overview', { cache: 'no-store' });
-      const json = await res.json();
-      if (json.ok) {
+      const token = await getAccessToken();
+      if (!token) return;
+      const res = await fetch('/api/crm/overview', { cache: 'no-store', headers: { authorization: `Bearer ${token}` } });
+      let json: any = null;
+      try { json = await res.json(); } catch {}
+      if (json && json.ok) {
         setCounts({ usersByCampaign: json.data.usersByCampaign || [], activeCasesByAgent: json.data.activeCasesByAgent || [], tasks: json.data.tasks || { overdue: 0, completed: 0 } });
         setRows(json.data.customers || []);
         setUniqueVerticals(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.vertical))));
@@ -304,6 +307,20 @@ export default function AgentPage() {
       </div>
     </main>
   );
+}
+
+async function getAccessToken(): Promise<string> {
+  // Obtain new access token via refresh to keep it in memory only
+  const refresh = typeof window !== 'undefined' ? localStorage.getItem('auth.refreshToken') : null;
+  if (!refresh) return '';
+  const res = await fetch('/api/auth/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refreshToken: refresh }) });
+  const json = await res.json().catch(() => null);
+  if (!json || !json.ok) return '';
+  try {
+    localStorage.setItem('auth.refreshToken', json.data.refreshToken);
+    localStorage.setItem('auth.user', JSON.stringify(json.data.user));
+  } catch {}
+  return json.data.accessToken as string;
 }
 
 
