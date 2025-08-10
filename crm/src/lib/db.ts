@@ -190,6 +190,32 @@ function migrate(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_refresh_attempts_ip_window ON refresh_attempts(ip_address, window_start_ms);
     CREATE INDEX IF NOT EXISTS idx_refresh_attempts_token_window ON refresh_attempts(token_hash, window_start_ms);
   `);
+
+  // Customers (external contacts; no passwords)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS customers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      first_name TEXT,
+      last_name TEXT,
+      full_name TEXT,
+      email TEXT,
+      phone TEXT,
+      company TEXT,
+      title TEXT,
+      notes TEXT,
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('lead','active','inactive','archived')),
+      preferred_contact TEXT NOT NULL DEFAULT 'email' CHECK (preferred_contact IN ('email','phone','none')),
+      email_verified_at TEXT,
+      email_verification_code TEXT,
+      email_verification_sent_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_customers_full_name ON customers(full_name);
+    CREATE INDEX IF NOT EXISTS idx_customers_status ON customers(status);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_email_unique ON customers(email) WHERE email IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
+  `);
   db.prepare(`
     INSERT OR IGNORE INTO email_settings (id, host, port, secure, username, password, from_email, from_name, updated_at)
     VALUES (1, '', 465, 1, NULL, NULL, '', NULL, ?)
@@ -231,6 +257,33 @@ function migrate(db: Database.Database): void {
       db.exec(`ALTER TABLE site_settings ADD COLUMN email_verification_enabled INTEGER NOT NULL DEFAULT 0`);
     }
   } catch {}
+
+  // Backfill: customers table columns if upgrading existing DBs
+  try {
+    const cols = db.prepare(`PRAGMA table_info(customers)`).all() as Array<{ name: string }>;
+    if (cols && cols.length > 0) {
+      const ensure = (name: string, ddl: string) => { if (!cols.some(c => c.name === name)) db.exec(ddl); };
+      ensure('first_name', `ALTER TABLE customers ADD COLUMN first_name TEXT`);
+      ensure('last_name', `ALTER TABLE customers ADD COLUMN last_name TEXT`);
+      ensure('full_name', `ALTER TABLE customers ADD COLUMN full_name TEXT`);
+      ensure('email', `ALTER TABLE customers ADD COLUMN email TEXT`);
+      ensure('phone', `ALTER TABLE customers ADD COLUMN phone TEXT`);
+      ensure('company', `ALTER TABLE customers ADD COLUMN company TEXT`);
+      ensure('title', `ALTER TABLE customers ADD COLUMN title TEXT`);
+      ensure('notes', `ALTER TABLE customers ADD COLUMN notes TEXT`);
+      ensure('status', `ALTER TABLE customers ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`);
+      ensure('preferred_contact', `ALTER TABLE customers ADD COLUMN preferred_contact TEXT NOT NULL DEFAULT 'email'`);
+      ensure('email_verified_at', `ALTER TABLE customers ADD COLUMN email_verified_at TEXT`);
+      ensure('email_verification_code', `ALTER TABLE customers ADD COLUMN email_verification_code TEXT`);
+      ensure('email_verification_sent_at', `ALTER TABLE customers ADD COLUMN email_verification_sent_at TEXT`);
+      ensure('created_at', `ALTER TABLE customers ADD COLUMN created_at TEXT NOT NULL DEFAULT '${new Date().toISOString()}'`);
+      ensure('updated_at', `ALTER TABLE customers ADD COLUMN updated_at TEXT NOT NULL DEFAULT '${new Date().toISOString()}'`);
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_email_unique ON customers(email) WHERE email IS NOT NULL`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_customers_full_name ON customers(full_name)`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_customers_status ON customers(status)`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)`);
+    }
+  } catch {}
 }
 
 function seed(db: Database.Database): void {
@@ -260,6 +313,38 @@ function seed(db: Database.Database): void {
   // Default settings for development
   db.prepare(`INSERT OR IGNORE INTO site_settings (id, registration_enabled) VALUES (1, 1)`).run();
   db.prepare(`UPDATE site_settings SET email_verification_enabled = COALESCE(email_verification_enabled, 0) WHERE id = 1`).run();
+
+  // Seed a handful of customers for development
+  try {
+    const nowIso = new Date().toISOString();
+    const insertCustomer = db.prepare(`
+      INSERT OR IGNORE INTO customers (first_name, last_name, full_name, email, phone, company, title, notes, status, preferred_contact, created_at, updated_at)
+      VALUES (@first_name, @last_name, @full_name, @email, @phone, @company, @title, @notes, @status, @preferred_contact, @created_at, @updated_at)
+    `);
+    const demoCustomers = [
+      { first_name: 'Jane', last_name: 'Doe', email: 'jane.doe@example.com', phone: '+1 (415) 555-0199', company: 'Globex', title: 'VP Marketing', status: 'active' },
+      { first_name: 'John', last_name: 'Smith', email: 'john.smith@example.com', phone: '+1 (212) 555-0134', company: 'Initech', title: 'CTO', status: 'lead' },
+      { first_name: 'Ava', last_name: 'Patel', email: 'ava.patel@example.com', phone: '+44 20 7946 0958', company: 'Hooli', title: 'Head of Ops', status: 'active' },
+      { first_name: 'Carlos', last_name: 'Ruiz', email: 'carlos.ruiz@example.com', phone: '+34 91 123 4567', company: 'Vandelay Industries', title: 'Procurement', status: 'inactive' },
+      { first_name: 'Mia', last_name: 'Chen', email: 'mia.chen@example.com', phone: '+86 10 5555 8888', company: 'Pied Piper', title: 'Product Lead', status: 'lead' }
+    ];
+    for (const c of demoCustomers) {
+      insertCustomer.run({
+        first_name: c.first_name,
+        last_name: c.last_name,
+        full_name: `${c.first_name} ${c.last_name}`,
+        email: c.email,
+        phone: c.phone,
+        company: c.company,
+        title: c.title,
+        notes: 'VIP prospect. Imported for demo.',
+        status: c.status,
+        preferred_contact: 'email',
+        created_at: nowIso,
+        updated_at: nowIso,
+      });
+    }
+  } catch {}
 }
 
 function ensureDemoUsers(db: Database.Database): void {

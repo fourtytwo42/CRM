@@ -64,6 +64,12 @@ export default function Header() {
               {user.role === 'admin' && (
                 <Link href="/admin" className="text-sm opacity-80 hover:opacity-100">Admin</Link>
               )}
+              {/* Staff dashboard is visible to power users and admins */}
+              {(user.role === 'admin' || user.role === 'power') && (
+                <Link href="/staff" className="text-sm opacity-80 hover:opacity-100">Staff</Link>
+              )}
+              {/* Customer portal is visible to everyone */}
+              <Link href="/portal" className="text-sm opacity-80 hover:opacity-100">Customer Portal</Link>
               <div className="relative" ref={menuRef}>
                 <button onClick={() => setOpen(v => !v)} className="w-9 h-9 shrink-0 aspect-square rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
                   {user.avatar_url ? (

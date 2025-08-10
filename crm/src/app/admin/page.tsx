@@ -162,7 +162,7 @@ export default function AdminPage() {
   return (
     <main className="container-hero py-8">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold">Admin Console</h1>
+        <h1 className="text-2xl font-semibold">Admin</h1>
         <div className="text-sm opacity-70">{activeTab === 'users' ? `${users.length} users` : `${aiProviders.length} AI configs`}</div>
       </div>
       <div className="mb-4 flex items-center gap-2">
