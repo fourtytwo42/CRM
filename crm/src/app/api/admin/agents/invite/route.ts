@@ -29,9 +29,10 @@ export async function POST(req: NextRequest) {
     VALUES (?, ?, ?, ?, 'suspended', ?, ?, ?, ?)
   `).run(placeholderUsername, email, placeholderHash, role, code, now, now, now);
 
-  const url = new URL('/api/auth/invite', req.url);
+  const url = new URL('/api/auth/invite', (process.env.PUBLIC_BASE_URL || '').trim() || req.url);
   url.searchParams.set('code', code);
-  const html = `<p>You have been invited. Click to verify and complete your account:</p><p><a href="${url.toString()}">${url.toString()}</a></p>`;
+  const link = url.toString();
+  const html = `<p>You have been invited. Click to verify and complete your account:</p><p><a href="${link}">${link}</a></p>`;
   const ok = await maybeSendEmail(
     email,
     'You are invited — complete your account',

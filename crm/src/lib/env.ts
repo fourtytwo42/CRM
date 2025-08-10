@@ -15,6 +15,8 @@ export const env = {
   smtpSocketTimeoutMs: toNumber(process.env.SMTP_SOCKET_TIMEOUT_MS, 15000),
   // AI request timeout (used as a default for failover)
   aiRequestTimeoutMs: toNumber(process.env.AI_REQUEST_TIMEOUT_MS, 20000),
+  // Public/base URL for links in emails (e.g., https://yourdomain.com)
+  publicBaseUrl: process.env.PUBLIC_BASE_URL || '',
 };
 
 

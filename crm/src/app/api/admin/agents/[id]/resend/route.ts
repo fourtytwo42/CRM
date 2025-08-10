@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   db.prepare('UPDATE users SET email_verification_code = ?, email_verification_sent_at = ?, updated_at = ? WHERE id = ?').run(code, now, now, userId);
 
   try {
-    const url = new URL('/api/auth/invite', req.url);
+    const url = new URL('/api/auth/invite', (process.env.PUBLIC_BASE_URL || '').trim() || req.url);
     url.searchParams.set('code', code);
     const html = `<p>You have been invited. Click to verify and complete your account:</p><p><a href="${url.toString()}">${url.toString()}</a></p>`;
     const sent = await maybeSendEmail(

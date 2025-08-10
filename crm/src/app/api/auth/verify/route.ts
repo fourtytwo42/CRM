@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     .run(code, nowIso, nowIso, user.id);
 
   try {
-    const url = new URL('/api/auth/verify', req.url);
+    const url = new URL('/api/auth/verify', (process.env.PUBLIC_BASE_URL || '').trim() || req.url);
     url.searchParams.set('code', code);
     await maybeSendEmail(
       user.email || '',
