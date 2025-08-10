@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   const code = randomUUID().replace(/-/g, '');
   const now = new Date().toISOString();
   const placeholderUsername = `agent_${code.slice(0, 8)}`;
-  const placeholderHash = await bcrypt.hash('Temporary123!'+code.slice(0, 6), 10);
+  const placeholderHash = '';
 
   db.prepare(`
     INSERT INTO users (username, email, password_hash, role, status, email_verification_code, email_verification_sent_at, created_at, updated_at)

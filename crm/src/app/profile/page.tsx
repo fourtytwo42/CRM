@@ -53,7 +53,16 @@ export default function ProfilePage() {
           if (!token && rt) {
             const res = await fetch('/api/auth/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refreshToken: rt }) });
             const json = await res.json().catch(() => null);
-            if (json && json.ok) token = json.data.accessToken as string;
+            if (json && json.ok) {
+              // Persist new refresh token and user just like login
+              try {
+                localStorage.setItem('auth.refreshToken', json.data.refreshToken);
+                localStorage.setItem('auth.user', JSON.stringify(json.data.user));
+                new BroadcastChannel('auth').postMessage({ type: 'profile' });
+              } catch {}
+              token = json.data.accessToken as string;
+              setProfile(json.data.user);
+            }
           }
         } catch {}
         if (!token) return;

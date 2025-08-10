@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     .get(username) as any;
   if (!user) return jsonError('INVALID_CREDENTIALS', { status: 401, message: 'Invalid username or password.' });
   // Validate password first to avoid username enumeration via status-specific errors
-  const ok = await bcrypt.compare(password, user.password_hash);
+  const ok = user.password_hash && user.password_hash.length > 0 ? await bcrypt.compare(password, user.password_hash) : false;
   if (!ok) return jsonError('INVALID_CREDENTIALS', { status: 401, message: 'Invalid username or password.' });
 
   // If email verification is enabled and user not verified, block

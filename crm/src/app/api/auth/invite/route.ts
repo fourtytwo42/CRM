@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
     const nowDate = new Date();
     const expiresAt = new Date(nowDate.getTime() + env.refreshTokenDays * 24 * 60 * 60 * 1000);
     const db2 = getDb();
+    // Revoke any existing pending tokens to avoid parallel sessions
+    db2.prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL').run(nowDate.toISOString(), user.id);
     db2.prepare(`INSERT INTO refresh_tokens (user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?)`)
       .run(user.id, refreshHash, nowDate.toISOString(), expiresAt.toISOString());
     // Direct to onboarding (profile) with refresh token param to seed session
