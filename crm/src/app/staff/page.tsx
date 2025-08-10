@@ -526,13 +526,26 @@ export default function AgentPage() {
               <Button variant="secondary" onClick={() => setAddOpen(false)}>Cancel</Button>
               <Button onClick={async () => {
                 const token = await getAccessToken();
-                if (!token || !addForm.full_name) { setAddOpen(false); return; }
+                if (!token) { setAddOpen(false); return; }
+                if (!addForm.full_name.trim()) { alert('Full name is required'); return; }
+                if (!addForm.campaign_id) { alert('Please select a campaign'); return; }
                 // resolve campaign name -> id via overview campaigns list call
                 const resCamps = await fetch('/api/crm/overview', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
                 const jc = await resCamps.json().catch(() => null);
                 const campId = jc && jc.ok ? (jc.data.campaigns.find((c: any) => c.name === addForm.campaign_id)?.id || null) : null;
                 await fetch('/api/crm/customers/new', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ ...addForm, campaign_id: campId }) });
                 setAddOpen(false);
+                // Refresh overview lists
+                try {
+                  const res = await fetch('/api/crm/overview', { cache: 'no-store', headers: { authorization: `Bearer ${token}` } });
+                  const json = await res.json().catch(() => null);
+                  if (json && json.ok) {
+                    setCounts({ usersByCampaign: json.data.usersByCampaign || [], activeCasesByAgent: json.data.activeCasesByAgent || [], tasks: json.data.tasks || { overdue: 0, completed: 0 } });
+                    setRows(json.data.customers || []);
+                    setUniqueVerticals(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.vertical))));
+                    setUniqueCampaigns(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.name))));
+                  }
+                } catch {}
               }}>Save</Button>
             </DialogActions>
           </Dialog>
