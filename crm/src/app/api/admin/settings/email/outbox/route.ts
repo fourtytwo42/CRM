@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
   }
   const db = getDb();
   try { db.prepare(`CREATE TABLE IF NOT EXISTS email_outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, to_email TEXT, subject TEXT, body TEXT, created_at TEXT NOT NULL, sent INTEGER)`).run(); } catch {}
+  try { db.prepare(`ALTER TABLE email_outbox ADD COLUMN sent INTEGER`).run(); } catch {}
   const rows = db.prepare(`SELECT id, to_email, subject, body, created_at, COALESCE(sent,0) as sent FROM email_outbox ORDER BY id DESC LIMIT 100`).all();
   return jsonOk({ outbox: rows });
 }
