@@ -114,6 +114,26 @@ function migrate(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
   `);
 
+  // AI provider settings
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_providers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider TEXT NOT NULL,
+      label TEXT,
+      api_key TEXT,
+      base_url TEXT,
+      model TEXT,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      timeout_ms INTEGER,
+      priority INTEGER NOT NULL DEFAULT 1000,
+      settings TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_ai_providers_enabled ON ai_providers(enabled);
+    CREATE INDEX IF NOT EXISTS idx_ai_providers_priority ON ai_providers(priority);
+  `);
+
   // Email settings table (single row id=1)
   db.exec(`
     CREATE TABLE IF NOT EXISTS email_settings (

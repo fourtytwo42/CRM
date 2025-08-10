@@ -13,6 +13,8 @@ export const env = {
   smtpConnectionTimeoutMs: toNumber(process.env.SMTP_CONNECTION_TIMEOUT_MS, 10000),
   smtpGreetingTimeoutMs: toNumber(process.env.SMTP_GREETING_TIMEOUT_MS, 10000),
   smtpSocketTimeoutMs: toNumber(process.env.SMTP_SOCKET_TIMEOUT_MS, 15000),
+  // AI request timeout (used as a default for failover)
+  aiRequestTimeoutMs: toNumber(process.env.AI_REQUEST_TIMEOUT_MS, 20000),
 };
 
 
