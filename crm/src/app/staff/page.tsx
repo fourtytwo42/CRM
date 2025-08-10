@@ -75,12 +75,14 @@ export default function AgentPage() {
   const filtered = useMemo(() => {
     return rows.filter((c) => {
       const byQ = !query || c.name.toLowerCase().includes(query.toLowerCase());
-      const byV = !vertical || c.vertical === vertical;
-      const byC = !campaign || c.campaign === campaign;
+      const isUnassignedVertical = !c.vertical;
+      const isUnassignedCampaign = !c.campaign;
+      const byV = !vertical || (vertical === '__unassigned__' ? isUnassignedVertical : c.vertical === vertical);
+      const byC = !campaign || (campaign === '__unassigned__' ? isUnassignedCampaign : c.campaign === campaign);
       const byA = !agent || c.agentId === agent;
       return byQ && byV && byC && byA;
     });
-  }, [query, vertical, campaign, agent]);
+  }, [rows, query, vertical, campaign, agent]);
 
   const [counts, setCounts] = useState({ usersByCampaign: [] as Array<{ name: string; count: number }>, activeCasesByAgent: [] as Array<{ name: string; count: number }>, tasks: { overdue: 0, completed: 0 } });
   const [addOpen, setAddOpen] = useState(false);
@@ -109,8 +111,11 @@ export default function AgentPage() {
       if (json && json.ok) {
         setCounts({ usersByCampaign: json.data.usersByCampaign || [], activeCasesByAgent: json.data.activeCasesByAgent || [], tasks: json.data.tasks || { overdue: 0, completed: 0 } });
         setRows(json.data.customers || []);
-        setUniqueVerticals(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.vertical))));
-        setUniqueCampaigns(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.name))));
+        // Build unique verticals/campaigns including blanks if no assignment
+        const allVerts = (json.data.campaigns || []).map((c: any) => c.vertical).filter(Boolean);
+        const allCamps = (json.data.campaigns || []).map((c: any) => c.name).filter(Boolean);
+        setUniqueVerticals(Array.from(new Set(allVerts)).sort());
+        setUniqueCampaigns(Array.from(new Set(allCamps)).sort());
         setManagers(json.data.managers || []);
         setLeads(json.data.leads || []);
       }
@@ -443,12 +448,14 @@ export default function AgentPage() {
                   <Select value={vertical} onChange={(e) => setVertical(e.target.value)}>
                     <option value="">All Verticals</option>
                     {uniqueVerticals.map((v) => <option key={v} value={v}>{v}</option>)}
+                    <option value="__unassigned__">Unassigned</option>
                   </Select>
                 </div>
                 <div className="md:col-span-3">
                   <Select value={campaign} onChange={(e) => setCampaign(e.target.value)}>
                     <option value="">All Campaigns</option>
                     {uniqueCampaigns.map((v) => <option key={v} value={v}>{v}</option>)}
+                    <option value="__unassigned__">Unassigned</option>
                   </Select>
                 </div>
                 <div className="md:col-span-2">
