@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   if (!name) return jsonError('VALIDATION', { status: 400, message: 'Name required' });
   const db = getDb();
   const now = new Date().toISOString();
-  db.prepare('INSERT INTO campaigns (vertical_id, name, status, created_at, updated_at) VALUES (?, ?, "active", ?, ?)').run(verticalId, name, now, now);
+  db.prepare("INSERT INTO campaigns (vertical_id, name, status, created_at, updated_at) VALUES (?, ?, 'active', ?, ?)").run(verticalId, name, now, now);
   return jsonOk();
 }
 
