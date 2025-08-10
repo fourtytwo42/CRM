@@ -65,10 +65,13 @@ export async function fetchModels(config: AiProviderConfig): Promise<string[]> {
     // LM Studio typically does not need auth
     const url = `${baseUrl || providerCatalog().find(p => p.id === (provider === 'lmstudio' ? 'lmstudio' : provider))?.defaultBaseUrl}/models`;
     const res = await withTimeout(fetch(url, { signal: controller.signal, headers, cache: 'no-store' }), timeout, controller.signal);
-    if (!res.ok) throw new Error(`HTTP_${res.status}`);
+    if (!res.ok) {
+      const t = await safeText(res);
+      throw new Error(`HTTP_${res.status}: ${t}`);
+    }
     const json: any = await res.json();
     const models: string[] = Array.isArray(json?.data)
-      ? json.data.map((m: any) => m?.id).filter((s: any) => typeof s === 'string')
+      ? json.data.map((m: any) => (typeof m === 'string' ? m : m?.id)).filter((s: any) => typeof s === 'string')
       : [];
     return models;
   }
@@ -84,7 +87,7 @@ export async function fetchModels(config: AiProviderConfig): Promise<string[]> {
         'anthropic-version': '2023-06-01',
       },
     }), timeout, controller.signal);
-    if (!res.ok) throw new Error(`HTTP_${res.status}`);
+    if (!res.ok) throw new Error(`HTTP_${res.status}: ${await safeText(res)}`);
     const json: any = await res.json();
     const models: string[] = Array.isArray(json?.data)
       ? json.data.map((m: any) => m?.id || m?.name).filter((s: any) => typeof s === 'string')
@@ -96,7 +99,7 @@ export async function fetchModels(config: AiProviderConfig): Promise<string[]> {
     const controller = new AbortController();
     const base = baseUrl || providerCatalog().find(p => p.id === 'ollama')!.defaultBaseUrl!;
     const res = await withTimeout(fetch(`${base}/api/tags`, { signal: controller.signal, cache: 'no-store' }), timeout, controller.signal);
-    if (!res.ok) throw new Error(`HTTP_${res.status}`);
+    if (!res.ok) throw new Error(`HTTP_${res.status}: ${await safeText(res)}`);
     const json: any = await res.json();
     const models: string[] = Array.isArray(json?.models)
       ? json.models.map((m: any) => m?.name).filter((s: any) => typeof s === 'string')

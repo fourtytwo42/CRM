@@ -52,6 +52,7 @@ export default function AdminPage() {
   const [editOpenForId, setEditOpenForId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<{ label: string; baseUrl: string; apiKey: string; model: string; timeoutMs: number | '' ; priority: number | '' }|null>(null);
   const [editModels, setEditModels] = useState<string[]>([]);
+  const [editModelsError, setEditModelsError] = useState<string | null>(null);
   const editingProviderHasKey = useMemo(() => aiProviders.find(x => x.id === editOpenForId)?.hasApiKey || false, [editOpenForId, aiProviders]);
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'user'|'assistant'|'system'; content: string }>>([]);
   const [chatInput, setChatInput] = useState('');
@@ -453,6 +454,7 @@ export default function AdminPage() {
                   </label>
                   <Button variant="secondary" onClick={handleFetchModels}>Fetch models</Button>
                 </div>
+                {editModelsError && <div className="text-xs text-red-600">{editModelsError}</div>}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="text-sm block">
                     <span className="text-xs opacity-70">Timeout (ms)</span>
@@ -544,11 +546,20 @@ export default function AdminPage() {
       const res = await fetch('/api/admin/ai/models', {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-        body: JSON.stringify({ provider: p.provider, apiKey: editForm.apiKey || undefined, baseUrl: editForm.baseUrl || undefined, timeoutMs: editForm.timeoutMs || undefined }),
+        body: JSON.stringify({ id: p.id, provider: p.provider, apiKey: editForm.apiKey || undefined, baseUrl: editForm.baseUrl || undefined, timeoutMs: editForm.timeoutMs || undefined }),
       });
       const json = await res.json();
-      if (json.ok) setEditModels(json.data?.models || []);
-    } catch {}
+      if (json.ok) {
+        setEditModelsError(null);
+        setEditModels(json.data?.models || []);
+      } else {
+        setEditModels([]);
+        setEditModelsError(json?.error?.message || 'Failed to fetch models');
+      }
+    } catch (e: any) {
+      setEditModels([]);
+      setEditModelsError(e?.message || 'Failed to fetch models');
+    }
   }
 
   async function handleSaveProvider() {
