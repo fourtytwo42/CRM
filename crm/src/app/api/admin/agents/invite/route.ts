@@ -39,9 +39,10 @@ export async function POST(req: NextRequest) {
       `Finish setup: ${url.toString()}`,
       html
     );
-    // Always store an outbox record for visibility in development
-    try { db.prepare(`CREATE TABLE IF NOT EXISTS email_outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, to_email TEXT, subject TEXT, body TEXT, created_at TEXT NOT NULL)`).run(); } catch {}
-    db.prepare(`INSERT INTO email_outbox (to_email, subject, body, created_at) VALUES (?, ?, ?, ?)`).run(email, 'You are invited — complete your account', html, new Date().toISOString());
+    // Always store an outbox record for visibility
+    try { db.prepare(`CREATE TABLE IF NOT EXISTS email_outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, to_email TEXT, subject TEXT, body TEXT, created_at TEXT NOT NULL, sent INTEGER)`).run(); } catch {}
+    db.prepare(`INSERT INTO email_outbox (to_email, subject, body, created_at, sent) VALUES (?, ?, ?, ?, ?)`)
+      .run(email, 'You are invited — complete your account', html, new Date().toISOString(), ok ? 1 : 0);
   } catch (e) {
     // Swallow to avoid leaking transport errors; outbox entry still created
   }

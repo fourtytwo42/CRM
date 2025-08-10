@@ -55,7 +55,9 @@ export async function maybeSendEmail(
       html,
     });
     return true;
-  } catch {
+  } catch (e: any) {
+    // eslint-disable-next-line no-console
+    console.error('[email] sendMail failed', e?.message || e);
     return false;
   }
 }

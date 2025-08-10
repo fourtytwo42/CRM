@@ -12,8 +12,8 @@ export async function GET(req: NextRequest) {
     return jsonError('FORBIDDEN', { status: 403 });
   }
   const db = getDb();
-  try { db.prepare(`CREATE TABLE IF NOT EXISTS email_outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, to_email TEXT, subject TEXT, body TEXT, created_at TEXT NOT NULL)`).run(); } catch {}
-  const rows = db.prepare(`SELECT id, to_email, subject, body, created_at FROM email_outbox ORDER BY id DESC LIMIT 100`).all();
+  try { db.prepare(`CREATE TABLE IF NOT EXISTS email_outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, to_email TEXT, subject TEXT, body TEXT, created_at TEXT NOT NULL, sent INTEGER)`).run(); } catch {}
+  const rows = db.prepare(`SELECT id, to_email, subject, body, created_at, COALESCE(sent,0) as sent FROM email_outbox ORDER BY id DESC LIMIT 100`).all();
   return jsonOk({ outbox: rows });
 }
 
