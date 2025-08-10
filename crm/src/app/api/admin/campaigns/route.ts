@@ -14,7 +14,10 @@ export async function GET(req: NextRequest) {
   if (me.status !== 'active') return jsonError('FORBIDDEN', { status: 403 });
   const db = getDb();
   const rows = db.prepare('SELECT id, vertical_id, name, status, created_at, updated_at FROM campaigns ORDER BY name ASC').all();
-  return jsonOk({ campaigns: rows });
+  // Include relationships for tab summaries
+  const agentCampaigns = db.prepare(`SELECT agent_user_id as user_id, campaign_id FROM agent_campaigns`).all();
+  const customerCampaigns = db.prepare(`SELECT customer_id, campaign_id FROM customer_campaigns`).all();
+  return jsonOk({ campaigns: rows, meta: { agent_campaigns: agentCampaigns, customer_campaigns: customerCampaigns } });
 }
 
 export async function POST(req: NextRequest) {

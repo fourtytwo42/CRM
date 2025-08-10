@@ -14,7 +14,12 @@ export async function GET(req: NextRequest) {
   if (me.status !== 'active') return jsonError('FORBIDDEN', { status: 403 });
   const db = getDb();
   const rows = db.prepare('SELECT id, name, created_at, updated_at FROM verticals ORDER BY name ASC').all();
-  return jsonOk({ verticals: rows });
+  const campaigns = db.prepare(`SELECT id, name, vertical_id FROM campaigns`).all();
+  const agentVerticals = db.prepare(`SELECT agent_user_id as user_id, vertical_id FROM agent_verticals`).all();
+  const managers = db.prepare(`SELECT id FROM users WHERE role='manager'`).all();
+  const leads = db.prepare(`SELECT id FROM users WHERE role='lead'`).all();
+  const agents = db.prepare(`SELECT id FROM users WHERE role='agent'`).all();
+  return jsonOk({ verticals: rows, meta: { campaigns, agent_verticals: agentVerticals, managers, leads, agents } });
 }
 
 export async function POST(req: NextRequest) {

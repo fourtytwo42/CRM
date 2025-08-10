@@ -18,9 +18,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     LEFT JOIN verticals v ON v.id = c.vertical_id
     WHERE ac.agent_user_id = ? ORDER BY v.name, c.name
   `).all(id);
+  const verticals = db.prepare(`
+    SELECT v.id, v.name
+    FROM agent_verticals av JOIN verticals v ON v.id = av.vertical_id
+    WHERE av.agent_user_id = ? ORDER BY v.name
+  `).all(id);
   const tasks = db.prepare(`SELECT id, title, status, priority, due_date FROM tasks WHERE assigned_to_user_id = ? ORDER BY created_at DESC LIMIT 200`).all(id);
   const notes = db.prepare(`SELECT n.id, n.body, n.created_at, u.username as createdBy FROM notes n JOIN users u ON u.id = n.created_by_user_id WHERE n.agent_user_id = ? ORDER BY n.created_at DESC LIMIT 200`).all(id);
-  return jsonOk({ info, campaigns, tasks, notes });
+  return jsonOk({ info, campaigns, verticals, tasks, notes });
 }
 
 export function PUT() { return methodNotAllowed(['GET']); }

@@ -56,6 +56,7 @@ const MOCK_CASES: Case[] = [];
 const MOCK_TASKS: Task[] = [];
 
 export default function AgentPage() {
+  const [activeTab, setActiveTab] = useState<'Verticals'|'Campaigns'|'Managers'|'Team Leads'|'Agents'|'Customers'>('Agents');
   const [query, setQuery] = useState("");
   const [vertical, setVertical] = useState("");
   const [campaign, setCampaign] = useState("");
@@ -92,6 +93,7 @@ export default function AgentPage() {
   const [inviteRole, setInviteRole] = useState<'agent'|'manager'|'lead'>('agent');
   const [verticals, setVerticals] = useState<Array<{ id:number; name:string }>>([]);
   const [campaigns, setCampaigns] = useState<Array<{ id:number; name:string; vertical_id: number|null; status: string }>>([]);
+  const [graph, setGraph] = useState<any>(null);
   // Dialogs for adding verticals/campaigns
   const [addVerticalOpen, setAddVerticalOpen] = useState(false);
   const [addVerticalName, setAddVerticalName] = useState('');
@@ -135,6 +137,25 @@ export default function AgentPage() {
         const cj = await cres.json().catch(() => null);
         if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
       } catch {}
+      // Load CRM graph for relationships across tabs
+      try {
+        // Compose graph from existing endpoints
+        const [vres2, cres2] = await Promise.all([
+          fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' }),
+          fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' }),
+        ]);
+        const [vj2, cj2] = await Promise.all([vres2.json().catch(() => null), cres2.json().catch(() => null)]);
+        if (vj2 && vj2.ok && cj2 && cj2.ok) {
+          setGraph({
+            agent_verticals: vj2.meta?.agent_verticals || [],
+            managers: vj2.meta?.managers || [],
+            leads: vj2.meta?.leads || [],
+            agents: vj2.meta?.agents || [],
+            agent_campaigns: cj2.meta?.agent_campaigns || [],
+            customer_campaigns: cj2.meta?.customer_campaigns || [],
+          });
+        }
+      } catch {}
     })();
   }, [agentSort, agentQ]);
 
@@ -149,6 +170,17 @@ export default function AgentPage() {
           <Button variant="secondary"><IconUpload size={18} className="mr-2" />Import CSV</Button>
           <Button variant="secondary"><IconDownload size={18} className="mr-2" />Export</Button>
         </div>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {(['Verticals','Campaigns','Managers','Team Leads','Agents','Customers'] as const).map(tab => (
+          <button
+            key={tab}
+            className={`px-3 py-1.5 rounded-lg text-sm border ${activeTab===tab ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-transparent'} border-black/10 dark:border-white/10`}
+            onClick={() => setActiveTab(tab)}
+          >{tab}</button>
+        ))}
       </div>
 
       {/* KPI Cards */}
@@ -189,9 +221,11 @@ export default function AgentPage() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Left: Customers & Filters */}
+        {/* Left: Tabbed content */}
         <div className="xl:col-span-2 space-y-6">
-          {/* Agents table (admin/power) */}
+          {/* Agents */}
+          {activeTab === 'Agents' && (
+          {activeTab === 'Customers' && (
           <Card>
             <CardHeader title="Agents" subtitle="Manage and browse agents" actions={
               <div className="hidden md:flex items-center gap-2">
@@ -298,8 +332,11 @@ export default function AgentPage() {
               </div>
             </CardBody>
           </Card>
+          )}
+          )}
 
           {/* Verticals management */}
+          {activeTab === 'Verticals' && (
           <Card>
             <CardHeader title="Verticals" subtitle="Create, rename, or delete verticals" actions={
               <div className="hidden md:flex items-center gap-2">
@@ -308,11 +345,25 @@ export default function AgentPage() {
             } />
             <CardBody>
               <table className="min-w-full table-auto text-sm">
-                <thead><tr className="text-left"><th className="px-6 py-3">Name</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
+                <thead><tr className="text-left"><th className="px-6 py-3">Name</th><th className="px-3 py-3">Campaigns</th><th className="px-3 py-3">People</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
                 <tbody>
                   {verticals.map(v => (
                     <tr key={v.id} className="border-t border-black/5 dark:border-white/5">
                       <td className="px-6 py-3">{v.name}</td>
+                      <td className="px-3 py-3">
+                        {(campaigns.filter(c => c.vertical_id === v.id)).map(c => (
+                          <span key={c.id} className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 mr-1 mb-1">{c.name}</span>
+                        ))}
+                      </td>
+                      <td className="px-3 py-3">
+                        {graph && (
+                          <div className="flex flex-wrap gap-1 text-xs opacity-80">
+                            <span>Managers: {graph.agent_verticals.filter((av: any) => av.vertical_id===v.id && graph.managers.some((m:any)=>m.id===av.user_id)).length}</span>
+                            <span>· Leads: {graph.agent_verticals.filter((av: any) => av.vertical_id===v.id && graph.leads.some((m:any)=>m.id===av.user_id)).length}</span>
+                            <span>· Agents: {graph.agent_verticals.filter((av: any) => av.vertical_id===v.id && graph.agents.some((m:any)=>m.id===av.user_id)).length}</span>
+                          </div>
+                        )}
+                      </td>
                       <td className="px-3 py-3 text-right">
                         <button className="underline mr-2" onClick={async () => {
                           const val = prompt('Rename vertical', v.name) || ''; if (!val.trim()) return;
@@ -334,8 +385,10 @@ export default function AgentPage() {
               </table>
             </CardBody>
           </Card>
+          )}
 
           {/* Campaigns management */}
+          {activeTab === 'Campaigns' && (
           <Card>
             <CardHeader title="Campaigns" subtitle="Create, reassign vertical, rename, or delete" actions={
               <div className="hidden md:flex items-center gap-2">
@@ -344,12 +397,24 @@ export default function AgentPage() {
             } />
             <CardBody>
               <table className="min-w-full table-auto text-sm">
-                <thead><tr className="text-left"><th className="px-6 py-3">Name</th><th className="px-3 py-3">Vertical</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
+                <thead><tr className="text-left"><th className="px-6 py-3">Name</th><th className="px-3 py-3">Vertical</th><th className="px-3 py-3">People</th><th className="px-3 py-3">Customers</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
                 <tbody>
                   {campaigns.map(c => (
                     <tr key={c.id} className="border-t border-black/5 dark:border-white/5">
                       <td className="px-6 py-3">{c.name}</td>
                       <td className="px-3 py-3">{verticals.find(v => v.id === c.vertical_id)?.name || '—'}</td>
+                      <td className="px-3 py-3">
+                        {graph && (
+                          <div className="flex flex-wrap gap-1 text-xs opacity-80">
+                            <span>Managers: {graph.agent_verticals.filter((av:any)=>av.vertical_id===c.vertical_id && graph.managers.some((m:any)=>m.id===av.user_id)).length}</span>
+                            <span>· Leads: {graph.agent_verticals.filter((av:any)=>av.vertical_id===c.vertical_id && graph.leads.some((m:any)=>m.id===av.user_id)).length}</span>
+                            <span>· Agents: {graph.agent_campaigns.filter((ac:any)=>ac.campaign_id===c.id).length}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        {graph ? graph.customer_campaigns.filter((cc:any)=>cc.campaign_id===c.id).length : 0}
+                      </td>
                       <td className="px-3 py-3">{c.status}</td>
                       <td className="px-3 py-3 text-right">
                         <button className="underline mr-2" onClick={async () => {
@@ -379,6 +444,7 @@ export default function AgentPage() {
               </table>
             </CardBody>
           </Card>
+          )}
 
           {/* Add Vertical Dialog */}
           <Dialog open={addVerticalOpen} onOpenChange={setAddVerticalOpen} title="Add vertical">
@@ -580,6 +646,7 @@ export default function AgentPage() {
             </DialogActions>
           </Dialog>
 
+          {activeTab === 'Agents' && (
           <Card>
             <CardHeader title="Tasks & Activities" subtitle="Assign to agents, campaigns, or users" actions={<Button size="sm">New Task</Button>} />
             <CardBody>
@@ -602,6 +669,7 @@ export default function AgentPage() {
               </div>
             </CardBody>
           </Card>
+          )}
         </div>
 
         {/* Right: Calendar, Campaigns, Reporting */}

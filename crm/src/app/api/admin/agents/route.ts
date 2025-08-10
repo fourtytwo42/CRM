@@ -41,4 +41,28 @@ export async function GET(req: NextRequest) {
   return jsonOk({ agents });
 }
 
+export async function POST(req: NextRequest) {
+  const me = await requireAuth(req);
+  if (me.role !== 'admin' && me.role !== 'power') return jsonError('FORBIDDEN', { status: 403 });
+  const db = getDb();
+  const body = await req.json().catch(() => null) as any;
+  const now = new Date().toISOString();
+  if (!body || !body.action) return jsonError('VALIDATION', { status: 400 });
+  try {
+    switch (body.action) {
+      case 'assignSupervisor': {
+        const { agent_user_id, supervisor_user_id, kind } = body;
+        if (!agent_user_id || !supervisor_user_id || (kind !== 'manager' && kind !== 'lead')) return jsonError('VALIDATION', { status: 400 });
+        db.prepare(`INSERT OR IGNORE INTO agent_supervisors (agent_user_id, supervisor_user_id, kind, assigned_at) VALUES (?, ?, ?, ?)`)
+          .run(agent_user_id, supervisor_user_id, kind, now);
+        return jsonOk({});
+      }
+      default:
+        return jsonError('NOT_IMPLEMENTED', { status: 400 });
+    }
+  } catch (e) {
+    return jsonError('FAILED', { status: 500 });
+  }
+}
+
 
