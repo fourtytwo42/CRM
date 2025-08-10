@@ -7,7 +7,6 @@ import { env } from './env';
 const g = globalThis as any;
 let dbInstance: Database.Database | null = g.__dbInstance || null;
 let migratedOnce = g.__dbMigratedOnce || false;
-let migratePromise: Promise<void> | null = g.__dbMigratePromise || null;
 
 const SCHEMA_VERSION = 3; // bump when schema/backfills change
 
@@ -33,25 +32,17 @@ function getDb(): Database.Database {
   dbInstance.pragma('temp_store = MEMORY');
   dbInstance.pragma('mmap_size = 268435456'); // 256MB
 
-  // Ensure one-time, versioned migration across concurrent requests
-  const doMigrate = async () => {
-    const current = Number(dbInstance!.pragma('user_version', { simple: true }));
-    if (current >= SCHEMA_VERSION) return;
-    migrate(dbInstance!);
-    try { dbInstance!.pragma(`user_version = ${SCHEMA_VERSION}`); } catch {}
-  };
-
   if (isNewDb) {
     migrate(dbInstance);
     try { dbInstance.pragma(`user_version = ${SCHEMA_VERSION}`); } catch {}
     migratedOnce = true;
     seed(dbInstance);
   } else if (!migratedOnce) {
-    if (!migratePromise) {
-      migratePromise = doMigrate();
-      g.__dbMigratePromise = migratePromise;
+    const current = Number(dbInstance.pragma('user_version', { simple: true }));
+    if (current < SCHEMA_VERSION) {
+      migrate(dbInstance);
+      try { dbInstance.pragma(`user_version = ${SCHEMA_VERSION}`); } catch {}
     }
-    try { await migratePromise; } catch {}
     migratedOnce = true;
   }
 
