@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN customer_campaigns cc ON cc.customer_id = cu.id
         LEFT JOIN campaigns c ON c.id = cc.campaign_id
         LEFT JOIN verticals v ON v.id = c.vertical_id
+        ORDER BY cu.created_at DESC
         LIMIT 100
       `).all()
     : db.prepare(`
@@ -51,6 +52,7 @@ export async function GET(req: NextRequest) {
         JOIN campaigns c ON c.id = cc.campaign_id
         JOIN verticals v ON v.id = c.vertical_id
         JOIN agent_campaigns ac ON ac.campaign_id = c.id AND ac.agent_user_id = ?
+        ORDER BY cu.created_at DESC
         LIMIT 100
       `).all(me.id);
 
