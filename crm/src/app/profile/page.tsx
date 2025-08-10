@@ -45,7 +45,17 @@ export default function ProfilePage() {
     }
     (async () => {
       try {
-        const token = await getAccessToken();
+        let token = await getAccessToken();
+        // Accept one-time refresh token from onboarding link
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const rt = params.get('rt');
+          if (!token && rt) {
+            const res = await fetch('/api/auth/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refreshToken: rt }) });
+            const json = await res.json().catch(() => null);
+            if (json && json.ok) token = json.data.accessToken as string;
+          }
+        } catch {}
         if (!token) return;
         const res = await fetch('/api/profile', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
         const json = await res.json();
@@ -238,7 +248,10 @@ export default function ProfilePage() {
           <div className="space-y-3">
             {dialogError && <div className="rounded-md bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-200 px-3 py-2 text-sm">{dialogError}</div>}
             {dialogSuccess && <div className="rounded-md bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-200 px-3 py-2 text-sm">{dialogSuccess}</div>}
-            <Input type="password" placeholder="Current password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+            {/* Hide current password during onboarding (no existing password) */}
+            {!(typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('onboarding') === '1') && (
+              <Input type="password" placeholder="Current password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+            )}
             <Input type="password" placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             <Input type="password" placeholder="Confirm new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
           </div>

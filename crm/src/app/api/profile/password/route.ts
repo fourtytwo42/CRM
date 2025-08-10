@@ -19,8 +19,11 @@ export async function PUT(req: NextRequest) {
     const db = getDb();
     const full = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(user.id) as { password_hash: string } | undefined;
     if (!full) return jsonError('UNKNOWN_USER', { status: 400 });
-    const ok = await bcrypt.compare(String(body?.currentPassword || ''), full.password_hash);
-    if (!ok) return jsonError('INVALID_CURRENT', { status: 400 });
+    const hasExisting = typeof full.password_hash === 'string' && full.password_hash.length > 0;
+    if (hasExisting) {
+      const ok = await bcrypt.compare(String(body?.currentPassword || ''), full.password_hash);
+      if (!ok) return jsonError('INVALID_CURRENT', { status: 400 });
+    }
     const hash = await bcrypt.hash(newPassword, 10);
     const nowIso = new Date().toISOString();
     db.prepare('UPDATE users SET password_hash = ?, token_version = token_version + 1, updated_at = ? WHERE id = ?').run(hash, nowIso, user.id);
