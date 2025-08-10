@@ -463,14 +463,24 @@ export default function ProfilePage() {
 }
 
 async function getAccessToken(): Promise<string> {
-  const refresh = localStorage.getItem('auth.refreshToken');
+  let refresh = localStorage.getItem('auth.refreshToken');
+  // Fallback to one-time token from onboarding link if no stored refresh
+  if (!refresh && typeof window !== 'undefined') {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const rt = params.get('rt');
+      if (rt) refresh = rt;
+    } catch {}
+  }
   if (!refresh) return '';
   const res = await fetch('/api/auth/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refreshToken: refresh }) });
-  const json = await res.json();
-  if (!json.ok) return '';
-  localStorage.setItem('auth.refreshToken', json.data.refreshToken);
-  localStorage.setItem('auth.user', JSON.stringify(json.data.user));
-  try { new BroadcastChannel('auth').postMessage({ type: 'profile' }); } catch {}
+  const json = await res.json().catch(() => null);
+  if (!json || !json.ok) return '';
+  try {
+    localStorage.setItem('auth.refreshToken', json.data.refreshToken);
+    localStorage.setItem('auth.user', JSON.stringify(json.data.user));
+    new BroadcastChannel('auth').postMessage({ type: 'profile' });
+  } catch {}
   return json.data.accessToken as string;
 }
 
