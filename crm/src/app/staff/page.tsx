@@ -4,20 +4,8 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
-import {
-  IconUsers,
-  IconBriefcase,
-  IconFilter,
-  IconSearch,
-  IconListCheck,
-  IconCalendarEvent,
-  IconDownload,
-  IconUpload,
-  IconReportAnalytics,
-  IconCircleCheck,
-  IconAlertCircle,
-  IconChevronRight,
-} from "@tabler/icons-react";
+import { IconUsers, IconBriefcase, IconFilter, IconSearch, IconListCheck, IconCalendarEvent, IconDownload, IconUpload, IconReportAnalytics, IconCircleCheck, IconAlertCircle } from "@tabler/icons-react";
+import Dialog, { DialogActions } from "@/components/ui/Dialog";
 
 type Customer = {
   id: number;
@@ -35,6 +23,7 @@ type Agent = {
   name: string;
   title: string;
 };
+type AgentRow = { id: number; username: string; email?: string; role: string; status: string };
 
 type Case = {
   id: number;
@@ -75,6 +64,8 @@ export default function AgentPage() {
   const [uniqueVerticals, setUniqueVerticals] = useState<string[]>([]);
   const [uniqueCampaigns, setUniqueCampaigns] = useState<string[]>([]);
   const [rows, setRows] = useState<Customer[]>([]);
+  const [agents, setAgents] = useState<AgentRow[]>([]);
+  const [agentSort, setAgentSort] = useState<{ col: 'username'|'email'|'status'; dir: 'asc'|'desc' }>({ col: 'username', dir: 'asc' });
 
   const filtered = useMemo(() => {
     return rows.filter((c) => {
@@ -87,6 +78,8 @@ export default function AgentPage() {
   }, [query, vertical, campaign, agent]);
 
   const [counts, setCounts] = useState({ usersByCampaign: [] as Array<{ name: string; count: number }>, activeCasesByAgent: [] as Array<{ name: string; count: number }>, tasks: { overdue: 0, completed: 0 } });
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState({ full_name: '', email: '', phone: '', company: '', title: '', notes: '', campaign_id: '' });
 
   useEffect(() => {
     (async () => {
@@ -101,8 +94,11 @@ export default function AgentPage() {
         setUniqueVerticals(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.vertical))));
         setUniqueCampaigns(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.name))));
       }
+      const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}`, { headers: { authorization: `Bearer ${token}` } });
+      const ja = await resAgents.json().catch(() => null);
+      if (ja && ja.ok) setAgents(ja.data.agents || []);
     })();
-  }, []);
+  }, [agentSort]);
 
   return (
     <main className="container-hero py-8">
@@ -157,11 +153,44 @@ export default function AgentPage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Left: Customers & Filters */}
         <div className="xl:col-span-2 space-y-6">
+          {/* Agents table (admin/power) */}
           <Card>
-            <CardHeader title="Customers" subtitle="Search and filter by vertical, campaign, or agent" actions={
+            <CardHeader title="Agents" subtitle="Manage and browse agents" />
+            <CardBody>
+              <div className="overflow-auto -mx-6">
+                <table className="min-w-full table-auto text-sm">
+                  <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
+                    <tr className="text-left">
+                      <th className="px-6 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'username', dir: s.col==='username' && s.dir==='asc' ? 'desc' : 'asc' }))}>Username</th>
+                      <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'email', dir: s.col==='email' && s.dir==='asc' ? 'desc' : 'asc' }))}>Email</th>
+                      <th className="px-3 py-3 font-medium">Role</th>
+                      <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'status', dir: s.col==='status' && s.dir==='asc' ? 'desc' : 'asc' }))}>Status</th>
+                      <th className="px-3 py-3 font-medium text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {agents.map((a) => (
+                      <tr key={a.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
+                        <td className="px-6 py-3">{a.username}</td>
+                        <td className="px-3 py-3">{a.email}</td>
+                        <td className="px-3 py-3">{a.role}</td>
+                        <td className="px-3 py-3">{a.status}</td>
+                        <td className="px-3 py-3 text-right">
+                          <a href={`/agent/${a.id}`} className="underline">Open</a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardHeader title="Customers" subtitle="Search and filter by vertical, campaign, or agent; Admins can add customers" actions={
               <div className="hidden md:flex items-center gap-2">
                 <Button variant="secondary"><IconFilter size={18} className="mr-2" />Filters</Button>
                 <Button><IconSearch size={18} className="mr-2" />Search</Button>
+                <Button variant="primary" onClick={() => setAddOpen(true)}>Add Customer</Button>
               </div>
             } />
             <CardBody>
@@ -203,14 +232,14 @@ export default function AgentPage() {
                   <tbody>
                     {filtered.map((c) => (
                       <tr key={c.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
-                        <td className="px-6 py-3">{c.name}</td>
+                        <td className="px-6 py-3"><a className="underline" href={`/customers/${c.id}`}>{c.name}</a></td>
                         <td className="px-3 py-3">
                           <div className="opacity-80">{c.email}</div>
                           <div className="opacity-60 text-xs">{c.phone}</div>
                         </td>
                         <td className="px-3 py-3">{c.vertical}</td>
                         <td className="px-3 py-3">{c.campaign}</td>
-                        <td className="px-3 py-3">{MOCK_AGENTS.find((a) => a.id === c.agentId)?.name || '-'}</td>
+                        <td className="px-3 py-3">{agents.find((a) => a.id === c.agentId)?.username || '-'}</td>
                         <td className="px-3 py-3">
                           <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
                             c.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-300' :
@@ -223,8 +252,8 @@ export default function AgentPage() {
                           </span>
                         </td>
                         <td className="px-3 py-3 text-right">
-                          <Button size="sm" variant="secondary">View</Button>
-                          <Button size="sm" className="ml-2">Open<IconChevronRight size={16} className="ml-1" /></Button>
+                          <a className="underline" href={`/customers/${c.id}`}>View</a>
+                          <a className="underline ml-2" href={`/customers/${c.id}`}>Open</a>
                         </td>
                       </tr>
                     ))}
@@ -233,6 +262,37 @@ export default function AgentPage() {
               </div>
             </CardBody>
           </Card>
+
+          {/* Add Customer Dialog */}
+          <Dialog open={addOpen} onOpenChange={setAddOpen} title="Add Customer">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <Input placeholder="Full name" value={addForm.full_name} onChange={(e) => setAddForm({ ...addForm, full_name: e.target.value })} />
+              <Input placeholder="Email" type="email" value={addForm.email} onChange={(e) => setAddForm({ ...addForm, email: e.target.value })} />
+              <Input placeholder="Phone" value={addForm.phone} onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })} />
+              <Input placeholder="Company" value={addForm.company} onChange={(e) => setAddForm({ ...addForm, company: e.target.value })} />
+              <Input placeholder="Title" value={addForm.title} onChange={(e) => setAddForm({ ...addForm, title: e.target.value })} />
+              <Select value={addForm.campaign_id} onChange={(e) => setAddForm({ ...addForm, campaign_id: e.target.value })}>
+                <option value="">Select campaign…</option>
+                {uniqueCampaigns.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </Select>
+              <textarea className="md:col-span-2 w-full min-h-24 rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10" placeholder="Notes" value={addForm.notes} onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })} />
+            </div>
+            <DialogActions>
+              <Button variant="secondary" onClick={() => setAddOpen(false)}>Cancel</Button>
+              <Button onClick={async () => {
+                const token = await getAccessToken();
+                if (!token || !addForm.full_name) { setAddOpen(false); return; }
+                // resolve campaign name -> id via overview campaigns list call
+                const resCamps = await fetch('/api/crm/overview', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                const jc = await resCamps.json().catch(() => null);
+                const campId = jc && jc.ok ? (jc.data.campaigns.find((c: any) => c.name === addForm.campaign_id)?.id || null) : null;
+                await fetch('/api/crm/customers/new', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ ...addForm, campaign_id: campId }) });
+                setAddOpen(false);
+              }}>Save</Button>
+            </DialogActions>
+          </Dialog>
 
           <Card>
             <CardHeader title="Tasks & Activities" subtitle="Assign to agents, campaigns, or users" actions={<Button size="sm">New Task</Button>} />
