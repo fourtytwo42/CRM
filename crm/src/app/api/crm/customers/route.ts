@@ -45,10 +45,7 @@ export async function GET(req: NextRequest) {
   if (!isElevated) { where.push('EXISTS (SELECT 1 FROM agent_campaigns ac WHERE ac.campaign_id = c.id AND ac.agent_user_id = ?)'); params.push(me.id); }
   if (mine && !isElevated) {
     // Default agent view: customers they interacted with or in campaigns they belong to
-    where.push('(
-      EXISTS (SELECT 1 FROM communications cm WHERE cm.customer_id = cu.id AND cm.agent_user_id = ?) OR 
-      EXISTS (SELECT 1 FROM agent_campaigns ac2 WHERE ac2.campaign_id = c.id AND ac2.agent_user_id = ?)
-    )');
+    where.push("(EXISTS (SELECT 1 FROM communications cm WHERE cm.customer_id = cu.id AND cm.agent_user_id = ?) OR EXISTS (SELECT 1 FROM agent_campaigns ac2 WHERE ac2.campaign_id = c.id AND ac2.agent_user_id = ?))");
     params.push(me.id, me.id);
   }
 
