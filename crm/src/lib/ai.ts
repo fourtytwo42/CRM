@@ -137,15 +137,46 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
     }
     else if (provider === 'anthropic') {
       const base = baseUrl || 'https://api.anthropic.com';
-      const anthropic = createAnthropic({ apiKey: config.apiKey || '', baseURL: base });
-      const model = anthropic.messages(config.model || 'claude-3-5-sonnet-latest');
-      const result = await withTimeout(generateText({
-        model,
-        system,
-        messages: userAndAssistant as any,
-        temperature: 1,
-      }), timeout, controller.signal);
-      return { ok: true, provider, model: config.model || '', content: result.text };
+      try {
+        const anthropic = createAnthropic({ apiKey: config.apiKey || '', baseURL: base });
+        const model = anthropic.messages(config.model || 'claude-3-5-sonnet-latest');
+        const result = await withTimeout(generateText({
+          model,
+          system,
+          messages: userAndAssistant as any,
+          temperature: 1,
+        }), timeout, controller.signal);
+        return { ok: true, provider, model: config.model || '', content: result.text };
+      } catch (e: any) {
+        try { console.error('[ai-chat] Anthropic SDK failed', { message: e?.message }); } catch {}
+        // Fallback to raw HTTP for clearer error details
+        const res = await withTimeout(fetch(`${base}/v1/messages`, {
+          method: 'POST',
+          signal: controller.signal,
+          cache: 'no-store',
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': config.apiKey || '',
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: config.model,
+            max_tokens: 512,
+            temperature: 1,
+            system,
+            messages: userAndAssistant.map((m) => ({ role: m.role, content: m.content })),
+          }),
+        }), timeout, controller.signal);
+        if (!res.ok) {
+          const text = await safeText(res);
+          try { console.error('[ai-chat] Anthropic HTTP failed', { status: res.status, text }); } catch {}
+          return { ok: false, error: { code: `HTTP_${res.status}`, message: text || 'Anthropic request failed' } };
+        }
+        const json: any = await res.json();
+        const content: string | undefined = json?.content?.[0]?.text || json?.content?.[0]?.content?.[0]?.text;
+        if (!content) return { ok: false, error: { code: 'NO_CONTENT', message: 'No content' } };
+        return { ok: true, provider, model: config.model || '', content };
+      }
     }
     else if (provider === 'ollama') {
       // handled below with native HTTP path
