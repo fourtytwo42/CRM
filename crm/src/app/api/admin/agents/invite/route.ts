@@ -32,12 +32,17 @@ export async function POST(req: NextRequest) {
   try {
     const url = new URL('/api/auth/invite', req.url);
     url.searchParams.set('code', code);
-    await maybeSendEmail(
+    const ok = await maybeSendEmail(
       email,
       'You are invited — complete your account',
       `Finish setup: ${url.toString()}`,
       `<p>You have been invited. Click to verify and complete your account:</p><p><a href="${url.toString()}">${url.toString()}</a></p>`
     );
+    if (!ok) {
+      // Store a pending-outbox record for development visibility (optional)
+      try { db.prepare(`CREATE TABLE IF NOT EXISTS email_outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, to_email TEXT, subject TEXT, body TEXT, created_at TEXT NOT NULL)`).run(); } catch {}
+      db.prepare(`INSERT INTO email_outbox (to_email, subject, body, created_at) VALUES (?, ?, ?, ?)`).run(email, 'You are invited — complete your account', url.toString(), new Date().toISOString());
+    }
   } catch {}
 
   return jsonOk();

@@ -4,6 +4,7 @@ import Database from 'better-sqlite3';
 import { env } from './env';
 
 let dbInstance: Database.Database | null = null;
+let migratedOnce = false;
 
 function ensureDirectoryExists(directoryPath: string): void {
   if (!fs.existsSync(directoryPath)) {
@@ -29,9 +30,11 @@ function getDb(): Database.Database {
 
   if (isNewDb) {
     migrate(dbInstance);
+    migratedOnce = true;
     seed(dbInstance);
-  } else {
+  } else if (!migratedOnce) {
     migrate(dbInstance);
+    migratedOnce = true;
   }
 
   // Ensure demo users exist only when explicitly enabled via env.seedDemo in non-production
