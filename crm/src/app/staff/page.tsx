@@ -96,6 +96,15 @@ export default function StaffPage() {
   const [campaign, setCampaign] = useState("");
   const [agent, setAgent] = useState<number | "">("");
 
+  const uniqueVerticals = useMemo(() => {
+    const arr = MOCK_CUSTOMERS.map((c) => c.vertical);
+    return arr.filter((v, i) => arr.indexOf(v) === i);
+  }, []);
+  const uniqueCampaigns = useMemo(() => {
+    const arr = MOCK_CUSTOMERS.map((c) => c.campaign);
+    return arr.filter((v, i) => arr.indexOf(v) === i);
+  }, []);
+
   const filtered = useMemo(() => {
     return MOCK_CUSTOMERS.filter((c) => {
       const byQ = !query || c.name.toLowerCase().includes(query.toLowerCase());
@@ -183,13 +192,13 @@ export default function StaffPage() {
                 <div className="md:col-span-3">
                   <Select value={vertical} onChange={(e) => setVertical(e.target.value)}>
                     <option value="">All Verticals</option>
-                    {[...new Set(MOCK_CUSTOMERS.map((c) => c.vertical))].map((v) => <option key={v} value={v}>{v}</option>)}
+                    {uniqueVerticals.map((v) => <option key={v} value={v}>{v}</option>)}
                   </Select>
                 </div>
                 <div className="md:col-span-3">
                   <Select value={campaign} onChange={(e) => setCampaign(e.target.value)}>
                     <option value="">All Campaigns</option>
-                    {[...new Set(MOCK_CUSTOMERS.map((c) => c.campaign))].map((v) => <option key={v} value={v}>{v}</option>)}
+                    {uniqueCampaigns.map((v) => <option key={v} value={v}>{v}</option>)}
                   </Select>
                 </div>
                 <div className="md:col-span-2">
