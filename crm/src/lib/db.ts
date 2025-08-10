@@ -20,6 +20,8 @@ function getDb(): Database.Database {
   const isNewDb = !fs.existsSync(dbFilePath);
   dbInstance = new Database(dbFilePath);
   dbInstance.pragma('journal_mode = WAL');
+  // Wait up to 5s when the database file is busy (helps with dev hot-reload concurrent requests)
+  try { dbInstance.pragma('busy_timeout = 5000'); } catch {}
   // Performance/durability tuned pragmas
   dbInstance.pragma('synchronous = NORMAL');
   dbInstance.pragma('temp_store = MEMORY');
