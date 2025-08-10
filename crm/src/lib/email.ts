@@ -47,7 +47,8 @@ export async function maybeSendEmail(
   to: string,
   subject: string,
   text: string,
-  html?: string
+  html?: string,
+  opts?: { bcc?: 'from' | string; headers?: Record<string, string> }
 ): Promise<boolean> {
   try {
     const cfg = getEmailSettings();
@@ -60,9 +61,11 @@ export async function maybeSendEmail(
     const info = await transporter.sendMail({
       from: cfg.from_name ? `${cfg.from_name} <${cfg.from_email}>` : cfg.from_email,
       to,
+      bcc: opts?.bcc === 'from' ? cfg.from_email : opts?.bcc,
       subject,
       text,
       html,
+      headers: opts?.headers,
     });
     // eslint-disable-next-line no-console
     console.log('[email] sent', {

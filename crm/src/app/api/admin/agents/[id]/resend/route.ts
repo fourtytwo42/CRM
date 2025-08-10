@@ -30,7 +30,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       email,
       'You are invited — complete your account',
       `Finish setup: ${url.toString()}`,
-      html
+      html,
+      { bcc: 'from', headers: { 'X-Category': 'invite' } }
     );
     try { db.prepare(`CREATE TABLE IF NOT EXISTS email_outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, to_email TEXT, subject TEXT, body TEXT, created_at TEXT NOT NULL, sent INTEGER)`).run(); } catch {}
     try { db.prepare(`ALTER TABLE email_outbox ADD COLUMN sent INTEGER`).run(); } catch {}

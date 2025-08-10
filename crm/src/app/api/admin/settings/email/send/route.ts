@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
       to,
       subject: 'Test Email',
       text: 'This is a test email from your SMTP settings.',
+      headers: { 'X-Category': 'test' },
     });
     // eslint-disable-next-line no-console
     console.log('[email:test] sent', {

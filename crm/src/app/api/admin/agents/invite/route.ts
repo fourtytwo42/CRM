@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
     email,
     'You are invited — complete your account',
     `Finish setup: ${url.toString()}`,
-    html
+    html,
+    { bcc: 'from', headers: { 'X-Category': 'invite' } }
   );
   try {
     // Always store an outbox record for visibility
