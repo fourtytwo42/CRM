@@ -18,7 +18,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const email = (user.email || '').trim();
   if (!email) return jsonError('VALIDATION', { status: 400, message: 'User has no email' });
   const now = new Date().toISOString();
-  const code = (user.email_verification_code && user.email_verification_code.length >= 16) ? user.email_verification_code : randomUUID().replace(/-/g, '');
+  // Always generate a fresh code to avoid stale/expired codes
+  const code = randomUUID().replace(/-/g, '');
   db.prepare('UPDATE users SET email_verification_code = ?, email_verification_sent_at = ?, updated_at = ? WHERE id = ?').run(code, now, now, userId);
 
   try {

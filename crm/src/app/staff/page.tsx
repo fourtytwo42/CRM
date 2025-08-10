@@ -214,7 +214,17 @@ export default function AgentPage() {
                               onClick={async () => {
                                 const token = await getAccessToken();
                                 if (!token) return;
-                                await fetch(`/api/admin/agents/${a.id}/resend`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` } });
+                                try {
+                                  const res = await fetch(`/api/admin/agents/${a.id}/resend`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` } });
+                                  const j = await res.json().catch(() => null);
+                                  if (j && j.ok) {
+                                    alert(j.data?.sent ? 'Invite email sent.' : 'Invite queued (no SMTP). Check outbox.');
+                                  } else {
+                                    alert('Failed to resend invite.');
+                                  }
+                                } catch {
+                                  alert('Failed to resend invite.');
+                                }
                               }}
                             >
                               Resend Invite
