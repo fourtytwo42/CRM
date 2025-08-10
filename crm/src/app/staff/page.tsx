@@ -90,9 +90,14 @@ export default function AgentPage() {
   const [inviteRole, setInviteRole] = useState<'agent'|'manager'|'lead'>('agent');
   const [verticals, setVerticals] = useState<Array<{ id:number; name:string }>>([]);
   const [campaigns, setCampaigns] = useState<Array<{ id:number; name:string; vertical_id: number|null; status: string }>>([]);
-  const [newVertical, setNewVertical] = useState('');
-  const [newCampaign, setNewCampaign] = useState('');
-  const [newCampaignVerticalId, setNewCampaignVerticalId] = useState<string>('');
+  // Dialogs for adding verticals/campaigns
+  const [addVerticalOpen, setAddVerticalOpen] = useState(false);
+  const [addVerticalName, setAddVerticalName] = useState('');
+  const [addVerticalError, setAddVerticalError] = useState<string | null>(null);
+  const [addCampaignOpen, setAddCampaignOpen] = useState(false);
+  const [addCampaignName, setAddCampaignName] = useState('');
+  const [addCampaignVerticalId, setAddCampaignVerticalId] = useState<string>('');
+  const [addCampaignError, setAddCampaignError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -278,14 +283,7 @@ export default function AgentPage() {
           <Card>
             <CardHeader title="Verticals" subtitle="Create, rename, or delete verticals" actions={
               <div className="hidden md:flex items-center gap-2">
-                <Input placeholder="New vertical name" value={newVertical} onChange={(e) => setNewVertical(e.target.value)} />
-                <Button variant="primary" onClick={async () => {
-                  const token = await getAccessToken(); if (!token || !newVertical.trim()) return;
-                  await fetch('/api/admin/verticals', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ name: newVertical.trim() }) });
-                  setNewVertical('');
-                  const vres = await fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-                  const vj = await vres.json().catch(() => null); if (vj && vj.ok) setVerticals(vj.data.verticals || []);
-                }}>Add</Button>
+                <Button variant="primary" onClick={() => { setAddVerticalName(''); setAddVerticalError(null); setAddVerticalOpen(true); }}>Add</Button>
               </div>
             } />
             <CardBody>
@@ -321,20 +319,7 @@ export default function AgentPage() {
           <Card>
             <CardHeader title="Campaigns" subtitle="Create, reassign vertical, rename, or delete" actions={
               <div className="hidden md:flex items-center gap-2">
-                <Input placeholder="New campaign name" value={newCampaign} onChange={(e) => setNewCampaign(e.target.value)} />
-                <Select value={newCampaignVerticalId} onChange={(e) => setNewCampaignVerticalId(e.target.value)}>
-                  <option value="">No vertical</option>
-                  {verticals.map(v => <option key={v.id} value={String(v.id)}>{v.name}</option>)}
-                </Select>
-                <Button variant="primary" onClick={async () => {
-                  const token = await getAccessToken(); if (!token || !newCampaign.trim()) return;
-                  const payload: any = { name: newCampaign.trim() };
-                  if (newCampaignVerticalId) payload.vertical_id = Number(newCampaignVerticalId);
-                  await fetch('/api/admin/campaigns', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
-                  setNewCampaign(''); setNewCampaignVerticalId('');
-                  const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-                  const cj = await cres.json().catch(() => null); if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
-                }}>Add</Button>
+                <Button variant="primary" onClick={() => { setAddCampaignName(''); setAddCampaignVerticalId(''); setAddCampaignError(null); setAddCampaignOpen(true); }}>Add</Button>
               </div>
             } />
             <CardBody>
@@ -374,6 +359,59 @@ export default function AgentPage() {
               </table>
             </CardBody>
           </Card>
+
+          {/* Add Vertical Dialog */}
+          <Dialog open={addVerticalOpen} onOpenChange={setAddVerticalOpen} title="Add vertical">
+            <div className="space-y-3">
+              {addVerticalError && <div className="text-sm text-red-600">{addVerticalError}</div>}
+              <Input placeholder="Vertical name" value={addVerticalName} onChange={(e) => setAddVerticalName(e.target.value)} />
+            </div>
+            <DialogActions>
+              <Button variant="secondary" onClick={() => setAddVerticalOpen(false)}>Cancel</Button>
+              <Button onClick={async () => {
+                setAddVerticalError(null);
+                const name = addVerticalName.trim(); if (!name) { setAddVerticalError('Name required'); return; }
+                const token = await getAccessToken(); if (!token) { setAddVerticalError('Not authorized'); return; }
+                const res = await fetch('/api/admin/verticals', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ name }) });
+                const j = await res.json().catch(() => ({ ok: false }));
+                if (!j.ok) { setAddVerticalError(j?.error?.message || 'Failed to add'); return; }
+                const vres = await fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                const vj = await vres.json().catch(() => null); if (vj && vj.ok) setVerticals(vj.data.verticals || []);
+                setAddVerticalOpen(false);
+              }}>Save</Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Add Campaign Dialog */}
+          <Dialog open={addCampaignOpen} onOpenChange={setAddCampaignOpen} title="Add campaign">
+            <div className="space-y-3">
+              {addCampaignError && <div className="text-sm text-red-600">{addCampaignError}</div>}
+              <Input placeholder="Campaign name" value={addCampaignName} onChange={(e) => setAddCampaignName(e.target.value)} />
+              <label className="text-sm block">
+                <span className="text-xs opacity-70">Vertical (optional)</span>
+                <Select value={addCampaignVerticalId} onChange={(e) => setAddCampaignVerticalId(e.target.value)}>
+                  <option value="">No vertical</option>
+                  {verticals.map(v => <option key={v.id} value={String(v.id)}>{v.name}</option>)}
+                </Select>
+              </label>
+            </div>
+            <DialogActions>
+              <Button variant="secondary" onClick={() => setAddCampaignOpen(false)}>Cancel</Button>
+              <Button onClick={async () => {
+                setAddCampaignError(null);
+                const name = addCampaignName.trim(); if (!name) { setAddCampaignError('Name required'); return; }
+                const token = await getAccessToken(); if (!token) { setAddCampaignError('Not authorized'); return; }
+                const payload: any = { name };
+                if (addCampaignVerticalId) payload.vertical_id = Number(addCampaignVerticalId);
+                const res = await fetch('/api/admin/campaigns', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+                const j = await res.json().catch(() => ({ ok: false }));
+                if (!j.ok) { setAddCampaignError(j?.error?.message || 'Failed to add'); return; }
+                const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                const cj = await cres.json().catch(() => null); if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
+                setAddCampaignOpen(false);
+              }}>Save</Button>
+            </DialogActions>
+          </Dialog>
           <Card>
             <CardHeader title="Customers" subtitle="Search and filter by vertical, campaign, or agent; Admins can add customers" actions={
               <div className="hidden md:flex items-center gap-2">
