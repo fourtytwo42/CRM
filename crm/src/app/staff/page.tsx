@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -56,57 +56,28 @@ type Task = {
 
 type Campaign = { id: number; name: string; vertical: string; users: number; agents: number };
 
-const MOCK_AGENTS: Agent[] = [
-  { id: 1, name: "Alex Johnson", title: "Senior AE" },
-  { id: 2, name: "Priya Singh", title: "AE" },
-  { id: 3, name: "Marcus Lee", title: "SDR" },
-];
+const MOCK_AGENTS: Agent[] = [];
 
-const MOCK_CUSTOMERS: Customer[] = [
-  { id: 1, name: "Jane Doe", email: "jane.doe@example.com", phone: "+1 (415) 555-0199", vertical: "SaaS", campaign: "Q4 Outbound", agentId: 1, status: "active" },
-  { id: 2, name: "John Smith", email: "john.smith@example.com", phone: "+1 (212) 555-0134", vertical: "Healthcare", campaign: "Provider Expansion", agentId: 2, status: "lead" },
-  { id: 3, name: "Ava Patel", email: "ava.patel@example.com", phone: "+44 20 7946 0958", vertical: "Fintech", campaign: "EMEA Launch", agentId: 1, status: "inactive" },
-  { id: 4, name: "Carlos Ruiz", email: "carlos.ruiz@example.com", phone: "+34 91 123 4567", vertical: "Manufacturing", campaign: "Q3 Upsell", agentId: 3, status: "lead" },
-  { id: 5, name: "Mia Chen", email: "mia.chen@example.com", phone: "+86 10 5555 8888", vertical: "SaaS", campaign: "Q4 Outbound", agentId: 2, status: "active" },
-];
+const MOCK_CUSTOMERS: Customer[] = [];
 
-const MOCK_CAMPAIGNS: Campaign[] = [
-  { id: 1, name: "Q4 Outbound", vertical: "SaaS", users: 128, agents: 6 },
-  { id: 2, name: "Provider Expansion", vertical: "Healthcare", users: 89, agents: 5 },
-  { id: 3, name: "EMEA Launch", vertical: "Fintech", users: 54, agents: 3 },
-  { id: 4, name: "Q3 Upsell", vertical: "Manufacturing", users: 72, agents: 4 },
-];
+const MOCK_CAMPAIGNS: Campaign[] = [];
 
-const MOCK_CASES: Case[] = [
-  { id: 101, title: "Demo + Pricing", customerId: 1, agentId: 1, stage: "in-progress" },
-  { id: 102, title: "Security Review", customerId: 2, agentId: 2, stage: "new" },
-  { id: 103, title: "Procurement", customerId: 3, agentId: 1, stage: "in-progress" },
-  { id: 104, title: "Negotiation", customerId: 5, agentId: 2, stage: "won" },
-];
+const MOCK_CASES: Case[] = [];
 
-const MOCK_TASKS: Task[] = [
-  { id: 1, title: "Follow up intro email", for: "customer", refId: 2, due: "2025-08-12", assignedTo: 3, completed: false },
-  { id: 2, title: "Prep deck for demo", for: "campaign", refId: 1, due: "2025-08-13", assignedTo: 1, completed: true },
-  { id: 3, title: "Ops handoff checklist", for: "agent", refId: 1, due: "2025-08-14", assignedTo: 1, completed: false },
-];
+const MOCK_TASKS: Task[] = [];
 
-export default function StaffPage() {
+export default function AgentPage() {
   const [query, setQuery] = useState("");
   const [vertical, setVertical] = useState("");
   const [campaign, setCampaign] = useState("");
   const [agent, setAgent] = useState<number | "">("");
 
-  const uniqueVerticals = useMemo(() => {
-    const arr = MOCK_CUSTOMERS.map((c) => c.vertical);
-    return arr.filter((v, i) => arr.indexOf(v) === i);
-  }, []);
-  const uniqueCampaigns = useMemo(() => {
-    const arr = MOCK_CUSTOMERS.map((c) => c.campaign);
-    return arr.filter((v, i) => arr.indexOf(v) === i);
-  }, []);
+  const [uniqueVerticals, setUniqueVerticals] = useState<string[]>([]);
+  const [uniqueCampaigns, setUniqueCampaigns] = useState<string[]>([]);
+  const [rows, setRows] = useState<Customer[]>([]);
 
   const filtered = useMemo(() => {
-    return MOCK_CUSTOMERS.filter((c) => {
+    return rows.filter((c) => {
       const byQ = !query || c.name.toLowerCase().includes(query.toLowerCase());
       const byV = !vertical || c.vertical === vertical;
       const byC = !campaign || c.campaign === campaign;
@@ -115,22 +86,26 @@ export default function StaffPage() {
     });
   }, [query, vertical, campaign, agent]);
 
-  const counts = useMemo(() => {
-    return {
-      usersByCampaign: MOCK_CAMPAIGNS.map((c) => ({ name: c.name, count: c.users })),
-      activeCasesByAgent: MOCK_AGENTS.map((a) => ({ name: a.name, count: MOCK_CASES.filter((cs) => cs.agentId === a.id && cs.stage !== "lost").length })),
-      tasks: {
-        overdue: MOCK_TASKS.filter((t) => !t.completed).length,
-        completed: MOCK_TASKS.filter((t) => t.completed).length,
-      },
-    };
+  const [counts, setCounts] = useState({ usersByCampaign: [] as Array<{ name: string; count: number }>, activeCasesByAgent: [] as Array<{ name: string; count: number }>, tasks: { overdue: 0, completed: 0 } });
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch('/api/crm/overview', { cache: 'no-store' });
+      const json = await res.json();
+      if (json.ok) {
+        setCounts({ usersByCampaign: json.data.usersByCampaign || [], activeCasesByAgent: json.data.activeCasesByAgent || [], tasks: json.data.tasks || { overdue: 0, completed: 0 } });
+        setRows(json.data.customers || []);
+        setUniqueVerticals(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.vertical))));
+        setUniqueCampaigns(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.name))));
+      }
+    })();
   }, []);
 
   return (
     <main className="container-hero py-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Staff CRM</h1>
+          <h1 className="text-3xl font-bold">Agent CRM</h1>
           <p className="opacity-70">Multi-vertical campaigns, agent tracking, calendar, and reporting</p>
         </div>
         <div className="flex items-center gap-2">

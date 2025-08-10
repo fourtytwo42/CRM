@@ -66,7 +66,7 @@ export default function Header() {
               )}
               {/* Staff dashboard is visible to power users and admins */}
               {(user.role === 'admin' || user.role === 'power') && (
-                <Link href="/staff" className="text-sm opacity-80 hover:opacity-100">Staff</Link>
+                <Link href="/agent" className="text-sm opacity-80 hover:opacity-100">Agent</Link>
               )}
               {/* Customer portal is visible to everyone */}
               <Link href="/portal" className="text-sm opacity-80 hover:opacity-100">Customer Portal</Link>

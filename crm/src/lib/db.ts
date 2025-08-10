@@ -216,6 +216,146 @@ function migrate(db: Database.Database): void {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_email_unique ON customers(email) WHERE email IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
   `);
+
+  // Verticals (top-level accounts/segments)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS verticals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+
+  // Campaigns (belong to a vertical)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS campaigns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vertical_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','paused','archived')),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY(vertical_id) REFERENCES verticals(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_campaigns_vertical_id ON campaigns(vertical_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_campaigns_unique ON campaigns(vertical_id, name);
+  `);
+
+  // Agent assignments to campaigns
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS agent_campaigns (
+      agent_user_id INTEGER NOT NULL,
+      campaign_id INTEGER NOT NULL,
+      assigned_at TEXT NOT NULL,
+      PRIMARY KEY (agent_user_id, campaign_id),
+      FOREIGN KEY(agent_user_id) REFERENCES users(id),
+      FOREIGN KEY(campaign_id) REFERENCES campaigns(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_campaigns_agent ON agent_campaigns(agent_user_id);
+    CREATE INDEX IF NOT EXISTS idx_agent_campaigns_campaign ON agent_campaigns(campaign_id);
+  `);
+
+  // Customer assignments to campaigns
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS customer_campaigns (
+      customer_id INTEGER NOT NULL,
+      campaign_id INTEGER NOT NULL,
+      assigned_at TEXT NOT NULL,
+      PRIMARY KEY (customer_id, campaign_id),
+      FOREIGN KEY(customer_id) REFERENCES customers(id),
+      FOREIGN KEY(campaign_id) REFERENCES campaigns(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_customer_campaigns_customer ON customer_campaigns(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_customer_campaigns_campaign ON customer_campaigns(campaign_id);
+  `);
+
+  // Tasks assigned to agents (optionally tied to a customer/campaign)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','in-progress','done','cancelled')),
+      priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low','normal','high','urgent')),
+      due_date TEXT,
+      created_at TEXT NOT NULL,
+      completed_at TEXT,
+      created_by_user_id INTEGER NOT NULL,
+      assigned_to_user_id INTEGER NOT NULL,
+      campaign_id INTEGER,
+      customer_id INTEGER,
+      FOREIGN KEY(created_by_user_id) REFERENCES users(id),
+      FOREIGN KEY(assigned_to_user_id) REFERENCES users(id),
+      FOREIGN KEY(campaign_id) REFERENCES campaigns(id),
+      FOREIGN KEY(customer_id) REFERENCES customers(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to_user_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_campaign ON tasks(campaign_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_customer ON tasks(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+  `);
+
+  // Free-form notes
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      created_by_user_id INTEGER NOT NULL,
+      agent_user_id INTEGER,
+      customer_id INTEGER,
+      campaign_id INTEGER,
+      FOREIGN KEY(created_by_user_id) REFERENCES users(id),
+      FOREIGN KEY(agent_user_id) REFERENCES users(id),
+      FOREIGN KEY(customer_id) REFERENCES customers(id),
+      FOREIGN KEY(campaign_id) REFERENCES campaigns(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_notes_customer ON notes(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_notes_agent ON notes(agent_user_id);
+    CREATE INDEX IF NOT EXISTS idx_notes_campaign ON notes(campaign_id);
+  `);
+
+  // Communications (email/message/call) linked to customers and optionally agents/campaigns
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS communications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL CHECK (type IN ('email','message','call')),
+      direction TEXT NOT NULL CHECK (direction IN ('in','out')),
+      subject TEXT,
+      body TEXT,
+      customer_id INTEGER NOT NULL,
+      agent_user_id INTEGER,
+      campaign_id INTEGER,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(customer_id) REFERENCES customers(id),
+      FOREIGN KEY(agent_user_id) REFERENCES users(id),
+      FOREIGN KEY(campaign_id) REFERENCES campaigns(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_comms_customer ON communications(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_comms_agent ON communications(agent_user_id);
+    CREATE INDEX IF NOT EXISTS idx_comms_campaign ON communications(campaign_id);
+  `);
+
+  // Lightweight "cases" (deals/tickets/projects)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS cases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      stage TEXT NOT NULL DEFAULT 'new' CHECK (stage IN ('new','in-progress','won','lost','closed')),
+      customer_id INTEGER NOT NULL,
+      campaign_id INTEGER,
+      agent_user_id INTEGER,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY(customer_id) REFERENCES customers(id),
+      FOREIGN KEY(campaign_id) REFERENCES campaigns(id),
+      FOREIGN KEY(agent_user_id) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_cases_customer ON cases(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_cases_campaign ON cases(campaign_id);
+    CREATE INDEX IF NOT EXISTS idx_cases_agent ON cases(agent_user_id);
+  `);
   db.prepare(`
     INSERT OR IGNORE INTO email_settings (id, host, port, secure, username, password, from_email, from_name, updated_at)
     VALUES (1, '', 465, 1, NULL, NULL, '', NULL, ?)
@@ -344,6 +484,70 @@ function seed(db: Database.Database): void {
         updated_at: nowIso,
       });
     }
+  } catch {}
+
+  // Seed verticals, campaigns, assignments, and CRM data
+  try {
+    const nowIso = new Date().toISOString();
+    const insertVertical = db.prepare(`INSERT OR IGNORE INTO verticals (name, created_at, updated_at) VALUES (?, ?, ?)`);
+    const insertCampaign = db.prepare(`INSERT OR IGNORE INTO campaigns (vertical_id, name, status, created_at, updated_at) VALUES (?, ?, 'active', ?, ?)`);
+    const insertAgentCampaign = db.prepare(`INSERT OR IGNORE INTO agent_campaigns (agent_user_id, campaign_id, assigned_at) VALUES (?, ?, ?)`);
+    const insertCustomerCampaign = db.prepare(`INSERT OR IGNORE INTO customer_campaigns (customer_id, campaign_id, assigned_at) VALUES (?, ?, ?)`);
+    const insertTask = db.prepare(`INSERT OR IGNORE INTO tasks (title, description, status, priority, due_date, created_at, created_by_user_id, assigned_to_user_id, campaign_id, customer_id) VALUES (@title, @description, @status, @priority, @due_date, @created_at, @created_by_user_id, @assigned_to_user_id, @campaign_id, @customer_id)`);
+    const insertNote = db.prepare(`INSERT OR IGNORE INTO notes (body, created_at, created_by_user_id, agent_user_id, customer_id, campaign_id) VALUES (?, ?, ?, ?, ?, ?)`);
+    const insertComm = db.prepare(`INSERT OR IGNORE INTO communications (type, direction, subject, body, customer_id, agent_user_id, campaign_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+
+    // Ensure verticals exist
+    const verticalNames = ["Dick's Sporting Goods", 'Acme Retail', 'Initech Healthcare'];
+    verticalNames.forEach((vn) => insertVertical.run(vn, nowIso, nowIso));
+    const getVerticalId = (name: string) => (db.prepare(`SELECT id FROM verticals WHERE name = ?`).get(name) as { id: number }).id;
+    const vDicks = getVerticalId("Dick's Sporting Goods");
+    const vAcme = getVerticalId('Acme Retail');
+    const vInitech = getVerticalId('Initech Healthcare');
+
+    // Ensure campaigns under each vertical
+    const ensureCampaign = (verticalId: number, name: string) => {
+      insertCampaign.run(verticalId, name, nowIso, nowIso);
+      return (db.prepare(`SELECT id FROM campaigns WHERE vertical_id = ? AND name = ?`).get(verticalId, name) as { id: number }).id;
+    };
+    const cSellShoes = ensureCampaign(vDicks, 'Sell Shoes');
+    const cSellHats = ensureCampaign(vDicks, 'Sell Hats');
+    const cBackToSchool = ensureCampaign(vAcme, 'Back to School');
+    const cQ4Expansion = ensureCampaign(vInitech, 'Q4 Expansion');
+
+    // Map demo users to campaigns (treat 'user' and 'power' as agents)
+    const uid = (u: string) => (db.prepare(`SELECT id FROM users WHERE username = ?`).get(u) as { id: number }).id;
+    const adminId = uid('admin');
+    const powerId = uid('power');
+    const agentId = uid('user');
+    [cSellShoes, cSellHats].forEach((cid) => insertAgentCampaign.run(agentId, cid, nowIso));
+    [cSellShoes, cSellHats, cBackToSchool, cQ4Expansion].forEach((cid) => insertAgentCampaign.run(powerId, cid, nowIso));
+    // Optionally assign admin as observer
+    [cQ4Expansion].forEach((cid) => insertAgentCampaign.run(adminId, cid, nowIso));
+
+    // Assign customers to campaigns
+    const getCustomerIdByEmail = (email: string) => (db.prepare(`SELECT id FROM customers WHERE email = ?`).get(email) as { id: number } | undefined)?.id;
+    const janeId = getCustomerIdByEmail('jane.doe@example.com');
+    const johnId = getCustomerIdByEmail('john.smith@example.com');
+    const avaId = getCustomerIdByEmail('ava.patel@example.com');
+    const carlosId = getCustomerIdByEmail('carlos.ruiz@example.com');
+    const miaId = getCustomerIdByEmail('mia.chen@example.com');
+    const safeAssign = (cid?: number, camp?: number) => { if (cid && camp) insertCustomerCampaign.run(cid, camp, nowIso); };
+    safeAssign(janeId, cSellShoes);
+    safeAssign(johnId, cBackToSchool);
+    safeAssign(avaId, cQ4Expansion);
+    safeAssign(carlosId, cSellHats);
+    safeAssign(miaId, cSellShoes);
+
+    // Example tasks
+    insertTask.run({ title: 'Follow up intro email', description: 'Send product overview', status: 'open', priority: 'normal', due_date: nowIso, created_at: nowIso, created_by_user_id: powerId, assigned_to_user_id: agentId, campaign_id: cSellShoes, customer_id: johnId || null });
+    insertTask.run({ title: 'Prep demo deck', description: 'Include ROI slide', status: 'in-progress', priority: 'high', due_date: nowIso, created_at: nowIso, created_by_user_id: adminId, assigned_to_user_id: powerId, campaign_id: cQ4Expansion, customer_id: avaId || null });
+
+    // Example notes
+    if (janeId) insertNote.run('VIP prospect — prefers email in AM.', nowIso, powerId, null, janeId, cSellShoes);
+
+    // Example communications
+    if (janeId) insertComm.run('email', 'out', 'Welcome', 'Thanks for your interest — attaching brochure.', janeId, powerId, cSellShoes, nowIso);
   } catch {}
 }
 
