@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
 
 export default function AgentDetailPage() {
   const params = useParams();
@@ -49,12 +50,12 @@ export default function AgentDetailPage() {
             <CardBody>
               <div className="mb-3 grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2">
                 <Input placeholder="New task title" value={newTask.title} onChange={(e) => setNewTask({ ...newTask, title: e.target.value })} />
-                <select className="rounded-lg border px-3 py-2 text-sm" value={newTask.priority} onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as any })}>
+                <Select className="text-sm" value={newTask.priority} onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as any })}>
                   <option value="low">Low</option>
                   <option value="normal">Normal</option>
                   <option value="high">High</option>
                   <option value="urgent">Urgent</option>
-                </select>
+                </Select>
                 <div className="flex items-center gap-2">
                   <Input type="datetime-local" value={newTask.due_date} onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })} />
                   <Button onClick={async () => {
@@ -112,10 +113,10 @@ export default function AgentDetailPage() {
             <CardHeader title="Campaigns" />
             <CardBody>
               <div className="mb-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
-                <select className="rounded-lg border px-3 py-2 text-sm" value={assignCampaignId} onChange={(e) => setAssignCampaignId(e.target.value)}>
+                <Select className="text-sm" value={assignCampaignId} onChange={(e) => setAssignCampaignId(e.target.value)}>
                   <option value="">Select campaign…</option>
                   {allCampaigns.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
-                </select>
+                </Select>
                 <Button onClick={async () => {
                   const token = await getAccessToken(); if (!token || !assignCampaignId) return;
                   await fetch(`/api/crm/agents/${id}/campaigns`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ campaign_id: Number(assignCampaignId) }) });
