@@ -440,7 +440,7 @@ function migrate(db: Database.Database): void {
   // Backfill: upgrade role enum and map legacy 'user' -> 'agent'
   try {
     const info = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get() as { sql?: string } | undefined;
-    if (info && info.sql && (!info.sql.includes("'manager'") || info.sql.includes("'user'))")) {
+    if (info && info.sql && (!info.sql.includes("'manager'") || info.sql.includes("'user'"))) {
       db.exec('BEGIN');
       db.exec(`
         CREATE TABLE IF NOT EXISTS users_tmp (
