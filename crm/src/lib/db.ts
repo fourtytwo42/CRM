@@ -8,7 +8,7 @@ const g = globalThis as any;
 let dbInstance: Database.Database | null = g.__dbInstance || null;
 let migratedOnce = g.__dbMigratedOnce || false;
 
-const SCHEMA_VERSION = 4; // bump when schema/backfills change
+const SCHEMA_VERSION = 5; // bump when schema/backfills change
 
 function ensureDirectoryExists(directoryPath: string): void {
   if (!fs.existsSync(directoryPath)) {
@@ -64,7 +64,7 @@ function migrate(db: Database.Database): void {
       username TEXT NOT NULL UNIQUE,
       email TEXT,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('admin','power','manager','lead','agent')),
+      role TEXT NOT NULL CHECK (role IN ('admin','power','manager','lead','agent','user')),
       status TEXT NOT NULL CHECK (status IN ('active','suspended','banned')),
       ban_reason TEXT,
       avatar_url TEXT,
@@ -435,10 +435,10 @@ function migrate(db: Database.Database): void {
   // Ensure unique index on email when present (nullable allowed)
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email) WHERE email IS NOT NULL`);
 
-  // Backfill: upgrade role enum and map legacy 'user' -> 'agent'
+  // Backfill: upgrade role enum to include agent/manager/lead (preserve existing 'user')
   try {
     const info = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get() as { sql?: string } | undefined;
-    if (info && info.sql && (!info.sql.includes("'manager'") || info.sql.includes("'user'"))) {
+    if (info && info.sql && (!info.sql.includes("'manager'") || !info.sql.includes("'agent'") || !info.sql.includes("'lead'"))) {
       db.exec('BEGIN');
       db.exec(`
         CREATE TABLE IF NOT EXISTS users_tmp (
@@ -446,7 +446,7 @@ function migrate(db: Database.Database): void {
           username TEXT NOT NULL UNIQUE,
           email TEXT,
           password_hash TEXT NOT NULL,
-          role TEXT NOT NULL CHECK (role IN ('admin','power','manager','lead','agent')),
+          role TEXT NOT NULL CHECK (role IN ('admin','power','manager','lead','agent','user')),
           status TEXT NOT NULL CHECK (status IN ('active','suspended','banned')),
           ban_reason TEXT,
           avatar_url TEXT,
@@ -472,7 +472,7 @@ function migrate(db: Database.Database): void {
         )
         SELECT
           id, username, email, password_hash,
-          CASE role WHEN 'user' THEN 'agent' ELSE role END,
+          role,
           status, ban_reason, avatar_url, theme_preference, token_version,
           email_verified_at, email_verification_code, email_verification_sent_at, new_email, new_email_verification_code, new_email_verification_sent_at,
           last_login_at, last_seen_at, created_at, updated_at
@@ -670,7 +670,8 @@ function ensureDemoUsers(db: Database.Database): void {
   `);
   insert.run('admin', 'admin@example.com', hash, 'admin', now, now);
   insert.run('power', 'power@example.com', hash, 'power', now, now);
-  insert.run('user', 'user@example.com', hash, 'user', now, now);
+  // Keep the convenient 'user' username but align role with current schema
+  insert.run('user', 'user@example.com', hash, 'agent', now, now);
 
   const updatePwd = db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE username = ?');
   updatePwd.run(hash, now, 'admin');
