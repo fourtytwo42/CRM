@@ -32,17 +32,15 @@ function getDb(): Database.Database {
   dbInstance.pragma('temp_store = MEMORY');
   dbInstance.pragma('mmap_size = 268435456'); // 256MB
 
+  const currentVersion = Number(dbInstance.pragma('user_version', { simple: true }));
   if (isNewDb) {
     migrate(dbInstance);
     try { dbInstance.pragma(`user_version = ${SCHEMA_VERSION}`); } catch {}
     migratedOnce = true;
     seed(dbInstance);
-  } else if (!migratedOnce) {
-    const current = Number(dbInstance.pragma('user_version', { simple: true }));
-    if (current < SCHEMA_VERSION) {
-      migrate(dbInstance);
-      try { dbInstance.pragma(`user_version = ${SCHEMA_VERSION}`); } catch {}
-    }
+  } else if (currentVersion < SCHEMA_VERSION) {
+    migrate(dbInstance);
+    try { dbInstance.pragma(`user_version = ${SCHEMA_VERSION}`); } catch {}
     migratedOnce = true;
   }
 
