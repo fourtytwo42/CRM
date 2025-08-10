@@ -51,19 +51,40 @@ export async function maybeSendEmail(
 ): Promise<boolean> {
   try {
     const cfg = getEmailSettings();
-    if (!cfg) return false;
+    if (!cfg) {
+      // eslint-disable-next-line no-console
+      console.warn('[email] not configured (missing host or from_email)');
+      return false;
+    }
     const transporter = createTransporterFromSettings(cfg);
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: cfg.from_name ? `${cfg.from_name} <${cfg.from_email}>` : cfg.from_email,
       to,
       subject,
       text,
       html,
     });
+    // eslint-disable-next-line no-console
+    console.log('[email] sent', {
+      to,
+      subject,
+      messageId: (info as any)?.messageId,
+      accepted: (info as any)?.accepted,
+      rejected: (info as any)?.rejected,
+      response: (info as any)?.response,
+    });
     return true;
   } catch (e: any) {
     // eslint-disable-next-line no-console
-    console.error('[email] sendMail failed', e?.message || e);
+    console.error('[email] sendMail failed', {
+      message: e?.message || String(e),
+      code: e?.code,
+      command: e?.command,
+      response: e?.response,
+      responseCode: e?.responseCode,
+      to,
+      subject,
+    });
     return false;
   }
 }
