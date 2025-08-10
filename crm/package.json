@@ -14,6 +14,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^0.0.55",
     "@ai-sdk/openai": "^0.0.68",
+    "@tabler/icons-react": "3.34.1",
     "ai": "^3.4.33",
     "bcryptjs": "^3.0.2",
     "better-sqlite3": "^12.2.0",
