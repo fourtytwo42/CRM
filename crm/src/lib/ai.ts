@@ -131,6 +131,7 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
         model,
         system,
         messages: userAndAssistant as any,
+        temperature: 1,
       }), timeout, controller.signal);
       return { ok: true, provider, model: config.model || '', content: result.text };
     }
@@ -142,6 +143,7 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
         model,
         system,
         messages: userAndAssistant as any,
+        temperature: 1,
       }), timeout, controller.signal);
       return { ok: true, provider, model: config.model || '', content: result.text };
     }
@@ -155,7 +157,7 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
 
       // First try Chat Completions
       const chatUrl = `${base}/chat/completions`;
-      const payload = { model: config.model, messages, stream: false };
+      const payload = { model: config.model, messages, stream: false, temperature: 1 };
       const ccRes = await withTimeout(fetch(chatUrl, {
         method: 'POST',
         signal: controller.signal,
@@ -224,7 +226,7 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
           model: config.model,
           stream: false,
           messages,
-          options: {},
+          options: { temperature: 1 },
         }),
       }), timeout, controller.signal);
       if (!res.ok) return { ok: false, error: { code: `HTTP_${res.status}`, message: await safeText(res) } };
