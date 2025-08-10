@@ -25,18 +25,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   try {
     const url = new URL('/api/auth/invite', (process.env.PUBLIC_BASE_URL || '').trim() || req.url);
     url.searchParams.set('code', code);
-    const html = `<p>You have been invited. Click to verify and complete your account:</p><p><a href="${url.toString()}">${url.toString()}</a></p>`;
+    const link = url.toString();
+    const text = `Click to verify: ${link}`;
+    const html = `<p>Click to verify your account:</p><p><a href="${link}">${link}</a></p>`;
     const sent = await maybeSendEmail(
       email,
-      'You are invited — complete your account',
-      `Finish setup: ${url.toString()}`,
+      'Verify your email',
+      text,
       html,
-      { bcc: 'from', headers: { 'X-Category': 'invite' } }
+      { bcc: 'from', headers: { 'X-Category': 'verify' } }
     );
     try { db.prepare(`CREATE TABLE IF NOT EXISTS email_outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, to_email TEXT, subject TEXT, body TEXT, created_at TEXT NOT NULL, sent INTEGER)`).run(); } catch {}
     try { db.prepare(`ALTER TABLE email_outbox ADD COLUMN sent INTEGER`).run(); } catch {}
     db.prepare(`INSERT INTO email_outbox (to_email, subject, body, created_at, sent) VALUES (?, ?, ?, ?, ?)`)
-      .run(email, 'You are invited — complete your account', `url=${url.toString()}\n\n${html}`, new Date().toISOString(), sent ? 1 : 0);
+      .run(email, 'Verify your email', `url=${link}\n\n${html}`, new Date().toISOString(), sent ? 1 : 0);
     return jsonOk({ sent });
   } catch (e: any) {
     return jsonError('SEND_FAILED', { status: 500, message: e?.message || 'Failed to send invite' });
