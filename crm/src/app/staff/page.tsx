@@ -88,6 +88,11 @@ export default function AgentPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'agent'|'manager'|'lead'>('agent');
+  const [verticals, setVerticals] = useState<Array<{ id:number; name:string }>>([]);
+  const [campaigns, setCampaigns] = useState<Array<{ id:number; name:string; vertical_id: number|null; status: string }>>([]);
+  const [newVertical, setNewVertical] = useState('');
+  const [newCampaign, setNewCampaign] = useState('');
+  const [newCampaignVerticalId, setNewCampaignVerticalId] = useState<string>('');
 
   useEffect(() => {
     (async () => {
@@ -109,6 +114,17 @@ export default function AgentPage() {
       const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
       const ja = await resAgents.json().catch(() => null);
       if (ja && ja.ok) setAgents(ja.data.agents || []);
+      // Load verticals & campaigns for admin/manager
+      try {
+        const vres = await fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+        const vj = await vres.json().catch(() => null);
+        if (vj && vj.ok) setVerticals(vj.data.verticals || []);
+      } catch {}
+      try {
+        const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+        const cj = await cres.json().catch(() => null);
+        if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
+      } catch {}
     })();
   }, [agentSort, agentQ]);
 
@@ -255,6 +271,107 @@ export default function AgentPage() {
                   </tbody>
                 </table>
               </div>
+            </CardBody>
+          </Card>
+
+          {/* Verticals management */}
+          <Card>
+            <CardHeader title="Verticals" subtitle="Create, rename, or delete verticals" actions={
+              <div className="hidden md:flex items-center gap-2">
+                <Input placeholder="New vertical name" value={newVertical} onChange={(e) => setNewVertical(e.target.value)} />
+                <Button variant="primary" onClick={async () => {
+                  const token = await getAccessToken(); if (!token || !newVertical.trim()) return;
+                  await fetch('/api/admin/verticals', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ name: newVertical.trim() }) });
+                  setNewVertical('');
+                  const vres = await fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                  const vj = await vres.json().catch(() => null); if (vj && vj.ok) setVerticals(vj.data.verticals || []);
+                }}>Add</Button>
+              </div>
+            } />
+            <CardBody>
+              <table className="min-w-full table-auto text-sm">
+                <thead><tr className="text-left"><th className="px-6 py-3">Name</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
+                <tbody>
+                  {verticals.map(v => (
+                    <tr key={v.id} className="border-t border-black/5 dark:border-white/5">
+                      <td className="px-6 py-3">{v.name}</td>
+                      <td className="px-3 py-3 text-right">
+                        <button className="underline mr-2" onClick={async () => {
+                          const val = prompt('Rename vertical', v.name) || ''; if (!val.trim()) return;
+                          const token = await getAccessToken(); if (!token) return;
+                          await fetch(`/api/admin/verticals/${v.id}`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ name: val.trim() }) });
+                          const vres = await fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                          const vj = await vres.json().catch(() => null); if (vj && vj.ok) setVerticals(vj.data.verticals || []);
+                        }}>Rename</button>
+                        <button className="underline text-red-600" onClick={async () => {
+                          if (!confirm('Delete this vertical?')) return; const token = await getAccessToken(); if (!token) return;
+                          await fetch(`/api/admin/verticals/${v.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+                          const vres = await fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                          const vj = await vres.json().catch(() => null); if (vj && vj.ok) setVerticals(vj.data.verticals || []);
+                        }}>Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardBody>
+          </Card>
+
+          {/* Campaigns management */}
+          <Card>
+            <CardHeader title="Campaigns" subtitle="Create, reassign vertical, rename, or delete" actions={
+              <div className="hidden md:flex items-center gap-2">
+                <Input placeholder="New campaign name" value={newCampaign} onChange={(e) => setNewCampaign(e.target.value)} />
+                <Select value={newCampaignVerticalId} onChange={(e) => setNewCampaignVerticalId(e.target.value)}>
+                  <option value="">No vertical</option>
+                  {verticals.map(v => <option key={v.id} value={String(v.id)}>{v.name}</option>)}
+                </Select>
+                <Button variant="primary" onClick={async () => {
+                  const token = await getAccessToken(); if (!token || !newCampaign.trim()) return;
+                  const payload: any = { name: newCampaign.trim() };
+                  if (newCampaignVerticalId) payload.vertical_id = Number(newCampaignVerticalId);
+                  await fetch('/api/admin/campaigns', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+                  setNewCampaign(''); setNewCampaignVerticalId('');
+                  const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                  const cj = await cres.json().catch(() => null); if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
+                }}>Add</Button>
+              </div>
+            } />
+            <CardBody>
+              <table className="min-w-full table-auto text-sm">
+                <thead><tr className="text-left"><th className="px-6 py-3">Name</th><th className="px-3 py-3">Vertical</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
+                <tbody>
+                  {campaigns.map(c => (
+                    <tr key={c.id} className="border-t border-black/5 dark:border-white/5">
+                      <td className="px-6 py-3">{c.name}</td>
+                      <td className="px-3 py-3">{verticals.find(v => v.id === c.vertical_id)?.name || '—'}</td>
+                      <td className="px-3 py-3">{c.status}</td>
+                      <td className="px-3 py-3 text-right">
+                        <button className="underline mr-2" onClick={async () => {
+                          const nm = prompt('Rename campaign', c.name) || ''; if (!nm.trim()) return;
+                          const token = await getAccessToken(); if (!token) return;
+                          await fetch(`/api/admin/campaigns/${c.id}`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ name: nm.trim() }) });
+                          const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                          const cj = await cres.json().catch(() => null); if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
+                        }}>Rename</button>
+                        <button className="underline mr-2" onClick={async () => {
+                          const vid = prompt('Set vertical id (blank for none)', c.vertical_id ? String(c.vertical_id) : '') || '';
+                          const token = await getAccessToken(); if (!token) return;
+                          await fetch(`/api/admin/campaigns/${c.id}`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ vertical_id: vid ? Number(vid) : null }) });
+                          const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                          const cj = await cres.json().catch(() => null); if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
+                        }}>Set Vertical</button>
+                        <button className="underline text-red-600" onClick={async () => {
+                          if (!confirm('Delete this campaign?')) return; const token = await getAccessToken(); if (!token) return;
+                          await fetch(`/api/admin/campaigns/${c.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+                          const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                          const cj = await cres.json().catch(() => null); if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
+                        }}>Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </CardBody>
           </Card>
           <Card>

@@ -8,7 +8,7 @@ const g = globalThis as any;
 let dbInstance: Database.Database | null = g.__dbInstance || null;
 let migratedOnce = g.__dbMigratedOnce || false;
 
-const SCHEMA_VERSION = 5; // bump when schema/backfills change
+const SCHEMA_VERSION = 6; // bump when schema/backfills change
 
 function ensureDirectoryExists(directoryPath: string): void {
   if (!fs.existsSync(directoryPath)) {
@@ -504,6 +504,50 @@ function migrate(db: Database.Database): void {
     if (!cols.some(c => c.name === 'email_verification_enabled')) {
       db.exec(`ALTER TABLE site_settings ADD COLUMN email_verification_enabled INTEGER NOT NULL DEFAULT 0`);
     }
+  } catch {}
+
+  // Backfill: allow campaigns.vertical_id to be NULL instead of NOT NULL
+  try {
+    const info = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='campaigns'`).get() as { sql?: string } | undefined;
+    if (info && info.sql && info.sql.includes('vertical_id INTEGER NOT NULL')) {
+      db.exec('BEGIN');
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS campaigns_tmp (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          vertical_id INTEGER,
+          name TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','paused','archived')),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY(vertical_id) REFERENCES verticals(id)
+        );
+      `);
+      db.exec(`
+        INSERT INTO campaigns_tmp (id, vertical_id, name, status, created_at, updated_at)
+        SELECT id, vertical_id, name, status, created_at, updated_at FROM campaigns;
+      `);
+      db.exec('DROP TABLE campaigns;');
+      db.exec('ALTER TABLE campaigns_tmp RENAME TO campaigns;');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_campaigns_vertical_id ON campaigns(vertical_id);');
+      db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_campaigns_unique ON campaigns(vertical_id, name);');
+      db.exec('COMMIT');
+    }
+  } catch {}
+
+  // Backfill: customer_verticals assignment table
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS customer_verticals (
+        customer_id INTEGER NOT NULL,
+        vertical_id INTEGER NOT NULL,
+        assigned_at TEXT NOT NULL,
+        PRIMARY KEY (customer_id, vertical_id),
+        FOREIGN KEY(customer_id) REFERENCES customers(id),
+        FOREIGN KEY(vertical_id) REFERENCES verticals(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_customer_verticals_customer ON customer_verticals(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_customer_verticals_vertical ON customer_verticals(vertical_id);
+    `);
   } catch {}
 
   // Backfill: customers table columns if upgrading existing DBs
