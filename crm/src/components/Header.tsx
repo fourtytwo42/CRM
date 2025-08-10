@@ -34,7 +34,7 @@ export default function Header() {
 
   useEffect(() => {
     // fetch registration toggle to hide Register when disabled
-    fetch('/api/settings/registration', { cache: 'force-cache' })
+    fetch('/api/settings/registration', { cache: 'no-store' })
       .then(r => r.json())
       .then(json => setRegistrationEnabled(!!json?.data?.registrationEnabled))
       .catch(() => setRegistrationEnabled(true));

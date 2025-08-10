@@ -244,10 +244,19 @@ export default function AdminPage() {
                 <input type="checkbox" checked={emailVerificationEnabled} onChange={e => setEmailVerificationEnabled(e.target.checked)} />
               </label>
               <div className="flex items-center justify-end">
-                <Button variant="primary" onClick={async () => {
+                 <Button variant="primary" onClick={async () => {
                   const token = await getAccessToken();
                   if (!token) return;
                   await fetch('/api/admin/settings/registration', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ enabled: regEnabled, emailVerificationEnabled }) });
+                   // Re-fetch after save to ensure UI reflects persisted values
+                   try {
+                     const res = await fetch('/api/admin/settings/registration', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                     const json = await res.json();
+                     if (json.ok) {
+                       setRegEnabled(!!json.data?.registrationEnabled);
+                       setEmailVerificationEnabled(!!json.data?.emailVerificationEnabled);
+                     }
+                   } catch {}
                 }}>Save</Button>
               </div>
               <p className="text-xs opacity-70">If verification is disabled, new users are created as active and email changes apply immediately.</p>

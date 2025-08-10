@@ -8,11 +8,14 @@ export const runtime = 'nodejs';
 
 export async function GET() {
   const db = getDb();
-  const settings = db.prepare('SELECT registration_enabled FROM site_settings WHERE id = 1').get() as { registration_enabled: number } | undefined;
-  const enabled = settings ? settings.registration_enabled === 1 : true;
+  const settings = db
+    .prepare('SELECT registration_enabled, email_verification_enabled FROM site_settings WHERE id = 1')
+    .get() as { registration_enabled: number; email_verification_enabled?: number } | undefined;
+  const registrationEnabled = settings ? settings.registration_enabled === 1 : true;
+  const emailVerificationEnabled = settings ? settings.email_verification_enabled === 1 : false;
   return NextResponse.json(
-    { ok: true, data: { registrationEnabled: enabled } },
-    { headers: { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=300' } }
+    { ok: true, data: { registrationEnabled, emailVerificationEnabled } },
+    { headers: { 'Cache-Control': 'no-store' } }
   );
 }
 
