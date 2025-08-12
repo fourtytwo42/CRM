@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unnamed CRM 2FA Opt-In</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f7f7f7;
+        padding: 20px;
+        color: #333;
+    }
+    .container {
+        max-width: 500px;
+        margin: auto;
+        background: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    h1 {
+        font-size: 1.4em;
+        text-align: center;
+    }
+    label {
+        display: block;
+        margin-top: 15px;
+        line-height: 1.5;
+    }
+    input[type="tel"], button {
+        width: 100%;
+        padding: 10px;
+        margin-top: 8px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        font-size: 1em;
+    }
+    input[type="checkbox"] {
+        margin-right: 8px;
+    }
+    .disclaimer {
+        font-size: 0.9em;
+        color: #555;
+        margin-top: 10px;
+    }
+    a {
+        color: #0066cc;
+        text-decoration: none;
+    }
+    a:hover {
+        text-decoration: underline;
+    }
+    button {
+        background-color: #0066cc;
+        color: white;
+        border: none;
+        cursor: pointer;
+        margin-top: 15px;
+    }
+    button:hover {
+        background-color: #004d99;
+    }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Unnamed CRM 2FA Opt-In</h1>
+    <p>Please enter your mobile number and check the box below to receive one-time passcodes (OTP) for logging into our internal CMS.</p>
+
+    <form>
+        <label for="phone">Mobile Phone Number:</label>
+        <input type="tel" id="phone" name="phone" placeholder="+1 555-555-5555" required>
+
+        <label>
+            <input type="checkbox" name="smsConsent" required>
+            By checking this box, you agree to receive one-time passcodes (OTP) from Unnamed CRM to verify your login. Message and data rates may apply. Message frequency varies. Reply STOP to opt out, HELP for help. See our <a href="https://yourdomain.com/sms-terms" target="_blank">Terms</a> and <a href="https://yourdomain.com/privacy" target="_blank">Privacy Policy</a>.
+        </label>
+
+        <button type="submit">Sign Up</button>
+
+        <p class="disclaimer">No mobile information will be shared with third parties/affiliates for marketing/promotional purposes.</p>
+    </form>
+</div>
+
+</body>
+</html>
