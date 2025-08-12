@@ -17,6 +17,29 @@ export const env = {
   aiRequestTimeoutMs: toNumber(process.env.AI_REQUEST_TIMEOUT_MS, 20000),
   // Public/base URL for links in emails (e.g., https://yourdomain.com)
   publicBaseUrl: process.env.PUBLIC_BASE_URL || '',
+  // BulkVS (carrier) REST API configuration
+  bulkvsBaseUrl: process.env.BULKVS_BASE_URL || 'https://portal.bulkvs.com/api/v1.0',
+  // Basic auth token value only (without the leading 'Basic ' prefix)
+  bulkvsBasicAuth: process.env.BULKVS_BASIC_AUTH || '',
+  // Optional default outbound caller ID / messaging from DID
+  bulkvsDefaultFromDid: process.env.BULKVS_DEFAULT_FROM_DID || '',
+  // Optional Twilio for programmatic call originate
+  twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || '',
+  twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || '',
+  twilioFromNumber: process.env.TWILIO_FROM_NUMBER || '',
+  twilioMessagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID || '',
+  // Optional Asterisk AMI for programmatic call originate via your PBX
+  asteriskAmiHost: process.env.ASTERISK_AMI_HOST || '',
+  asteriskAmiPort: toNumber(process.env.ASTERISK_AMI_PORT, 5038),
+  asteriskAmiUsername: process.env.ASTERISK_AMI_USERNAME || '',
+  asteriskAmiPassword: process.env.ASTERISK_AMI_PASSWORD || '',
+  // Channel template, e.g., "PJSIP/${TO}@bulkvs" or "SIP/${TO}@bulkvs"; ${TO} will be replaced by destination digits
+  asteriskChannelTemplate: process.env.ASTERISK_CHANNEL_TEMPLATE || '',
+  // Application to run on answer; default Hangup for ring-through
+  asteriskOriginateApplication: process.env.ASTERISK_ORIGINATE_APPLICATION || 'Hangup',
+  // CallerID to present if not provided
+  asteriskDefaultCallerId: process.env.ASTERISK_DEFAULT_CALLERID || '',
+  asteriskOriginateTimeoutMs: toNumber(process.env.ASTERISK_ORIGINATE_TIMEOUT_MS, 30000),
 };
 
 

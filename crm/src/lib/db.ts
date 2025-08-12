@@ -2,13 +2,14 @@ import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
 import { env } from './env';
+import { randomUUID } from 'crypto';
 
 // Persist DB handle and migration state across hot-reloads in dev
 const g = globalThis as any;
 let dbInstance: Database.Database | null = g.__dbInstance || null;
 let migratedOnce = g.__dbMigratedOnce || false;
 
-const SCHEMA_VERSION = 6; // bump when schema/backfills change
+const SCHEMA_VERSION = 8; // bump when schema/backfills change
 
 function ensureDirectoryExists(directoryPath: string): void {
   if (!fs.existsSync(directoryPath)) {
@@ -27,6 +28,17 @@ function getDb(): Database.Database {
         migratedOnce = true;
         g.__dbMigratedOnce = migratedOnce;
       }
+      // Always ensure telephony_settings has required columns/row even if version matches
+      try {
+        const cols = (dbInstance as any).prepare(`PRAGMA table_info(telephony_settings)`).all() as Array<{ name: string }>;
+        if (cols && cols.length > 0 && !cols.some(c => c.name === 'inbound_token')) {
+          (dbInstance as any).exec(`ALTER TABLE telephony_settings ADD COLUMN inbound_token TEXT`);
+        }
+        (dbInstance as any).prepare(`
+          INSERT OR IGNORE INTO telephony_settings (id, provider, bulkvs_base_url, bulkvs_basic_auth, bulkvs_from_did, inbound_token, updated_at)
+          VALUES (1, 'bulkvs', 'https://portal.bulkvs.com/api/v1.0', NULL, NULL, NULL, ?)
+        `).run(new Date().toISOString());
+      } catch {}
     } catch {}
     return dbInstance;
   }
@@ -55,6 +67,18 @@ function getDb(): Database.Database {
     try { dbInstance.pragma(`user_version = ${SCHEMA_VERSION}`); } catch {}
     migratedOnce = true;
   }
+
+  // Ensure telephony_settings defaults and columns exist even if version matches
+  try {
+    const cols = dbInstance.prepare(`PRAGMA table_info(telephony_settings)`).all() as Array<{ name: string }>;
+    if (cols && cols.length > 0 && !cols.some(c => c.name === 'inbound_token')) {
+      dbInstance.exec(`ALTER TABLE telephony_settings ADD COLUMN inbound_token TEXT`);
+    }
+    dbInstance.prepare(`
+      INSERT OR IGNORE INTO telephony_settings (id, provider, bulkvs_base_url, bulkvs_basic_auth, bulkvs_from_did, inbound_token, updated_at)
+      VALUES (1, 'bulkvs', 'https://portal.bulkvs.com/api/v1.0', NULL, NULL, NULL, ?)
+    `).run(new Date().toISOString());
+  } catch {}
 
   // Ensure demo users exist only when explicitly enabled via env.seedDemo in non-production
   try {
@@ -172,6 +196,23 @@ function migrate(db: Database.Database): void {
       password TEXT,
       from_email TEXT NOT NULL DEFAULT '',
       from_name TEXT,
+      updated_at TEXT NOT NULL
+    );
+  `);
+
+  // Telephony settings (BulkVS) table (single row id=1)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS telephony_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      provider TEXT NOT NULL DEFAULT 'bulkvs',
+      bulkvs_base_url TEXT NOT NULL DEFAULT 'https://portal.bulkvs.com/api/v1.0',
+      bulkvs_basic_auth TEXT,
+      bulkvs_from_did TEXT,
+      inbound_token TEXT,
+      twilio_account_sid TEXT,
+      twilio_auth_token TEXT,
+      twilio_from_number TEXT,
+      twilio_messaging_service_sid TEXT,
       updated_at TEXT NOT NULL
     );
   `);
@@ -418,8 +459,34 @@ function migrate(db: Database.Database): void {
     VALUES (1, '', 465, 1, NULL, NULL, '', NULL, ?)
   `).run(new Date().toISOString());
 
+  db.prepare(`
+    INSERT OR IGNORE INTO telephony_settings (id, provider, bulkvs_base_url, bulkvs_basic_auth, bulkvs_from_did, inbound_token, twilio_account_sid, twilio_auth_token, twilio_from_number, twilio_messaging_service_sid, updated_at)
+    VALUES (1, 'bulkvs', 'https://portal.bulkvs.com/api/v1.0', NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?)
+  `).run(new Date().toISOString());
+
   // Backfill migration for email column and unique index on existing databases
   try {
+    // Backfill: add inbound_token to telephony_settings if missing
+    try {
+      const cols = db.prepare(`PRAGMA table_info(telephony_settings)`).all() as Array<{ name: string }>;
+      if (!cols.some(c => c.name === 'inbound_token')) {
+        db.exec(`ALTER TABLE telephony_settings ADD COLUMN inbound_token TEXT`);
+        const token = randomUUID().replace(/-/g, '');
+        db.prepare(`UPDATE telephony_settings SET inbound_token = COALESCE(inbound_token, ?) WHERE id = 1`).run(token);
+      }
+      if (!cols.some(c => c.name === 'twilio_account_sid')) {
+        db.exec(`ALTER TABLE telephony_settings ADD COLUMN twilio_account_sid TEXT`);
+      }
+      if (!cols.some(c => c.name === 'twilio_auth_token')) {
+        db.exec(`ALTER TABLE telephony_settings ADD COLUMN twilio_auth_token TEXT`);
+      }
+      if (!cols.some(c => c.name === 'twilio_from_number')) {
+        db.exec(`ALTER TABLE telephony_settings ADD COLUMN twilio_from_number TEXT`);
+      }
+      if (!cols.some(c => c.name === 'twilio_messaging_service_sid')) {
+        db.exec(`ALTER TABLE telephony_settings ADD COLUMN twilio_messaging_service_sid TEXT`);
+      }
+    } catch {}
     const cols = db.prepare(`PRAGMA table_info(users)`).all() as Array<{ name: string }>;
     const hasEmail = cols.some(c => c.name === 'email');
     if (!hasEmail) {

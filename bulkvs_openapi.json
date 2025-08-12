@@ -1,0 +1,3542 @@
+
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Bulk Solutions - API Documentation",
+        "version": "1.0.05"
+    },
+    "servers": [
+        {
+            "url": "/api/v1.0",
+            "description": "Bulk API Server"
+        }
+    ],
+    "paths": {
+        "/accountDetail": {
+            "get": {
+                "tags": [
+                    "Account Administration"
+                ],
+                "summary": "Query Account Info",
+                "description": "Details about your account",
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "Username": {
+                                            "description": "Primary Account Username",
+                                            "type": "string",
+                                            "example": "telco01"
+                                        },
+                                        "Balance Related": {
+                                            "properties": {
+                                                "Balance": {
+                                                    "type": "string",
+                                                    "example": "5000.00"
+                                                },
+                                                "Low Balance Threshold": {
+                                                    "type": "string",
+                                                    "example": "500.00"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "Tn Related": {
+                                            "properties": {
+                                                "Portout Pin": {
+                                                    "description": "Pin required to authorize Portout",
+                                                    "type": "string",
+                                                    "example": "3591344"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "Service Status": {
+                                            "properties": {
+                                                "Lrn": {
+                                                    "type": "string",
+                                                    "example": "Enabled"
+                                                },
+                                                "Outbound Termination": {
+                                                    "type": "string",
+                                                    "example": "Enabled"
+                                                },
+                                                "Inbound Origination": {
+                                                    "type": "string",
+                                                    "example": "Enabled"
+                                                },
+                                                "E911": {
+                                                    "type": "string",
+                                                    "example": "Enabled"
+                                                },
+                                                "8YY": {
+                                                    "type": "string",
+                                                    "example": "Enabled"
+                                                },
+                                                "Sms": {
+                                                    "type": "string",
+                                                    "example": "Enabled"
+                                                },
+                                                "Mms": {
+                                                    "type": "string",
+                                                    "example": "Enabled"
+                                                },
+                                                "Invoiced Billing": {
+                                                    "type": "string",
+                                                    "example": "Disabled"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "Main Contact": {
+                                            "properties": {
+                                                "Name": {
+                                                    "type": "boolean",
+                                                    "example": true
+                                                },
+                                                "Email": {
+                                                    "type": "boolean",
+                                                    "example": false
+                                                },
+                                                "Telephone Number": {
+                                                    "type": "boolean",
+                                                    "example": false
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "E911 Contact": {
+                                            "properties": {
+                                                "Name": {
+                                                    "type": "boolean",
+                                                    "example": true
+                                                },
+                                                "Email": {
+                                                    "type": "boolean",
+                                                    "example": false
+                                                },
+                                                "Telephone Number": {
+                                                    "type": "boolean",
+                                                    "example": false
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "LNP Contact": {
+                                            "properties": {
+                                                "Name": {
+                                                    "type": "boolean",
+                                                    "example": true
+                                                },
+                                                "Email": {
+                                                    "type": "boolean",
+                                                    "example": false
+                                                },
+                                                "Telephone Number": {
+                                                    "type": "boolean",
+                                                    "example": false
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "Maintenance Contact": {
+                                            "properties": {
+                                                "Name": {
+                                                    "type": "boolean",
+                                                    "example": true
+                                                },
+                                                "Email": {
+                                                    "type": "boolean",
+                                                    "example": false
+                                                },
+                                                "Telephone Number": {
+                                                    "type": "boolean",
+                                                    "example": false
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "Billing Contact": {
+                                            "properties": {
+                                                "Name": {
+                                                    "type": "boolean",
+                                                    "example": true
+                                                },
+                                                "Email": {
+                                                    "type": "boolean",
+                                                    "example": false
+                                                },
+                                                "Telephone Number": {
+                                                    "type": "boolean",
+                                                    "example": false
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "Rates": {
+                                            "properties": {
+                                                "E911": {
+                                                    "type": "string",
+                                                    "example": "Los Angeles"
+                                                },
+                                                "Tn": {
+                                                    "type": "string",
+                                                    "example": "CA"
+                                                },
+                                                "Lnp": {
+                                                    "type": "string",
+                                                    "example": 0
+                                                },
+                                                "Cnam": {
+                                                    "type": "boolean"
+                                                },
+                                                "Lidb": {
+                                                    "type": "boolean"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "403": {
+                        "description": "Admin Permissiong Not Set"
+                    },
+                    "404": {
+                        "description": "ID not valid"
+                    }
+                }
+            }
+        },
+        "/e911Record": {
+            "get": {
+                "tags": [
+                    "E911"
+                ],
+                "summary": "Query E911 Record(s)",
+                "description": "Get information on a specific E911 entry using the number parameter. Leave out number parameter to display all E911 entries",
+                "parameters": [
+                    {
+                        "name": "Number",
+                        "in": "query",
+                        "required": false,
+                        "example": "13109060901",
+                        "type": "integer"
+                    },
+                    {
+                        "name": "Caller Name",
+                        "in": "query",
+                        "required": false,
+                        "example": "Bulk Solutions",
+                        "type": "string"
+                    },
+                    {
+                        "name": "State",
+                        "in": "query",
+                        "required": false,
+                        "example": "DE",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Zip",
+                        "in": "query",
+                        "required": false,
+                        "example": "19801",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Last Modification",
+                        "in": "query",
+                        "required": false,
+                        "example": "2022-01-01",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "items": {}
+                        },
+                        "example": "100"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "#TN": {
+                                            "description": "Telephone Number",
+                                            "type": "string"
+                                        },
+                                        "Caller Name": {
+                                            "description": "Name displayed to Dispatcher",
+                                            "type": "string"
+                                        },
+                                        "Address Line 1": {
+                                            "description": "Street Address",
+                                            "type": "string"
+                                        },
+                                        "Address Line 2": {
+                                            "description": "Suite or Floor Number",
+                                            "type": "string"
+                                        },
+                                        "City": {
+                                            "description": "City",
+                                            "type": "string"
+                                        },
+                                        "State": {
+                                            "description": "State or Province",
+                                            "type": "string"
+                                        },
+                                        "Zip": {
+                                            "description": "ZipCode or PostalCode",
+                                            "type": "string"
+                                        },
+                                        "Sms": {
+                                            "description": "SMS Notification List",
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "Last Modification": {
+                                            "description": "Date of Last Change on this number",
+                                            "type": "string",
+                                            "items": {}
+                                        }
+                                    },
+                                    "type": "object",
+                                    "example": [
+                                        {
+                                            "TN": "13109060901",
+                                            "Caller Name": "Bulk Solutions",
+                                            "Address Line 1": "704 N. King St.",
+                                            "Address Line 2": "STE 500",
+                                            "City": "Wilmington",
+                                            "State": "DE",
+                                            "Zip": "19801",
+                                            "Sms": [
+                                                "13105551212",
+                                                "13125551212"
+                                            ],
+                                            "Last Modification": "2010-07-28 00:00:00"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Telephone Number Missing, Invalid or Malformed"
+                    },
+                    "404": {
+                        "description": "Telephone number not found"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "E911"
+                ],
+                "summary": "Provision E911 in Database",
+                "description": "Insert or update a record in the E911 database. Retrieve AddressID by using the validateAddress API. Remember: the caller name has a character limit of 20",
+                "requestBody": {
+                    "description": "Record",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "TN": {
+                                        "description": "Telephone Number",
+                                        "required": true,
+                                        "type": "string"
+                                    },
+                                    "Caller Name": {
+                                        "description": "Name displayed to Emergency Dispatcher",
+                                        "required": "with AddressID",
+                                        "type": "string"
+                                    },
+                                    "AddressID": {
+                                        "description": "Value retrieved from ValidateAddress endpoint",
+                                        "required": "with Caller Name",
+                                        "type": "string"
+                                    },
+                                    "Sms": {
+                                        "description": "List of Telephone Numbers that will receive SMS Notification upon 911 Call",
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "type": "object",
+                                "example": {
+                                    "TN": "13109060901",
+                                    "Caller Name": "Bulk Solutions, LLC",
+                                    "AddressID": "4742627671596471910",
+                                    "Sms": [
+                                        "13105551212",
+                                        "13125551212"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "Status": {
+                                            "description": "Success",
+                                            "type": "string"
+                                        },
+                                        "TN": {
+                                            "description": "Telephone Number",
+                                            "type": "string"
+                                        },
+                                        "Caller Name": {
+                                            "description": "Name displayed to Dispatcher",
+                                            "type": "string"
+                                        },
+                                        "Address Line 1": {
+                                            "description": "Street Address",
+                                            "type": "string"
+                                        },
+                                        "Address Line 2": {
+                                            "description": "Suite or Floor Number",
+                                            "type": "string"
+                                        },
+                                        "City": {
+                                            "description": "City",
+                                            "type": "string"
+                                        },
+                                        "State": {
+                                            "description": "State or Province",
+                                            "type": "string"
+                                        },
+                                        "Zip": {
+                                            "description": "ZipCode or PostalCode",
+                                            "type": "string"
+                                        },
+                                        "Sms": {
+                                            "description": "SMS Notification List",
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "Last Modification": {
+                                            "description": "Date of Last Change on this number",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object",
+                                    "example": {
+                                        "Status": "Success",
+                                        "TN": "13109060901",
+                                        "Caller Name": "Bulk Solutions, LLC",
+                                        "Address Line 1": "704 N. King St.",
+                                        "Address Line 2": "STE 500",
+                                        "City": "Wilmington",
+                                        "State": "DE",
+                                        "Zip": "19801",
+                                        "Sms": [
+                                            "13105551212",
+                                            "13125551212"
+                                        ],
+                                        "Last Modification": "2010-07-28 00:00:00"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Telephone number, caller name, or AddressID is missing, invalid, or malformed"
+                    },
+                    "403": {
+                        "description": "Insufficient funds or service not enabled"
+                    },
+                    "404": {
+                        "description": "AddressID not found please ensure that you have run validateAddress"
+                    },
+                    "409": {
+                        "description": "Unable to provision telephone number; a support ticket may be required to resolve"
+                    },
+                    "503": {
+                        "description": "An error occurred, please try again; a support ticket may be required to resolve"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "E911"
+                ],
+                "summary": "Delete E911 Record",
+                "description": "Delete a specific E911 entry using the number parameter",
+                "parameters": [
+                    {
+                        "name": "Number",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "TN": {
+                                            "description": "Telephone Number",
+                                            "type": "string"
+                                        },
+                                        "Caller Name": {
+                                            "description": "Name displayed to Dispatcher",
+                                            "type": "string"
+                                        },
+                                        "Address Line 1": {
+                                            "description": "Street Address",
+                                            "type": "string"
+                                        },
+                                        "Address Line 2": {
+                                            "description": "Suite or Floor Number",
+                                            "type": "string"
+                                        },
+                                        "City": {
+                                            "description": "City",
+                                            "type": "string"
+                                        },
+                                        "State": {
+                                            "description": "State or Province",
+                                            "type": "string"
+                                        },
+                                        "Zip": {
+                                            "description": "ZipCode or PostalCode",
+                                            "type": "string"
+                                        },
+                                        "Last Modification": {
+                                            "description": "Date of Last Change on this number",
+                                            "type": "string",
+                                            "items": {}
+                                        }
+                                    },
+                                    "type": "object",
+                                    "example": {
+                                        "Status": "Success",
+                                        "TN": "13109060901",
+                                        "Caller Name": "Bulk Solutions",
+                                        "Address Line 1": "704 N. King St.",
+                                        "Address Line 2": "STE 500",
+                                        "City": "Wilmington",
+                                        "State": "DE",
+                                        "Zip": "19801",
+                                        "Last Modification": "2010-07-28 00:00:00"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Telephone Number Missing, Invalid or Malformed"
+                    },
+                    "404": {
+                        "description": "Telephone number not found"
+                    }
+                }
+            }
+        },
+        "/validateAddress": {
+            "post": {
+                "tags": [
+                    "E911"
+                ],
+                "summary": "Validate a North American Address",
+                "description": "Validate an address and receive a location ID for provisioning purposes",
+                "requestBody": {
+                    "description": "Address",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "Street Number": {
+                                        "description": "Street Number",
+                                        "required": true,
+                                        "type": "string"
+                                    },
+                                    "Street Name": {
+                                        "description": "Street Name",
+                                        "required": true,
+                                        "type": "string"
+                                    },
+                                    "Location": {
+                                        "description": "Suite or Floor Number",
+                                        "type": "string"
+                                    },
+                                    "City": {
+                                        "description": "City",
+                                        "required": true,
+                                        "type": "string"
+                                    },
+                                    "State": {
+                                        "description": "State or Province",
+                                        "required": true,
+                                        "type": "string"
+                                    },
+                                    "Zip": {
+                                        "description": "ZipCode or PostalCode",
+                                        "required": true,
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object",
+                                "items": {},
+                                "example": {
+                                    "Street Number": "704",
+                                    "Street Name": "N. King St.",
+                                    "Location": "STE 500",
+                                    "City": "Wilmington",
+                                    "State": "DE",
+                                    "Zip": "19801"
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "Status": {
+                                            "description": "GEOCODED or INVALID ADDRESS",
+                                            "type": "string"
+                                        },
+                                        "AddressID": {
+                                            "description": "To be used to Provision e911 with this GEOCODED Address",
+                                            "type": "string"
+                                        },
+                                        "Address Line 1": {
+                                            "description": "Street Address",
+                                            "type": "string"
+                                        },
+                                        "Address Line 2": {
+                                            "description": "Suite or Floor Number",
+                                            "type": "string"
+                                        },
+                                        "City": {
+                                            "description": "City",
+                                            "type": "string"
+                                        },
+                                        "State": {
+                                            "description": "State or Province",
+                                            "type": "string"
+                                        },
+                                        "Zip": {
+                                            "description": "ZipCode or PostalCode",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object",
+                                    "example": {
+                                        "Status": "GEOCODED | INVALID ADDRESS",
+                                        "AddressID": "4742627671596471910",
+                                        "Address Line 1": "704 N. King St.",
+                                        "Address Line 2": "STE 500",
+                                        "City": "Wilmington",
+                                        "State": "DE",
+                                        "Zip": "19801"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Unable to Geocode, Please check Address"
+                    },
+                    "503": {
+                        "description": "An error occurred, please try again; a support ticket may be required to resolve"
+                    }
+                }
+            }
+        },
+        "/tnRecord": {
+            "get": {
+                "tags": [
+                    "Origination"
+                ],
+                "summary": "Query Telephone Number Record(s)",
+                "description": "Get information on specific telephone number entry using Number parameter. Leave out Number parameter to display all telephone number entries.",
+                "parameters": [
+                    {
+                        "name": "Number",
+                        "in": "query",
+                        "required": false,
+                        "example": "13109060901",
+                        "type": "integer"
+                    },
+                    {
+                        "name": "Status",
+                        "in": "query",
+                        "required": false,
+                        "example": "Active",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Tier",
+                        "in": "query",
+                        "required": false,
+                        "example": "0",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Trunk Group",
+                        "in": "query",
+                        "required": false,
+                        "example": "TG1",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Portout Pin",
+                        "in": "query",
+                        "required": false,
+                        "example": "3591344",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Lidb",
+                        "in": "query",
+                        "required": false,
+                        "example": "Bulk Solutions",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Class",
+                        "in": "query",
+                        "required": false,
+                        "example": "A2PLC",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Sms",
+                        "in": "query",
+                        "required": false,
+                        "example": "true",
+                        "type": "boolean"
+                    },
+                    {
+                        "name": "Mms",
+                        "in": "query",
+                        "required": false,
+                        "example": "true",
+                        "type": "boolean"
+                    },
+                    {
+                        "name": "Webhook",
+                        "in": "query",
+                        "required": false,
+                        "example": "Default",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Tcr",
+                        "in": "query",
+                        "required": false,
+                        "example": "CW1549",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Activation Date",
+                        "in": "query",
+                        "required": false,
+                        "example": "2022-01-01",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "items": {}
+                        },
+                        "example": "100"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "properties": {
+                                            "TN": {
+                                                "description": "Telephone Number",
+                                                "type": "string",
+                                                "example": "13109060901"
+                                            },
+                                            "Status": {
+                                                "description": "Active or LNP Status",
+                                                "type": "string",
+                                                "example": "Active"
+                                            },
+                                            "Lidb": {
+                                                "description": "Outbound CallerID Name",
+                                                "type": "string",
+                                                "example": "Bulk Solutions LLC"
+                                            },
+                                            "Portout Pin": {
+                                                "description": "Pin required to authorize Portout",
+                                                "type": "string",
+                                                "example": "3591344"
+                                            },
+                                            "ReferenceID": {
+                                                "description": "User inserted Note",
+                                                "type": "string",
+                                                "example": "Customer A"
+                                            },
+                                            "Routing": {
+                                                "properties": {
+                                                    "Trunk Group": {
+                                                        "type": "string",
+                                                        "example": "Primary"
+                                                    },
+                                                    "Custom URI": {
+                                                        "type": "string",
+                                                        "example": "9999+13109060901"
+                                                    },
+                                                    "Call Forward": {
+                                                        "type": "string",
+                                                        "example": "13105551212"
+                                                    },
+                                                    "PSTN Failover": {
+                                                        "type": "string",
+                                                        "example": "13105551212"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            },
+                                            "Messaging": {
+                                                "properties": {
+                                                    "Class": {
+                                                        "type": "boolean",
+                                                        "example": "A2PLC"
+                                                    },
+                                                    "Sms": {
+                                                        "type": "boolean",
+                                                        "example": true
+                                                    },
+                                                    "Mms": {
+                                                        "type": "boolean",
+                                                        "example": false
+                                                    },
+                                                    "Webhook": {
+                                                        "type": "boolean",
+                                                        "example": "Default"
+                                                    },
+                                                    "Tcr": {
+                                                        "type": "string",
+                                                        "example": "CW1549"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            },
+                                            "TN Details": {
+                                                "properties": {
+                                                    "Rate Center": {
+                                                        "type": "string",
+                                                        "example": "Los Angeles"
+                                                    },
+                                                    "State": {
+                                                        "type": "string",
+                                                        "example": "CA"
+                                                    },
+                                                    "Tier": {
+                                                        "type": "string",
+                                                        "example": 0
+                                                    },
+                                                    "Cnam": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "Activation Date": {
+                                                        "type": "string",
+                                                        "example": "2010-07-28 00:00:00"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Telephone number or other property missing, invalid or malformed"
+                    },
+                    "403": {
+                        "description": "Insufficient funds or service not enabled"
+                    },
+                    "404": {
+                        "description": "Telephone number not found"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Origination"
+                ],
+                "summary": "Update a record in a telephone number database",
+                "description": "Update a record in a telephone number database",
+                "requestBody": {
+                    "description": "Record",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "TN": {
+                                        "description": "Telephone Number",
+                                        "required": true,
+                                        "type": "string",
+                                        "example": "13109060901"
+                                    },
+                                    "Lidb": {
+                                        "description": "Outbound CallerID Name",
+                                        "type": "string",
+                                        "example": "Bulk Solutions, LLC"
+                                    },
+                                    "Portout Pin": {
+                                        "description": "6-10 digit numeric Pin required to authorize Portout",
+                                        "type": "string",
+                                        "example": "3591344"
+                                    },
+                                    "ReferenceID": {
+                                        "description": "User inserted Note",
+                                        "type": "string",
+                                        "example": "Customer A"
+                                    },
+                                    "Trunk Group": {
+                                        "description": "Set of SIP Destinations to which call will be sent",
+                                        "type": "string",
+                                        "example": "Primary"
+                                    },
+                                    "Custom URI": {
+                                        "description": "Change the RURI presented on Trunk Group",
+                                        "type": "string",
+                                        "example": "9999+13109060901"
+                                    },
+                                    "Call Forward": {
+                                        "description": "If not Null, call will be forwarded to this number",
+                                        "type": "string",
+                                        "example": "13105551212"
+                                    },
+                                    "PSTN Failover": {
+                                        "description": "Call Forward in case SIP Destinations unavailable",
+                                        "type": "string",
+                                        "example": "13105551212"
+                                    },
+                                    "Sms": {
+                                        "description": "Toggle SMS Functionality",
+                                        "type": "boolean",
+                                        "example": true
+                                    },
+                                    "Mms": {
+                                        "description": "Toggle MMS Functionality",
+                                        "type": "boolean",
+                                        "example": false
+                                    },
+                                    "Tcr": {
+                                        "description": "Registered Messaging Campaign",
+                                        "type": "string",
+                                        "example": "CW1549"
+                                    },
+                                    "Webhook": {
+                                        "description": "Set Webhook for Messaging",
+                                        "type": "string",
+                                        "example": "Default"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "TN": {
+                                            "description": "Telephone Number",
+                                            "type": "string",
+                                            "example": "13109060901"
+                                        },
+                                        "Status": {
+                                            "description": "Active or LNP Status",
+                                            "type": "string",
+                                            "example": "Active"
+                                        },
+                                        "Lidb": {
+                                            "description": "Outbound CallerID Name",
+                                            "type": "string",
+                                            "example": "Bulk Solutions LLC"
+                                        },
+                                        "Portout Pin": {
+                                            "description": "6-10 digit numeric Pin required to authorize Portout",
+                                            "type": "string",
+                                            "example": "3591344"
+                                        },
+                                        "Routing": {
+                                            "properties": {
+                                                "Trunk Group": {
+                                                    "type": "string",
+                                                    "example": "Primary"
+                                                },
+                                                "Custom URI": {
+                                                    "type": "string",
+                                                    "example": "9999+13109060901"
+                                                },
+                                                "Call Forward": {
+                                                    "type": "string",
+                                                    "example": "13105551212"
+                                                },
+                                                "PSTN Failover": {
+                                                    "type": "string",
+                                                    "example": "13105551212"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "Messaging": {
+                                            "properties": {
+                                                "Class": {
+                                                    "type": "boolean",
+                                                    "example": "A2P"
+                                                },
+                                                "Sms": {
+                                                    "type": "boolean",
+                                                    "example": true
+                                                },
+                                                "Mms": {
+                                                    "type": "boolean",
+                                                    "example": false
+                                                },
+                                                "Webhook": {
+                                                    "type": "string",
+                                                    "example": "Default"
+                                                },
+                                                "Tcr": {
+                                                    "type": "string",
+                                                    "example": "CW1549"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "TN Details": {
+                                            "properties": {
+                                                "Rate Center": {
+                                                    "type": "string",
+                                                    "example": "Los Angeles"
+                                                },
+                                                "State": {
+                                                    "type": "string",
+                                                    "example": "CA"
+                                                },
+                                                "Tier": {
+                                                    "type": "string",
+                                                    "example": 0
+                                                },
+                                                "Cnam": {
+                                                    "type": "boolean"
+                                                },
+                                                "Activation Date": {
+                                                    "type": "string",
+                                                    "example": "2010-07-28 00:00:00"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Telephone number or other property missing, invalid or malformed"
+                    },
+                    "403": {
+                        "description": "Insufficient funds or service not enabled"
+                    },
+                    "404": {
+                        "description": "Telephone number not found"
+                    },
+                    "409": {
+                        "description": "Conflict, see body; a support ticket may be required to resolve"
+                    },
+                    "412": {
+                        "description": "Applicable agreement lacks consent, see body for details"
+                    },
+                    "503": {
+                        "description": "An error occurred, please try again; a support ticket may be required to resolve"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Origination"
+                ],
+                "summary": "Delete telephone number",
+                "description": "Delete a specific telephone number entry using the number parameter",
+                "parameters": [
+                    {
+                        "name": "Number",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "Status": {
+                                            "description": "Success or Failure with Reason",
+                                            "type": "string",
+                                            "example": "Success"
+                                        },
+                                        "TN": {
+                                            "description": "Telephone Number",
+                                            "type": "string",
+                                            "example": "13109060902"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Telephone number or other property missing, invalid or malformed"
+                    },
+                    "403": {
+                        "description": "Insufficient funds or service not enabled"
+                    },
+                    "404": {
+                        "description": "Telephone number not found"
+                    },
+                    "409": {
+                        "description": "TN is not in correct state to Disconnect"
+                    }
+                }
+            }
+        },
+        "/trunkGroups": {
+            "get": {
+                "tags": [
+                    "Interconnection"
+                ],
+                "summary": "Get List of your Trunk Group(s)",
+                "description": "Leave the TrunkGroup parameter blank to return list of all Trunk Groups, including any used for SIP Registration",
+                "parameters": [
+                    {
+                        "name": "TrunkGroup",
+                        "in": "query",
+                        "required": false
+                    },
+                    {
+                        "name": "Description",
+                        "in": "query",
+                        "required": false,
+                        "type": "string"
+                    },
+                    {
+                        "name": "Last Modification",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "properties": {
+                                            "TrunkGroup": {
+                                                "description": "Trunk Group Name",
+                                                "type": "string",
+                                                "example": "Primary"
+                                            },
+                                            "Description": {
+                                                "description": "Helpful Description of Trunk Group",
+                                                "type": "string",
+                                                "example": "Dallas SBC 1"
+                                            },
+                                            "Primary": {
+                                                "description": "First IP Address in Hunt",
+                                                "type": "string",
+                                                "example": "172.31.0.1"
+                                            },
+                                            "Secondary": {
+                                                "description": "Second IP Address in Hunt",
+                                                "type": "string",
+                                                "example": "172.32.0.1"
+                                            },
+                                            "DialPlan": {
+                                                "description": "Options: 10DIGITS, 11DIGITS, E164 ",
+                                                "type": "string",
+                                                "example": "E164"
+                                            },
+                                            "MaxIn": {
+                                                "description": "Maximum number of calls allowed TO Device, up to Account Limit",
+                                                "type": "string",
+                                                "example": "75"
+                                            },
+                                            "MaxOut": {
+                                                "description": "Maximum number of calls allowed FROM Device, up to Account Limit",
+                                                "type": "string",
+                                                "example": "75"
+                                            },
+                                            "Last Modification": {
+                                                "description": "Date of Last Change on this Trunk Group",
+                                                "type": "string",
+                                                "example": "2019-07-16 16:23:35"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "404": {
+                        "description": "Trunk Group not found"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Interconnection"
+                ],
+                "summary": "Trunk Group - IP Authentication",
+                "description": "Create or update an IP Authenticated Trunk Group",
+                "requestBody": {
+                    "description": "TrunkGroup",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "TrunkGroup": {
+                                        "description": "Trunk Group Name",
+                                        "type": "string",
+                                        "example": "CustomerA"
+                                    },
+                                    "Description": {
+                                        "description": "Helpful description of Trunk Group's use-case",
+                                        "type": "string",
+                                        "example": "Customer A PBX"
+                                    },
+                                    "Primary": {
+                                        "description": "IP Address or SRV to which calls will be delivered",
+                                        "type": "string",
+                                        "example": "10.10.10.1"
+                                    },
+                                    "Secondary": {
+                                        "description": "Failover IP Address to which calls will be delievered ",
+                                        "type": "string",
+                                        "example": "10.20.20.2:5065"
+                                    },
+                                    "MaxIn": {
+                                        "description": "Maximum number of calls allowed TO Device, up to Account Limit",
+                                        "type": "string",
+                                        "example": "75"
+                                    },
+                                    "DialPlan": {
+                                        "description": "Numbering Plan. Options: E164, 10DIGITS, 11DIGITS",
+                                        "type": "string",
+                                        "example": "11DIGITS"
+                                    },
+                                    "Verstat": {
+                                        "description": "Option to deliver decoded STIR/SHAKEN Verstat Header",
+                                        "type": "boolean",
+                                        "example": true
+                                    },
+                                    "Identity": {
+                                        "description": "Option to deliver encoded STIR/SHAKEN Identity Header",
+                                        "type": "boolean",
+                                        "example": false
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "TrunkGroup": {
+                                            "description": "SIP Authentication Username",
+                                            "type": "string",
+                                            "example": "123456_CustomerA"
+                                        },
+                                        "Description": {
+                                            "description": "Helpful Description of Trunk Group",
+                                            "type": "string",
+                                            "example": "Customer A PBX"
+                                        },
+                                        "Primary": {
+                                            "description": "Primary IP or SRV",
+                                            "type": "string",
+                                            "example": "10.10.10.1"
+                                        },
+                                        "Secondary": {
+                                            "description": "Secondary IP",
+                                            "type": "string",
+                                            "example": "10.20.20.2:5065"
+                                        },
+                                        "DialPlan": {
+                                            "description": "Numbering Plan",
+                                            "type": "string",
+                                            "example": "E164"
+                                        },
+                                        "MaxIn": {
+                                            "description": "Maximum number of calls allowed TO Device",
+                                            "type": "string",
+                                            "example": "75"
+                                        },
+                                        "Verstat": {
+                                            "description": "Option to deliver decoded STIR/SHAKEN Verstat Header",
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "Identity": {
+                                            "description": "Option to deliver encoded STIR/SHAKEN Identity Header",
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "Last Modification": {
+                                            "description": "Date of Last Change on this Trunk Group",
+                                            "type": "string",
+                                            "example": "2022-05-16 16:23:35"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "403": {
+                        "description": "Insufficient funds or service not enabled"
+                    },
+                    "412": {
+                        "description": "Applicable agreement lacks consent, see body for details"
+                    },
+                    "503": {
+                        "description": "An error occurred, please try again; a support ticket may be required to resolve"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Interconnection"
+                ],
+                "summary": "Trunk Group - SIP Registration",
+                "description": "Create or update a SIP Registration based Trunk Group",
+                "requestBody": {
+                    "description": "TrunkGroup",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "TrunkGroup": {
+                                        "description": "Trunk Group Name, also used as SIP Authentication Username",
+                                        "type": "string",
+                                        "example": "123456_CustomerA"
+                                    },
+                                    "Description": {
+                                        "description": "Helpful description of Trunk Group's use-case",
+                                        "type": "string",
+                                        "example": "Customer A PBX"
+                                    },
+                                    "Password": {
+                                        "description": "Desired - complex - SIP Authentication Password or leave blank to Auto-generate",
+                                        "type": "string",
+                                        "example": "Secret1234"
+                                    },
+                                    "MaxIn": {
+                                        "description": "Maximum number of calls allowed TO Device, up to Account Limit",
+                                        "type": "string",
+                                        "example": "75"
+                                    },
+                                    "MaxOut": {
+                                        "description": "Maximum number of calls allowed FROM Device, up to Account Limit",
+                                        "type": "string",
+                                        "example": "75"
+                                    },
+                                    "DialPlan": {
+                                        "description": "Numbering Plan. Options: E164, 10DIGITS, 11DIGITS",
+                                        "type": "string",
+                                        "example": "11DIGITS"
+                                    },
+                                    "Verstat": {
+                                        "description": "Option to deliver decoded STIR/SHAKEN Verstat Header",
+                                        "type": "boolean",
+                                        "example": true
+                                    },
+                                    "Identity": {
+                                        "description": "Option to deliver encoded STIR/SHAKEN Identity Header",
+                                        "type": "boolean",
+                                        "example": false
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "TrunkGroup": {
+                                            "description": "SIP Authentication Username",
+                                            "type": "string",
+                                            "example": "123456_CustomerA"
+                                        },
+                                        "Description": {
+                                            "description": "Helpful Description of Trunk Group",
+                                            "type": "string",
+                                            "example": "Customer A PBX"
+                                        },
+                                        "Password": {
+                                            "description": "SIP Authentication Password",
+                                            "type": "string",
+                                            "example": "Secret1234"
+                                        },
+                                        "DialPlan": {
+                                            "description": "Numbering Plan",
+                                            "type": "string",
+                                            "example": "E164"
+                                        },
+                                        "MaxIn": {
+                                            "description": "Maximum number of calls allowed TO Device",
+                                            "type": "string",
+                                            "example": "75"
+                                        },
+                                        "MaxOut": {
+                                            "description": "Maximum number of calls allowed FROM Device",
+                                            "type": "string",
+                                            "example": "75"
+                                        },
+                                        "Verstat": {
+                                            "description": "Option to deliver decoded STIR/SHAKEN Verstat Header",
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "Identity": {
+                                            "description": "Option to deliver encoded STIR/SHAKEN Identity Header",
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "Last Modification": {
+                                            "description": "Date of Last Change on this Trunk Group",
+                                            "type": "string",
+                                            "example": "2022-05-16 16:23:35"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "403": {
+                        "description": "Insufficient funds or service not enabled"
+                    },
+                    "412": {
+                        "description": "Applicable agreement lacks consent, see body for details"
+                    },
+                    "503": {
+                        "description": "An error occurred, please try again; a support ticket may be required to resolve"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Interconnection"
+                ],
+                "summary": "Delete Trunk Group",
+                "description": "Delete a specific Trunk Group",
+                "parameters": [
+                    {
+                        "name": "TrunkGroup",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "Status": {
+                                            "description": "Success or Failure with Reason",
+                                            "type": "string",
+                                            "example": "Success"
+                                        },
+                                        "TrunkGroup": {
+                                            "description": "Trunk Group",
+                                            "type": "string",
+                                            "example": "123456_CustomerA"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "404": {
+                        "description": "Trunk Group not found"
+                    },
+                    "503": {
+                        "description": "An error occurred, please try again; a support ticket may be required to resolve"
+                    }
+                }
+            }
+        },
+        "/twilio": {
+            "post": {
+                "tags": [
+                    "Interconnection"
+                ],
+                "summary": "TWilio BYOC Trunk Group",
+                "description": "Create or update a Twilio BYOC Trunk Group",
+                "requestBody": {
+                    "description": "TrunkGroup",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "TrunkGroup": {
+                                        "description": "Trunk Group Name",
+                                        "type": "string",
+                                        "example": "CustomerA"
+                                    },
+                                    "Description": {
+                                        "description": "Helpful description of Trunk Group's use-case",
+                                        "type": "string",
+                                        "example": "Customer A BYOC"
+                                    },
+                                    "SIP Domain": {
+                                        "description": "SIP Domain configured on Twilio",
+                                        "type": "string",
+                                        "example": "CustomerA.sip.twilio.com"
+                                    },
+                                    "MaxIn": {
+                                        "description": "Maximum number of calls allowed TO Twilio, up to Account Limit",
+                                        "type": "string",
+                                        "example": "75"
+                                    },
+                                    "MaxOut": {
+                                        "description": "Maximum number of calls allowed FROM Twilio, up to Account Limit",
+                                        "type": "string",
+                                        "example": "75"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "TrunkGroup": {
+                                            "description": "SIP Authentication Username",
+                                            "type": "string",
+                                            "example": "CustomerA"
+                                        },
+                                        "Description": {
+                                            "description": "Helpful Description of Trunk Group",
+                                            "type": "string",
+                                            "example": "Customer A PBX"
+                                        },
+                                        "SIP Domain": {
+                                            "description": "SIP Domain configured on Twilio",
+                                            "type": "string",
+                                            "example": "CustomerA.sip.twilio.com"
+                                        },
+                                        "Token": {
+                                            "description": "Token used for Outbound Calls from TWilio",
+                                            "type": "string",
+                                            "example": "eyJYmZkODg2YzU0OTE0ZmI5Y2QiLCJ0IjoiVHdpbGlvIn0="
+                                        },
+                                        "DialPlan": {
+                                            "description": "Numbering Plan",
+                                            "type": "string",
+                                            "example": "E164"
+                                        },
+                                        "MaxIn": {
+                                            "description": "Maximum number of calls allowed TO Device",
+                                            "type": "string",
+                                            "example": "75"
+                                        },
+                                        "MaxOut": {
+                                            "description": "Maximum number of calls allowed FROM Device",
+                                            "type": "string",
+                                            "example": "75"
+                                        },
+                                        "Verstat": {
+                                            "description": "Option to deliver decoded STIR/SHAKEN Verstat Header",
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "Identity": {
+                                            "description": "Option to deliver encoded STIR/SHAKEN Identity Header",
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "Last Modification": {
+                                            "description": "Date of Last Change on this Trunk Group",
+                                            "type": "string",
+                                            "example": "2022-05-16 16:23:35"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "403": {
+                        "description": "Insufficient funds or service not enabled"
+                    },
+                    "412": {
+                        "description": "Applicable agreement lacks consent, see body for details"
+                    },
+                    "503": {
+                        "description": "An error occurred, please try again; a support ticket may be required to resolve"
+                    }
+                }
+            }
+        },
+        "/ipHost": {
+            "get": {
+                "tags": [
+                    "Interconnection"
+                ],
+                "summary": "Query SIP Endpoints",
+                "description": "Get information on a specific SIP Endpoint using the IP parameter. Leave out number parameter to display all entries",
+                "parameters": [
+                    {
+                        "name": "IP",
+                        "in": "query",
+                        "required": false,
+                        "type": "integer"
+                    },
+                    {
+                        "name": "Description",
+                        "in": "query",
+                        "required": false,
+                        "type": "string"
+                    },
+                    {
+                        "name": "Last Modification",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "IP": {
+                                            "description": "IP Address",
+                                            "type": "string"
+                                        },
+                                        "Description": {
+                                            "description": "Helpful description of IP Address's use-case",
+                                            "type": "string"
+                                        },
+                                        "MaxOut": {
+                                            "description": "Maximum number of calls allowed FROM Device",
+                                            "type": "string"
+                                        },
+                                        "Last Modification": {
+                                            "description": "Date of Last Change on this number",
+                                            "type": "string",
+                                            "items": {}
+                                        }
+                                    },
+                                    "type": "object",
+                                    "example": [
+                                        {
+                                            "IP": "10.10.10.1",
+                                            "Description": "Customer A PBX",
+                                            "MaxOut": 5,
+                                            "Last Modification": "2022-05-28 00:00:00"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Telephone Number Missing, Invalid or Malformed"
+                    },
+                    "404": {
+                        "description": "Telephone number not found"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Interconnection"
+                ],
+                "summary": "Authorize IP address for calling",
+                "description": "Create or update an IP Address used for Outbound Services such as E911, 8YY and Termination",
+                "requestBody": {
+                    "description": "ipHost",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "IP": {
+                                        "description": "Internet route-able Public IP Address to whitelist for Outbound Services",
+                                        "type": "string",
+                                        "example": "10.10.10.1"
+                                    },
+                                    "Description": {
+                                        "description": "Helpful description of IP Address's use-case",
+                                        "type": "string",
+                                        "example": "Customer A PBX"
+                                    },
+                                    "MaxOut": {
+                                        "description": "Maximum number of calls allowed FROM Device, up to Account Limit",
+                                        "type": "string",
+                                        "example": "75"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "IP": {
+                                            "description": "Internet route-able Public IP Address",
+                                            "type": "string",
+                                            "example": "10.10.10.1"
+                                        },
+                                        "Description": {
+                                            "description": "Helpful Description of IP Address",
+                                            "type": "string",
+                                            "example": "Customer A PBX"
+                                        },
+                                        "MaxOut": {
+                                            "description": "Maximum number of calls allowed FROM Device",
+                                            "type": "string",
+                                            "example": "75"
+                                        },
+                                        "Last Modification": {
+                                            "description": "Date of Last Change on this Trunk Group",
+                                            "type": "string",
+                                            "example": "2022-05-16 16:23:35"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "403": {
+                        "description": "Insufficient funds or service not enabled"
+                    },
+                    "409": {
+                        "description": "Conflict, see body; a support ticket may be required to resolve"
+                    },
+                    "412": {
+                        "description": "Applicable agreement lacks consent, see body for details"
+                    },
+                    "503": {
+                        "description": "An error occurred, please try again; a support ticket may be required to resolve"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Interconnection"
+                ],
+                "summary": "Delete IP Address",
+                "description": "Delete a specific IP Address",
+                "parameters": [
+                    {
+                        "name": "IP",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "Status": {
+                                            "description": "Success or Failure with Reason",
+                                            "type": "string",
+                                            "example": "Success"
+                                        },
+                                        "TrunkGroup": {
+                                            "description": "Trunk Group",
+                                            "type": "string",
+                                            "example": "123456_CustomerA"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "404": {
+                        "description": "Trunk Group not found"
+                    }
+                }
+            }
+        },
+        "/orderTn": {
+            "get": {
+                "tags": [
+                    "Origination"
+                ],
+                "summary": "Search for Available Telephone Number by NPA or NPANXX",
+                "description": "Search inventory of available telephone numbers",
+                "parameters": [
+                    {
+                        "name": "Npa",
+                        "in": "query",
+                        "required": true,
+                        "example": "310",
+                        "type": "integer"
+                    },
+                    {
+                        "name": "Nxx",
+                        "in": "query",
+                        "required": false,
+                        "example": "906",
+                        "type": "integer"
+                    },
+                    {
+                        "name": "Lca",
+                        "in": "query",
+                        "required": false,
+                        "example": "true",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "items": {}
+                        },
+                        "example": "100"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "properties": {
+                                            "TN": {
+                                                "description": "Telephone Number Available for purchase",
+                                                "type": "string",
+                                                "example": "131090600901"
+                                            },
+                                            "Rate Center": {
+                                                "description": "Rate Center associated to Telephone Number",
+                                                "type": "string",
+                                                "example": "Los Angeles"
+                                            },
+                                            "State": {
+                                                "description": "State or Province associated to Telephone Number",
+                                                "type": "string",
+                                                "example": "CA"
+                                            },
+                                            "Tier": {
+                                                "description": "Tier associated to Telephone Number",
+                                                "type": "string",
+                                                "example": "0"
+                                            },
+                                            "Per Minute Rate": {
+                                                "description": "Per Minute Rate associated to Telephone Number",
+                                                "type": "string",
+                                                "example": "0.0003"
+                                            },
+                                            "Mrc": {
+                                                "description": "Monthly Recurring Cost to maintain Telephone Number",
+                                                "type": "string",
+                                                "example": "0.05"
+                                            },
+                                            "Nrc": {
+                                                "description": "Non Recurring Cost to purchase Telephone Number",
+                                                "type": "string",
+                                                "example": "0.05"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Telephone number or other property missing, invalid or malformed"
+                    },
+                    "403": {
+                        "description": "Insufficient funds or service not enabled"
+                    },
+                    "404": {
+                        "description": "No telephone numbers available"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Origination"
+                ],
+                "summary": "Order an Available Telephone Number from Inventory",
+                "description": "Purchase a new telephone number",
+                "requestBody": {
+                    "description": "Record",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "TN": {
+                                        "description": "Telephone Number",
+                                        "required": true,
+                                        "type": "string",
+                                        "example": "13109060901"
+                                    },
+                                    "Lidb": {
+                                        "description": "Outbound CallerID Name",
+                                        "type": "string",
+                                        "example": "Bulk Solutions, LLC"
+                                    },
+                                    "Portout Pin": {
+                                        "description": "6-10 digit numeric Pin required to authorize Portout",
+                                        "type": "string",
+                                        "example": "3591344"
+                                    },
+                                    "ReferenceID": {
+                                        "description": "Your Internal Order Number or Note",
+                                        "type": "string",
+                                        "example": "A3792BES"
+                                    },
+                                    "Trunk Group": {
+                                        "description": "Set of SIP Destinations to which call will be sent",
+                                        "type": "string",
+                                        "example": "Primary"
+                                    },
+                                    "Sms": {
+                                        "description": "Toggle SMS Functionality",
+                                        "type": "boolean",
+                                        "example": true
+                                    },
+                                    "Mms": {
+                                        "description": "Toggle MMS Functionality",
+                                        "type": "boolean",
+                                        "example": false
+                                    },
+                                    "Webhook": {
+                                        "description": "Messaging Webhook",
+                                        "type": "string",
+                                        "example": "Default"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "TN": {
+                                            "description": "Telephone Number",
+                                            "type": "string",
+                                            "example": "13109060901"
+                                        },
+                                        "Status": {
+                                            "description": "Active or LNP Status",
+                                            "type": "string",
+                                            "example": "Active"
+                                        },
+                                        "Lidb": {
+                                            "description": "Outbound CallerID Name",
+                                            "type": "string",
+                                            "example": "Bulk Solutions LLC"
+                                        },
+                                        "Portout Pin": {
+                                            "description": "6-10 digit numeric Pin required to authorize Portout",
+                                            "type": "string",
+                                            "example": "3591344"
+                                        },
+                                        "ReferenceID": {
+                                            "description": "Your Internal Order Number or Note",
+                                            "type": "string",
+                                            "example": "A3792BES"
+                                        },
+                                        "Routing": {
+                                            "properties": {
+                                                "Trunk Group": {
+                                                    "type": "string",
+                                                    "example": "Primary"
+                                                },
+                                                "Custom URI": {
+                                                    "type": "string",
+                                                    "example": "9999+13109060901"
+                                                },
+                                                "Call Forward": {
+                                                    "type": "string",
+                                                    "example": "13105551212"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "Messaging": {
+                                            "properties": {
+                                                "Class": {
+                                                    "type": "string",
+                                                    "example": "AP2LC"
+                                                },
+                                                "Sms": {
+                                                    "type": "boolean",
+                                                    "example": true
+                                                },
+                                                "Mms": {
+                                                    "type": "boolean",
+                                                    "example": false
+                                                },
+                                                "Webhook": {
+                                                    "type": "string",
+                                                    "example": "Default"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "TN Details": {
+                                            "properties": {
+                                                "Rate Center": {
+                                                    "type": "string",
+                                                    "example": "Los Angeles"
+                                                },
+                                                "State": {
+                                                    "type": "string",
+                                                    "example": "CA"
+                                                },
+                                                "Tier": {
+                                                    "type": "string",
+                                                    "example": 0
+                                                },
+                                                "Cnam": {
+                                                    "type": "boolean"
+                                                },
+                                                "Activation Date": {
+                                                    "type": "string",
+                                                    "example": "2010-07-28 00:00:00"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Telephone number or other property missing, invalid or malformed"
+                    },
+                    "403": {
+                        "description": "Insufficient funds or service not enabled"
+                    },
+                    "404": {
+                        "description": "Failed to order telephone number successfully; see body",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "TN": {
+                                            "description": "Telephone Number",
+                                            "type": "string",
+                                            "example": "13109060901"
+                                        },
+                                        "Status": {
+                                            "type": "string",
+                                            "example": "Failed"
+                                        },
+                                        "Code": {
+                                            "description": "Error Code",
+                                            "type": "string",
+                                            "example": "7501"
+                                        },
+                                        "Description": {
+                                            "description": "Reason for Failure",
+                                            "type": "string",
+                                            "example": "Telephone Number not available to Purchase"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "An error occurred, please try again; a support ticket may be required to resolve"
+                    }
+                }
+            }
+        },
+        "/validatePortability": {
+            "get": {
+                "tags": [
+                    "LNP"
+                ],
+                "summary": "Check Telephone Number for Portability",
+                "description": "Tool for checking LNP Eligibiity",
+                "parameters": [
+                    {
+                        "name": "Number",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "items": {}
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "TN": {
+                                            "description": "Telephone Number",
+                                            "type": "string",
+                                            "example": "131090600901"
+                                        },
+                                        "Portable": {
+                                            "description": "True or False",
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "Losing Carrier": {
+                                            "description": "Current Telco associated to Telephone Number",
+                                            "type": "string",
+                                            "example": "Bulk Solutions, LLC"
+                                        },
+                                        "Tier": {
+                                            "description": "Tier associated to Telephone Number",
+                                            "type": "string",
+                                            "example": "0"
+                                        },
+                                        "Rate Center": {
+                                            "description": "Rate Center associated to Telephone Number",
+                                            "type": "string",
+                                            "example": "Los Angeles"
+                                        },
+                                        "State": {
+                                            "description": "State or Province associated to Telephone Number",
+                                            "type": "string",
+                                            "example": "CA"
+                                        },
+                                        "Per Minute Rate": {
+                                            "description": "Per Minute Rate associated to Telephone Number",
+                                            "type": "string",
+                                            "example": "0.0003"
+                                        },
+                                        "Mrc": {
+                                            "description": "Monthly Recurring Cost to maintain Telephone Number",
+                                            "type": "string",
+                                            "example": "0.05"
+                                        },
+                                        "LNP Fee": {
+                                            "description": "Non Recurring Cost to Port Telephone Number",
+                                            "type": "string",
+                                            "example": "0.00"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Telephone number or other property missing, invalid or malformed"
+                    },
+                    "403": {
+                        "description": "Insufficient funds or service not enabled"
+                    },
+                    "404": {
+                        "description": "Telephone number is not portable"
+                    }
+                }
+            }
+        },
+        "/portTn": {
+            "get": {
+                "tags": [
+                    "LNP"
+                ],
+                "summary": "LNP Order Search",
+                "description": "Retrieve details about LNP orders by BULKVS order ID or reference ID. Leave this blank to retrieve details about all",
+                "parameters": [
+                    {
+                        "name": "OrderId",
+                        "in": "query",
+                        "required": false,
+                        "example": "98765"
+                    },
+                    {
+                        "name": "ReferenceId",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "items": {}
+                        },
+                        "example": "A3792BES"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "Order Details": {
+                                            "properties": {
+                                                "OrderId": {
+                                                    "type": "string",
+                                                    "example": "2020080515340345963"
+                                                },
+                                                "ReferenceId": {
+                                                    "type": "string",
+                                                    "example": "A3792BES"
+                                                },
+                                                "Losing Carrier": {
+                                                    "type": "string",
+                                                    "example": "Verizon"
+                                                },
+                                                "Tier": {
+                                                    "description": "Tier of Telephone Number(s) on order",
+                                                    "type": "string",
+                                                    "example": "0"
+                                                },
+                                                "Trunk Group": {
+                                                    "type": "string",
+                                                    "example": "Primary"
+                                                },
+                                                "BTN": {
+                                                    "type": "string",
+                                                    "example": "13105551212"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "End User Info": {
+                                            "properties": {
+                                                "Name": {
+                                                    "description": "Name of Business or Person currently Invoiced for TN(s)",
+                                                    "type": "string",
+                                                    "example": "ABC Cleaners, Inc."
+                                                },
+                                                "Contact": {
+                                                    "description": "Name of Person on record with Losing Carrier",
+                                                    "type": "string",
+                                                    "example": "Jamie Louis"
+                                                },
+                                                "Address": {
+                                                    "description": "Street Number",
+                                                    "type": "string",
+                                                    "example": "704"
+                                                },
+                                                "City": {
+                                                    "description": "City",
+                                                    "type": "string",
+                                                    "example": "Wilmington"
+                                                },
+                                                "State": {
+                                                    "description": "State or Province",
+                                                    "type": "string",
+                                                    "example": "DE"
+                                                },
+                                                "Zip": {
+                                                    "description": "Postal Code",
+                                                    "type": "string",
+                                                    "example": "19801"
+                                                },
+                                                "Account Number": {
+                                                    "description": "Account Number associated to TN(s) with Losing Carrier",
+                                                    "type": "string",
+                                                    "example": "98765"
+                                                },
+                                                "Pin": {
+                                                    "description": "Pin Number associated to TN(s) with Losing Carrier",
+                                                    "type": "string",
+                                                    "example": "1234"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "TN List": {
+                                            "type": "string",
+                                            "items": {},
+                                            "example": [
+                                                {
+                                                    "TN": "13105551211",
+                                                    "LNP Status": "PENDING",
+                                                    "RDD": "2020-09-01 11:30:00"
+                                                },
+                                                {
+                                                    "TN": "13105551212",
+                                                    "LNP Status": "SUBMITTED",
+                                                    "RDD": "2020-09-01 11:30:00"
+                                                },
+                                                {
+                                                    "TN": "13105551213",
+                                                    "LNP Status": "EXCEPTION",
+                                                    "Reason": "Address Mismatch",
+                                                    "RDD": "2020-09-01 11:30:00"
+                                                },
+                                                {
+                                                    "TN": "13105551214",
+                                                    "LNP Status": "REQUESTED_SUPP",
+                                                    "RDD": "2020-09-01 11:30:00"
+                                                },
+                                                {
+                                                    "TN": "13105551215",
+                                                    "LNP Status": "FOC",
+                                                    "RDD": "2020-09-01 11:30:00"
+                                                },
+                                                {
+                                                    "TN": "13105551216",
+                                                    "LNP Status": "COMPLETE",
+                                                    "RDD": "2020-09-01 11:30:00"
+                                                },
+                                                {
+                                                    "TN": "13105551217",
+                                                    "LNP Status": "CANCELLED"
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "300": {
+                        "description": "Multiple matches retrieved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "example": {
+                                            "OrderId": "2020080515340345963",
+                                            "ReferenceId": "A3792BES",
+                                            "LNP Status": "COMPLETE",
+                                            "RDD": "2020-08-01 11:30:00"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "404": {
+                        "description": "ID Not Found"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "LNP"
+                ],
+                "summary": "Port Telephone Number from another Carrier",
+                "description": "Submit a new telephone number port request, including for toll free numbers",
+                "requestBody": {
+                    "description": "Record",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "ReferenceId": {
+                                        "description": "Your Internal Order Number, otherwise auto-assigned",
+                                        "type": "string",
+                                        "example": "A3792BES"
+                                    },
+                                    "TN List": {
+                                        "description": "List of Numbers to port",
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "example": "13109060901"
+                                        }
+                                    },
+                                    "BTN": {
+                                        "description": "Billing Telephone Number on record with Losing Carrier",
+                                        "type": "string",
+                                        "example": "13109060901"
+                                    },
+                                    "Subscriber Type": {
+                                        "description": "Business or Residential",
+                                        "type": "string",
+                                        "example": "Business"
+                                    },
+                                    "Account Number": {
+                                        "description": "Account Number associated to TN(s) with Losing Carrier",
+                                        "type": "string",
+                                        "example": "98765"
+                                    },
+                                    "Pin": {
+                                        "description": "Pin Number associated to TN(s) with Losing Carrier",
+                                        "type": "string",
+                                        "example": "1234"
+                                    },
+                                    "Name": {
+                                        "description": "Name of Business or Person currently Invoiced for TN(s)",
+                                        "type": "string",
+                                        "example": "ABC Cleaners, Inc."
+                                    },
+                                    "Contact": {
+                                        "description": "Name of Person on record with Losing Carrier",
+                                        "type": "string",
+                                        "example": "Jamie Louis"
+                                    },
+                                    "Street Number": {
+                                        "description": "Street Number",
+                                        "type": "string",
+                                        "example": "704"
+                                    },
+                                    "Street Name": {
+                                        "description": "Street Name",
+                                        "type": "string",
+                                        "example": "N. King St Suite 500"
+                                    },
+                                    "City": {
+                                        "description": "City",
+                                        "type": "string",
+                                        "example": "Wilmington"
+                                    },
+                                    "State": {
+                                        "description": "State or Province",
+                                        "type": "string",
+                                        "example": "DE"
+                                    },
+                                    "Zip": {
+                                        "description": "Postal Code",
+                                        "type": "string",
+                                        "example": "19801"
+                                    },
+                                    "RDD": {
+                                        "description": "Requested Due Date to activate Port (Weekday only)",
+                                        "type": "string",
+                                        "example": "2020-08-01"
+                                    },
+                                    "Time": {
+                                        "description": "Time to Port in EST (between 8AM and 8PM EST)",
+                                        "type": "string",
+                                        "example": "14:00:00"
+                                    },
+                                    "Portout Pin": {
+                                        "description": "6-10 digit numeric Pin required to authorize Portout",
+                                        "type": "string",
+                                        "example": "3591344"
+                                    },
+                                    "Trunk Group": {
+                                        "description": "Set of SIP Destinations to which call will be sent",
+                                        "type": "string",
+                                        "example": "Primary"
+                                    },
+                                    "Lidb": {
+                                        "description": "Outbound CallerID Name",
+                                        "type": "string",
+                                        "example": "Bulk Solutions LLC"
+                                    },
+                                    "Sms": {
+                                        "description": "Toggle SMS Functionality",
+                                        "type": "boolean",
+                                        "example": true
+                                    },
+                                    "Mms": {
+                                        "description": "Toggle MMS Functionality",
+                                        "type": "boolean",
+                                        "example": false
+                                    },
+                                    "Sign Loa": {
+                                        "description": "See Portal for Description and Legal Agreement",
+                                        "type": "boolean",
+                                        "example": false
+                                    },
+                                    "Notify": {
+                                        "description": "Additional Email Address to receive Notifications about this order, along with Primary LNP Contact",
+                                        "type": "string",
+                                        "example": "mary@sampletelco.com"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "OrderId": {
+                                            "description": "Reference Order Number",
+                                            "type": "string",
+                                            "example": "140543"
+                                        },
+                                        "CustOrderId": {
+                                            "description": "Customer's Reference Order Number",
+                                            "type": "string",
+                                            "example": "A3792BES"
+                                        },
+                                        "RDD": {
+                                            "description": "Requested Due Date for Port",
+                                            "type": "string",
+                                            "example": "2020-09-01 11:30:00"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "403": {
+                        "description": "Insufficient funds or service not enabled"
+                    },
+                    "404": {
+                        "description": "Telephone number is not portable",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "TN": {
+                                            "description": "Telephone Number",
+                                            "type": "string",
+                                            "example": "13105551212"
+                                        },
+                                        "Code": {
+                                            "description": "Error Code",
+                                            "type": "string",
+                                            "example": "7402"
+                                        },
+                                        "Description": {
+                                            "description": "Reason for Error",
+                                            "type": "string",
+                                            "example": "Numbers(s) not Portable"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict, see body; a support ticket may be required to resolve",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "Description": {
+                                            "description": "Reason for Error",
+                                            "type": "string",
+                                            "example": "Multiple Underlying Carriers; See TN Groups."
+                                        },
+                                        "Code": {
+                                            "description": "Error Code",
+                                            "type": "string",
+                                            "example": "7401"
+                                        },
+                                        "TN Groups": {
+                                            "type": "string",
+                                            "items": {},
+                                            "example": {
+                                                "Verizon": [
+                                                    "13105551212"
+                                                ],
+                                                "AT&T": [
+                                                    "13055551212"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Applicable agreement lacks consent, see body for details"
+                    },
+                    "503": {
+                        "description": "An error occurred, please try again; a support ticket may be required to resolve"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "LNP"
+                ],
+                "summary": "LNP Order Modify",
+                "description": "Submit a new note or attachment to existing Port Order",
+                "parameters": [
+                    {
+                        "name": "OrderId",
+                        "in": "query",
+                        "required": true,
+                        "example": "98765"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "properties": {
+                                    "Attachments[]": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "format": "binary"
+                                        }
+                                    },
+                                    "Note": {
+                                        "description": "Your new comment or response to be added to LNP Order",
+                                        "type": "string",
+                                        "example": "Please update BTN to 3105551212 and delay port date by one week"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "404": {
+                        "description": "ID Not Found"
+                    }
+                }
+            }
+        },
+        "/messageSend": {
+            "post": {
+                "tags": [
+                    "Messaging"
+                ],
+                "summary": "Send an Outbound SMS or MMS Message",
+                "description": "Use this function for Outbound Messaging",
+                "requestBody": {
+                    "description": "Message",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "From": {
+                                        "description": "Sender",
+                                        "required": true,
+                                        "type": "string"
+                                    },
+                                    "To": {
+                                        "description": "Recipient List",
+                                        "required": true,
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "Message": {
+                                        "description": "Contents of Message",
+                                        "type": "string"
+                                    },
+                                    "MediaURLs": {
+                                        "description": "Optional Medial URLs for MMS",
+                                        "required": false,
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "type": "object",
+                                "items": {},
+                                "example": {
+                                    "From": "13109060901",
+                                    "To": [
+                                        "13105551212",
+                                        "13125551213"
+                                    ],
+                                    "Message": "Content of Message from Sender to Receiver(s)",
+                                    "MediaURLs": [
+                                        "https://s3.aws.com/file1.png",
+                                        "https://s3.aws.com/file2.jpg"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "RefId": {
+                                            "description": "Reference ID identifying Message",
+                                            "type": "string"
+                                        },
+                                        "From": {
+                                            "description": "Sender",
+                                            "type": "string"
+                                        },
+                                        "MessageType": {
+                                            "description": "SMS or MMS",
+                                            "type": "string"
+                                        },
+                                        "Results": {
+                                            "description": "Result array, per Recipient",
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "To": {
+                                                        "description": "Recipient",
+                                                        "type": "string"
+                                                    },
+                                                    "Status": {
+                                                        "description": "Status of Sent Message",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object",
+                                    "example": {
+                                        "RefId": "5a66dee6-ff7a-40ee-8218-5805c074dc01",
+                                        "From": "13109060901",
+                                        "MessageType": "SMS|MMS",
+                                        "Fragments": 1,
+                                        "Results": [
+                                            {
+                                                "To": "13105551212",
+                                                "Status": "SUCCESS"
+                                            },
+                                            {
+                                                "To": "13105551213",
+                                                "Status": "SUCCESS"
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Insufficient funds or service not enabled"
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "404": {
+                        "description": "Telephone Number not enabled for Service"
+                    },
+                    "409": {
+                        "description": "Conflict, see body; a support ticket may be required to resolve"
+                    },
+                    "503": {
+                        "description": "An error occurred, please try again; a support ticket may be required to resolve"
+                    }
+                }
+            }
+        },
+        "/webHooks": {
+            "get": {
+                "tags": [
+                    "Messaging"
+                ],
+                "summary": "Get List of your Webhook(s) used for Messaging",
+                "description": "Leave the Webhook parameter blank to return list of all Webhooks",
+                "parameters": [
+                    {
+                        "name": "Webhook",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "properties": {
+                                            "Webhook": {
+                                                "description": "Webhook Name",
+                                                "type": "string",
+                                                "example": "Default"
+                                            },
+                                            "Description": {
+                                                "description": "Helpful Description of Webhook",
+                                                "type": "string",
+                                                "example": "Web Cluster 1"
+                                            },
+                                            "Url": {
+                                                "description": "Webhook URL",
+                                                "type": "string",
+                                                "example": "https://webhook.domain.com/MsgIn"
+                                            },
+                                            "Dlr": {
+                                                "description": "Toggle Delivery Receipt",
+                                                "type": "string",
+                                                "example": true
+                                            },
+                                            "Method": {
+                                                "description": "Message Delivery Method",
+                                                "type": "string",
+                                                "example": "POST"
+                                            },
+                                            "Last Modification": {
+                                                "description": "Date of Last Change on this Webhook",
+                                                "type": "string",
+                                                "example": "2021-02-16 16:23:35"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "404": {
+                        "description": "Webhook not found"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Messaging"
+                ],
+                "summary": "Create or update a Webhook to use for Messaging",
+                "description": "Create or update a Webhook to use for Messaging",
+                "requestBody": {
+                    "description": "webHook",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "Webhook": {
+                                        "description": "Webhook Name",
+                                        "type": "string",
+                                        "example": "Webhook1"
+                                    },
+                                    "Description": {
+                                        "description": "Helpful description of Webhook's use-case",
+                                        "type": "string",
+                                        "example": "Customer A inbound messages"
+                                    },
+                                    "Url": {
+                                        "description": "HTTP or HTTPS URL to use for POST of inbound Messages",
+                                        "type": "string",
+                                        "example": "https://10.11.12.13/webHook"
+                                    },
+                                    "Dlr": {
+                                        "description": "Delivery Receipts for oubound messages",
+                                        "type": "boolean",
+                                        "example": true
+                                    },
+                                    "Method": {
+                                        "description": "Delivery Method, Default is POST, 3CX supported",
+                                        "type": "string",
+                                        "example": "POST|3CX"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "Webhook": {
+                                            "description": "Webhook Name",
+                                            "type": "string",
+                                            "example": "Webhook1"
+                                        },
+                                        "Description": {
+                                            "description": "Helpful Description of Webhook",
+                                            "type": "string",
+                                            "example": "Web Cluster 1"
+                                        },
+                                        "Url": {
+                                            "description": "Webhook URL",
+                                            "type": "string",
+                                            "example": "https://webhook.domain.com/MsgIn"
+                                        },
+                                        "Last Modification": {
+                                            "description": "Date of Last Change on this Webhook",
+                                            "type": "string",
+                                            "example": "2021-02-16 16:23:35"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "403": {
+                        "description": "Insufficient funds or service not enabled"
+                    },
+                    "412": {
+                        "description": "Applicable agreement lacks consent, see body for details"
+                    },
+                    "503": {
+                        "description": "An error occurred, please try again; a support ticket may be required to resolve"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Messaging"
+                ],
+                "summary": "Delete Webhook",
+                "description": "Delete a specific Webhook",
+                "parameters": [
+                    {
+                        "name": "Webhook",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "Status": {
+                                            "description": "Success or Failure with Reason",
+                                            "type": "string",
+                                            "example": "Success"
+                                        },
+                                        "Webhook": {
+                                            "description": "Webhook",
+                                            "type": "string",
+                                            "example": "Webhook1"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "404": {
+                        "description": "Webhook not found"
+                    }
+                }
+            }
+        },
+        "/campaigns": {
+            "get": {
+                "tags": [
+                    "Messaging"
+                ],
+                "summary": "Get List of your registered Messaging Campaigns",
+                "description": "Leave the Tcr parameter blank to return list of all Campaigns",
+                "parameters": [
+                    {
+                        "name": "Tcr",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "properties": {
+                                            "Tcr": {
+                                                "description": "Registered Messaging Campaign",
+                                                "type": "string",
+                                                "example": "CW1549"
+                                            },
+                                            "Brand": {
+                                                "description": "Registered Messaging Brand",
+                                                "type": "string",
+                                                "example": "Brand 1"
+                                            },
+                                            "Count": {
+                                                "description": "Number of TNs assigned to Campaign",
+                                                "type": "string",
+                                                "example": "49"
+                                            },
+                                            "Approval": {
+                                                "description": "Campaign Approval Status",
+                                                "type": "string",
+                                                "example": "Y"
+                                            },
+                                            "Activation Date": {
+                                                "description": "Date this Campaign was activated",
+                                                "type": "string",
+                                                "example": "2021-02-16 16:23:35"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed"
+                    },
+                    "404": {
+                        "description": "Campaign not found"
+                    }
+                }
+            }
+        },
+        "/voice": {
+            "get": {
+                "tags": [
+                    "Detail Records"
+                ],
+                "summary": "Retrieve Voice Call Detail Records",
+                "description": "Leave the Type parameter blank to return list of possible options",
+                "parameters": [
+                    {
+                        "name": "Type",
+                        "in": "query",
+                        "required": true,
+                        "example": "e911",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Start",
+                        "in": "query",
+                        "required": true,
+                        "example": "1629000000",
+                        "type": "string"
+                    },
+                    {
+                        "name": "End",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "items": {}
+                        },
+                        "example": "1629086400",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "callStart": {
+                                            "description": "Start of Call",
+                                            "type": "string"
+                                        },
+                                        "durationSecs": {
+                                            "description": "Duration in seconds",
+                                            "type": "string"
+                                        },
+                                        "callSource": {
+                                            "description": "Caller ID Number",
+                                            "type": "string"
+                                        },
+                                        "callDestination": {
+                                            "description": "Called Number",
+                                            "type": "string"
+                                        },
+                                        "CallID": {
+                                            "description": "Call ID",
+                                            "type": "string"
+                                        },
+                                        "perMinute": {
+                                            "description": "Per Minute Charge applied",
+                                            "type": "string"
+                                        },
+                                        "amount": {
+                                            "description": "Total Cost of Call",
+                                            "type": "string"
+                                        },
+                                        "callType": {
+                                            "description": "Type of Call",
+                                            "type": "string"
+                                        },
+                                        "RemoteIP": {
+                                            "description": "IP Address to which call was charged",
+                                            "type": "string"
+                                        },
+                                        "trunkGroup": {
+                                            "description": "Trunk Group or SIP Peer",
+                                            "type": "string"
+                                        },
+                                        "tag": {
+                                            "description": "Contents of X-Tag Header",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object",
+                                    "example": [
+                                        {
+                                            "callStart": "2021-08-02 10:37:10",
+                                            "durationSecs": "920",
+                                            "callSource": "13109060901",
+                                            "callDestination": "18005551212",
+                                            "callID": "558ae204-ae542e95-e729bcde@0.0.0.0",
+                                            "perMinute": "0.00",
+                                            "amount": "0.00",
+                                            "callType": "8YY",
+                                            "RemoteIP": "192.168.1.102",
+                                            "trunkGroup": "Primary",
+                                            "tag": "CustomerA"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "Status": {
+                                            "type": "string",
+                                            "example": "Invalid Type"
+                                        },
+                                        "Code": {
+                                            "type": "string",
+                                            "example": "6403"
+                                        },
+                                        "Description": {
+                                            "properties": {
+                                                "Valid Type": {
+                                                    "type": "object",
+                                                    "example": [
+                                                        "e911",
+                                                        "inbound",
+                                                        "8xx",
+                                                        "outbound",
+                                                        "8yy",
+                                                        "all"
+                                                    ]
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No Records Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "Status": {
+                                            "type": "string",
+                                            "example": "No Records Found"
+                                        },
+                                        "Code": {
+                                            "type": "string",
+                                            "example": "6404"
+                                        },
+                                        "Description": {
+                                            "type": "string",
+                                            "example": "No Records found within Date Range"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/mdr": {
+            "get": {
+                "tags": [
+                    "Detail Records"
+                ],
+                "summary": "Retrieve Messaging Detail Records",
+                "description": "Leave the Type parameter blank to return list of possible options",
+                "parameters": [
+                    {
+                        "name": "Type",
+                        "in": "query",
+                        "required": true,
+                        "example": "sms",
+                        "type": "string"
+                    },
+                    {
+                        "name": "Start",
+                        "in": "query",
+                        "required": true,
+                        "example": "1629000000",
+                        "type": "string"
+                    },
+                    {
+                        "name": "End",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "items": {}
+                        },
+                        "example": "1629086400",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "type": {
+                                            "description": "Type of Message",
+                                            "type": "string"
+                                        },
+                                        "timestamp": {
+                                            "description": "Timestamp of Message",
+                                            "type": "string"
+                                        },
+                                        "direction": {
+                                            "description": "Direction of Message",
+                                            "type": "string"
+                                        },
+                                        "source": {
+                                            "description": "Message Sender",
+                                            "type": "string"
+                                        },
+                                        "destination": {
+                                            "description": "Message Receiver",
+                                            "type": "string"
+                                        },
+                                        "refId": {
+                                            "description": "Reference ID",
+                                            "type": "string"
+                                        },
+                                        "amount": {
+                                            "description": "Total Cost of Message",
+                                            "type": "string"
+                                        },
+                                        "deliveryReceipt": {
+                                            "description": "Delivery Receipt",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object",
+                                    "example": [
+                                        {
+                                            "type": "SMS",
+                                            "timestamp": "2021-08-02 10:37:10",
+                                            "direction": "INBOUND",
+                                            "source": "13109060901",
+                                            "destination": "18005551212",
+                                            "refID": "087617B6",
+                                            "amount": "0.00",
+                                            "fragmentCount": 1,
+                                            "deliveryReceipt": "id:2140894173 sub:001 dlvrd:001 submit date:2202011208 done date:2202011208 stat:DELIVRD err:000 text:"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Property missing, invalid or malformed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "Status": {
+                                            "type": "string",
+                                            "example": "Invalid Type"
+                                        },
+                                        "Code": {
+                                            "type": "string",
+                                            "example": "6603"
+                                        },
+                                        "Description": {
+                                            "properties": {
+                                                "Valid Type": {
+                                                    "type": "object",
+                                                    "example": [
+                                                        "sms",
+                                                        "mms"
+                                                    ]
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No Records Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "Status": {
+                                            "type": "string",
+                                            "example": "No Records Found"
+                                        },
+                                        "Code": {
+                                            "type": "string",
+                                            "example": "6604"
+                                        },
+                                        "Description": {
+                                            "type": "string",
+                                            "example": "No Records found within Date Range"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Account Administration",
+            "description": "Information about and updates to users and accounts"
+        },
+        {
+            "name": "Interconnection",
+            "description": "Manage Connectivity to Bulk Solutions"
+        },
+        {
+            "name": "Origination",
+            "description": "Manage Telephone Number Database"
+        },
+        {
+            "name": "LNP",
+            "description": "Manage Number Porting Process"
+        },
+        {
+            "name": "E911",
+            "description": "Manage E911 Database"
+        },
+        {
+            "name": "Messaging",
+            "description": "Manage SMS/MMS Settings"
+        },
+        {
+            "name": "Detail Records",
+            "description": "Retrieve Voice CDR and Messaging MDR"
+        }
+    ]
+}

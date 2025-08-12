@@ -25,7 +25,7 @@ type AiProviderRow = {
 };
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'users'|'ai'>('users');
+  const [activeTab, setActiveTab] = useState<'users'|'ai'|'telephony'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<'username'|'role'|'status'|'created_at'|'last_login_at'|'last_seen_at'>('created_at');
@@ -61,6 +61,7 @@ export default function AdminPage() {
   const [chatSystem, setChatSystem] = useState('');
   const [chatBusy, setChatBusy] = useState<'idle'|'sending'>('idle');
   const [chatMeta, setChatMeta] = useState<{ provider?: string; model?: string; tried?: Array<{ provider: string; code: string; message: string }>; details?: any } | null>(null);
+  // Telephony tab state is local to subcomponents
 
   const fetchUsers = useCallback(async (reset = false) => {
     if (loadingRef.current) return;
@@ -180,11 +181,12 @@ export default function AdminPage() {
     <main className="container-hero py-8">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold">Admin</h1>
-        <div className="text-sm opacity-70">{activeTab === 'users' ? `${users.length} users` : `${aiProviders.length} AI configs`}</div>
+        <div className="text-sm opacity-70">{activeTab === 'users' ? `${users.length} users` : (activeTab === 'ai' ? `${aiProviders.length} AI configs` : 'Telephony')}</div>
       </div>
       <div className="mb-4 flex items-center gap-2">
         <Button variant={activeTab === 'users' ? 'primary' : 'secondary'} onClick={() => setActiveTab('users')}>Users</Button>
         <Button variant={activeTab === 'ai' ? 'primary' : 'secondary'} onClick={() => setActiveTab('ai')}>AI</Button>
+        <Button variant={activeTab === 'telephony' ? 'primary' : 'secondary'} onClick={() => setActiveTab('telephony')}>Call/SMS</Button>
       </div>
       {activeTab === 'users' ? (
         <>
@@ -378,7 +380,7 @@ export default function AdminPage() {
             </div>
           </div>
         </>
-      ) : (
+      ) : activeTab === 'ai' ? (
         <>
           {/* AI Providers Management */}
           <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur p-4">
@@ -529,6 +531,26 @@ export default function AdminPage() {
               <Button onClick={handleSaveProvider}>Save</Button>
             </DialogActions>
           </Dialog>
+        </>
+      ) : (
+        <>
+          {/* Telephony: SMS and Call ring-through */}
+          <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold">Send SMS</h2>
+            </div>
+            <TelephonySettingsBlock />
+            <div className="h-px bg-black/10 dark:bg-white/10 my-5" />
+            <TelephonySendSmsForm />
+          </div>
+
+          <div className="mt-8 rounded-2xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold">Ring-through Call</h2>
+              <span className="text-xs opacity-70">Rings target and hangs up on answer (placeholder)</span>
+            </div>
+            <TelephonyCallRingForm />
+          </div>
         </>
       )}
     </main>
@@ -708,6 +730,203 @@ export default function AdminPage() {
       setChatBusy('idle');
     }
   }
+}
+function TelephonySettingsBlock() {
+  const [provider, setProvider] = useState<'bulkvs'>('bulkvs');
+  const [baseUrl, setBaseUrl] = useState('');
+  const [fromDid, setFromDid] = useState('');
+  const [hasBasicAuth, setHasBasicAuth] = useState(false);
+  const [basicAuthInput, setBasicAuthInput] = useState('');
+  const [clearAuth, setClearAuth] = useState(false);
+  const [busy, setBusy] = useState<'idle'|'loading'|'saving'>('idle');
+  const [msg, setMsg] = useState<string | null>(null);
+  const [twilioSid, setTwilioSid] = useState('');
+  const [twilioFrom, setTwilioFrom] = useState('');
+  const [twilioHasAuth, setTwilioHasAuth] = useState(false);
+  const [twilioAuthInput, setTwilioAuthInput] = useState('');
+  const [twilioSvcSid, setTwilioSvcSid] = useState('');
+  const [hasToken, setHasToken] = useState(false);
+  const [webhookSmsUrl, setWebhookSmsUrl] = useState<string | null>(null);
+  const [webhookVoiceUrl, setWebhookVoiceUrl] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      setBusy('loading'); setMsg(null);
+      const token = await getAccessToken();
+      if (!token) { setBusy('idle'); setMsg('Not authorized'); return; }
+      try {
+        const res = await fetch('/api/admin/telephony/settings', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+        const json = await res.json();
+        if (json.ok && json.data) {
+          setProvider(json.data.provider || 'bulkvs');
+          setBaseUrl(json.data.baseUrl || '');
+          setFromDid(json.data.fromDid || '');
+          setHasBasicAuth(!!json.data.hasBasicAuth);
+          setTwilioSid(json.data.twilioAccountSid || '');
+          setTwilioFrom(json.data.twilioFrom || '');
+          setTwilioHasAuth(!!json.data.hasTwilioAuth);
+          setTwilioSvcSid(json.data.twilioMessagingServiceSid || '');
+          setHasToken(!!json.data.hasToken);
+          setWebhookSmsUrl(json.data.webhookSmsUrl || null);
+          setWebhookVoiceUrl(json.data.webhookVoiceUrl || null);
+        }
+      } catch {}
+      setBusy('idle');
+    })();
+  }, []);
+  return (
+    <div className="grid gap-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-medium">BulkVS Settings</h3>
+        {busy !== 'idle' && <span className="text-xs opacity-70">{busy === 'loading' ? 'Loading…' : 'Saving…'}</span>}
+      </div>
+      {msg && <div className="text-xs">{msg}</div>}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Input placeholder="Base URL" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+        <Input placeholder="Default From DID (optional)" value={fromDid} onChange={(e) => setFromDid(e.target.value)} />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Input placeholder={hasBasicAuth ? 'Basic Auth (stored)' : 'Basic Auth (username:token base64)'} value={basicAuthInput} onChange={(e) => setBasicAuthInput(e.target.value)} />
+        <label className="text-xs flex items-center gap-2">
+          <input type="checkbox" checked={clearAuth} onChange={(e) => setClearAuth(e.target.checked)} />
+          Clear saved Basic Auth
+        </label>
+      </div>
+      <div className="h-px bg-black/10 dark:bg-white/10" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Input placeholder="Twilio Account SID (optional)" value={twilioSid} onChange={(e) => setTwilioSid(e.target.value)} />
+        <Input placeholder={twilioHasAuth ? 'Twilio Auth Token (stored)' : 'Twilio Auth Token'} value={twilioAuthInput} onChange={(e) => setTwilioAuthInput(e.target.value)} />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Input placeholder="Twilio From Number (e.g., +14147100420)" value={twilioFrom} onChange={(e) => setTwilioFrom(e.target.value)} />
+        <Input placeholder="Twilio Messaging Service SID (optional)" value={twilioSvcSid} onChange={(e) => setTwilioSvcSid(e.target.value)} />
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs opacity-80">
+          <div>Inbound SMS Webhook: {webhookSmsUrl ? <a className="underline" href={webhookSmsUrl} target="_blank" rel="noreferrer">{webhookSmsUrl}</a> : 'Set PUBLIC_BASE_URL to view'}</div>
+          <div>Inbound Voice Webhook: {webhookVoiceUrl ? <a className="underline" href={webhookVoiceUrl} target="_blank" rel="noreferrer">{webhookVoiceUrl}</a> : 'Set PUBLIC_BASE_URL to view'}</div>
+          <div>Inbound Token: {hasToken ? 'Configured' : 'Not set'} <button className="underline ml-2" onClick={async () => {
+            setBusy('saving'); setMsg(null);
+            const token = await getAccessToken();
+            if (!token) { setBusy('idle'); setMsg('Not authorized'); return; }
+            try {
+              const res = await fetch('/api/admin/telephony/settings', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ regenToken: true }) });
+              const json = await res.json();
+              if (json.ok) {
+                setHasToken(!!json.data?.hasToken);
+                try {
+                  const res2 = await fetch('/api/admin/telephony/settings', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                  const j2 = await res2.json();
+                  if (j2.ok) { setWebhookSmsUrl(j2.data?.webhookSmsUrl || null); setWebhookVoiceUrl(j2.data?.webhookVoiceUrl || null); }
+                } catch {}
+                setMsg('Token regenerated.');
+              } else {
+                setMsg(json?.error?.message || 'Failed to regenerate');
+              }
+            } catch (e: any) { setMsg(e?.message || 'Network error'); }
+            setBusy('idle');
+          }}>Regenerate</button></div>
+        </div>
+        <div>
+          <Button disabled={busy !== 'idle'} onClick={async () => {
+            setBusy('saving'); setMsg(null);
+            const token = await getAccessToken();
+            if (!token) { setBusy('idle'); setMsg('Not authorized'); return; }
+            const payload: any = { provider, baseUrl, fromDid };
+            if (clearAuth) payload.basicAuth = null; else if ((basicAuthInput || '').trim().length > 0) payload.basicAuth = basicAuthInput.trim();
+            // Twilio fields
+            if ((twilioSid || '').length >= 1) payload.twilioAccountSid = twilioSid.trim();
+            if ((twilioAuthInput || '').length >= 1) payload.twilioAuthToken = twilioAuthInput.trim();
+            if ((twilioFrom || '').length >= 1) payload.twilioFrom = twilioFrom.trim();
+            if ((twilioSvcSid || '').length >= 1) payload.twilioMessagingServiceSid = twilioSvcSid.trim();
+            try {
+              const res = await fetch('/api/admin/telephony/settings', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+              const json = await res.json();
+              if (json.ok) {
+                setMsg('Saved.');
+                setHasBasicAuth(!!json.data?.hasBasicAuth);
+                setTwilioHasAuth(!!json.data?.hasTwilioAuth);
+                setHasToken(!!json.data?.hasToken || hasToken);
+                setBasicAuthInput('');
+                setClearAuth(false);
+                setTwilioAuthInput('');
+              } else {
+                setMsg(json?.error?.message || 'Failed to save');
+              }
+            } catch (e: any) {
+              setMsg(e?.message || 'Network error');
+            }
+            setBusy('idle');
+          }}>Save</Button>
+        </div>
+      </div>
+      <p className="text-xs opacity-70">Basic Auth should be the base64 of username:token without the leading "Basic ". Example: Authorization: Basic [value]</p>
+    </div>
+  );
+}
+function TelephonySendSmsForm() {
+  const [to, setTo] = useState('');
+  const [from, setFrom] = useState('');
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState<'idle'|'sending'>('idle');
+  const [msg, setMsg] = useState<string | null>(null);
+  return (
+    <div className="grid gap-3">
+      {msg && <div className="text-xs">{msg}</div>}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Input placeholder="To (E.164)" value={to} onChange={(e) => setTo(e.target.value)} />
+        <Input placeholder="From (optional DID)" value={from} onChange={(e) => setFrom(e.target.value)} />
+      </div>
+      <textarea className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 min-h-[100px]" placeholder="Message" value={text} onChange={(e) => setText(e.target.value)} />
+      <div className="flex items-center justify-end">
+        <Button disabled={!to || !text || busy !== 'idle'} onClick={async () => {
+          setBusy('sending'); setMsg(null);
+          const token = await getAccessToken();
+          if (!token) { setBusy('idle'); setMsg('Not authorized'); return; }
+          try {
+            const res = await fetch('/api/admin/telephony/sms', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ to, from: from || undefined, body: text }) });
+            const json = await res.json();
+            setMsg(json.ok ? 'Sent.' : `Failed: ${json?.error?.message || 'Unknown error'}`);
+          } catch (e: any) {
+            setMsg(`Failed: ${e?.message || 'Network error'}`);
+          } finally {
+            setBusy('idle');
+          }
+        }}>{busy === 'idle' ? 'Send SMS' : 'Sending…'}</Button>
+      </div>
+    </div>
+  );
+}
+
+function TelephonyCallRingForm() {
+  const [to, setTo] = useState('');
+  const [from, setFrom] = useState('');
+  const [busy, setBusy] = useState<'idle'|'sending'>('idle');
+  const [msg, setMsg] = useState<string | null>(null);
+  return (
+    <div className="grid gap-3">
+      {msg && <div className="text-xs">{msg}</div>}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Input placeholder="To (E.164)" value={to} onChange={(e) => setTo(e.target.value)} />
+        <Input placeholder="From (optional DID)" value={from} onChange={(e) => setFrom(e.target.value)} />
+      </div>
+      <div className="flex items-center justify-end">
+        <Button disabled={!to || busy !== 'idle'} onClick={async () => {
+          setBusy('sending'); setMsg(null);
+          const token = await getAccessToken();
+          if (!token) { setBusy('idle'); setMsg('Not authorized'); return; }
+          try {
+            const res = await fetch('/api/admin/telephony/call', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ to, from: from || undefined }) });
+            const json = await res.json();
+            setMsg(json.ok ? 'Initiated.' : `Failed: ${json?.error?.message || 'Unknown error'}`);
+          } catch (e: any) {
+            setMsg(`Failed: ${e?.message || 'Network error'}`);
+          } finally {
+            setBusy('idle');
+          }
+        }}>{busy === 'idle' ? 'Ring Number' : 'Requesting…'}</Button>
+      </div>
+    </div>
+  );
 }
 
 function SortableTH({ label, field, sort, dir, setSort, setDir }: { label: string; field: any; sort: any; dir: 'asc'|'desc'; setSort: (s: any) => void; setDir: (d: 'asc'|'desc') => void }) {
