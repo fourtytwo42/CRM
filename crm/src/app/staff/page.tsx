@@ -4,7 +4,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
-import { IconUsers, IconBriefcase, IconFilter, IconSearch, IconListCheck, IconCalendarEvent, IconDownload, IconUpload, IconReportAnalytics, IconCircleCheck, IconAlertCircle } from "@tabler/icons-react";
+import { IconFilter, IconSearch, IconDownload, IconUpload, IconCircleCheck, IconAlertCircle } from "@tabler/icons-react";
 import Dialog, { DialogActions } from "@/components/ui/Dialog";
 
 type Customer = {
@@ -56,7 +56,7 @@ const MOCK_CASES: Case[] = [];
 const MOCK_TASKS: Task[] = [];
 
 export default function AgentPage() {
-  const [activeTab, setActiveTab] = useState<'Verticals'|'Campaigns'|'Managers'|'Team Leads'|'Agents'|'Customers'>('Agents');
+  const [activeTab, setActiveTab] = useState<'Verticals'|'Campaigns'|'Agents'|'Customers'>('Customers');
   const [query, setQuery] = useState("");
   const [vertical, setVertical] = useState("");
   const [campaign, setCampaign] = useState("");
@@ -67,10 +67,7 @@ export default function AgentPage() {
   const [rows, setRows] = useState<Customer[]>([]);
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [agentQ, setAgentQ] = useState('');
-  const [managerId, setManagerId] = useState<string>('');
-  const [leadId, setLeadId] = useState<string>('');
-  const [managers, setManagers] = useState<Array<{ id:number; username:string }>>([]);
-  const [leads, setLeads] = useState<Array<{ id:number; username:string }>>([]);
+  const [roleFilter, setRoleFilter] = useState<'all'|'manager'|'lead'|'agent'>('all');
   const [agentSort, setAgentSort] = useState<{ col: 'username'|'email'|'status'; dir: 'asc'|'desc' }>({ col: 'username', dir: 'asc' });
 
   const filtered = useMemo(() => {
@@ -111,15 +108,12 @@ export default function AgentPage() {
       let json: any = null;
       try { json = await res.json(); } catch {}
       if (json && json.ok) {
-        setCounts({ usersByCampaign: json.data.usersByCampaign || [], activeCasesByAgent: json.data.activeCasesByAgent || [], tasks: json.data.tasks || { overdue: 0, completed: 0 } });
         setRows(json.data.customers || []);
         // Build unique verticals/campaigns including blanks if no assignment
         const allVerts = (json.data.campaigns || []).map((c: any) => c.vertical).filter(Boolean);
         const allCamps = (json.data.campaigns || []).map((c: any) => c.name).filter(Boolean);
         setUniqueVerticals(Array.from(new Set(allVerts)).sort());
         setUniqueCampaigns(Array.from(new Set(allCamps)).sort());
-        setManagers(json.data.managers || []);
-        setLeads(json.data.leads || []);
       }
       const qs = new URLSearchParams();
       if (agentQ) qs.set('q', agentQ);
@@ -164,7 +158,7 @@ export default function AgentPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold">Agent CRM</h1>
-          <p className="opacity-70">Multi-vertical campaigns, agent tracking, calendar, and reporting</p>
+          <p className="opacity-70">Manage agents, campaigns, verticals, and customers</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary"><IconUpload size={18} className="mr-2" />Import CSV</Button>
@@ -174,7 +168,7 @@ export default function AgentPage() {
 
       {/* Tab Navigation */}
       <div className="mb-4 flex flex-wrap gap-2">
-        {(['Verticals','Campaigns','Managers','Team Leads','Agents','Customers'] as const).map(tab => (
+        {(['Verticals','Campaigns','Agents','Customers'] as const).map(tab => (
           <button
             key={tab}
             className={`px-3 py-1.5 rounded-lg text-sm border ${activeTab===tab ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-transparent'} border-black/10 dark:border-white/10`}
@@ -183,46 +177,7 @@ export default function AgentPage() {
         ))}
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card>
-          <CardBody>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300"><IconUsers /></div>
-              <div>
-                <div className="text-sm opacity-70">Active users (top campaign)</div>
-                <div className="text-2xl font-semibold">{counts.usersByCampaign[0]?.count ?? 0}</div>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-300"><IconBriefcase /></div>
-              <div>
-                <div className="text-sm opacity-70">Active cases per agent (avg)</div>
-                <div className="text-2xl font-semibold">{Math.round((counts.activeCasesByAgent.reduce((a, b) => a + b.count, 0) / counts.activeCasesByAgent.length) || 0)}</div>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300"><IconListCheck /></div>
-              <div>
-                <div className="text-sm opacity-70">Tasks overdue / completed</div>
-                <div className="text-2xl font-semibold">{counts.tasks.overdue} / {counts.tasks.completed}</div>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Left: Tabbed content */}
-        <div className="xl:col-span-2 space-y-6">
+      <div className="space-y-6">
           {/* Agents */}
           {activeTab === 'Agents' && (
           <Card>
@@ -235,15 +190,11 @@ export default function AgentPage() {
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-4">
                 <div className="md:col-span-4"><Input placeholder="Search by username" value={agentQ} onChange={(e) => setAgentQ(e.target.value)} /></div>
                 <div className="md:col-span-4">
-                  <Select value={managerId} onChange={(e) => setManagerId(e.target.value)}>
-                    <option value="">All Managers</option>
-                    {managers.map(m => <option key={m.id} value={String(m.id)}>{m.username}</option>)}
-                  </Select>
-                </div>
-                <div className="md:col-span-4">
-                  <Select value={leadId} onChange={(e) => setLeadId(e.target.value)}>
-                    <option value="">All Leads</option>
-                    {leads.map(l => <option key={l.id} value={String(l.id)}>{l.username}</option>)}
+                  <Select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as any)}>
+                    <option value="all">All Roles</option>
+                    <option value="manager">Managers</option>
+                    <option value="lead">Team Leads</option>
+                    <option value="agent">Agents</option>
                   </Select>
                 </div>
               </div>
@@ -260,7 +211,7 @@ export default function AgentPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {agents.map((a) => (
+                    {agents.filter(a => roleFilter==='all' ? true : a.role === roleFilter).map((a) => (
                       <tr key={a.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
                         <td className="px-6 py-3">{a.username}</td>
                         <td className="px-3 py-3">{a.email}</td>
@@ -343,25 +294,11 @@ export default function AgentPage() {
             } />
             <CardBody>
               <table className="min-w-full table-auto text-sm">
-                <thead><tr className="text-left"><th className="px-6 py-3">Name</th><th className="px-3 py-3">Campaigns</th><th className="px-3 py-3">People</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
+                <thead><tr className="text-left"><th className="px-6 py-3">Name</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
                 <tbody>
                   {verticals.map(v => (
                     <tr key={v.id} className="border-t border-black/5 dark:border-white/5">
                       <td className="px-6 py-3">{v.name}</td>
-                      <td className="px-3 py-3">
-                        {(campaigns.filter(c => c.vertical_id === v.id)).map(c => (
-                          <span key={c.id} className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 mr-1 mb-1">{c.name}</span>
-                        ))}
-                      </td>
-                      <td className="px-3 py-3">
-                        {graph && (
-                          <div className="flex flex-wrap gap-1 text-xs opacity-80">
-                            <span>Managers: {graph.agent_verticals.filter((av: any) => av.vertical_id===v.id && graph.managers.some((m:any)=>m.id===av.user_id)).length}</span>
-                            <span>· Leads: {graph.agent_verticals.filter((av: any) => av.vertical_id===v.id && graph.leads.some((m:any)=>m.id===av.user_id)).length}</span>
-                            <span>· Agents: {graph.agent_verticals.filter((av: any) => av.vertical_id===v.id && graph.agents.some((m:any)=>m.id===av.user_id)).length}</span>
-                          </div>
-                        )}
-                      </td>
                       <td className="px-3 py-3 text-right">
                         <button className="underline mr-2" onClick={async () => {
                           const val = prompt('Rename vertical', v.name) || ''; if (!val.trim()) return;
@@ -395,25 +332,12 @@ export default function AgentPage() {
             } />
             <CardBody>
               <table className="min-w-full table-auto text-sm">
-                <thead><tr className="text-left"><th className="px-6 py-3">Name</th><th className="px-3 py-3">Vertical</th><th className="px-3 py-3">People</th><th className="px-3 py-3">Customers</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
+                <thead><tr className="text-left"><th className="px-6 py-3">Name</th><th className="px-3 py-3">Vertical</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
                 <tbody>
                   {campaigns.map(c => (
                     <tr key={c.id} className="border-t border-black/5 dark:border-white/5">
                       <td className="px-6 py-3">{c.name}</td>
                       <td className="px-3 py-3">{verticals.find(v => v.id === c.vertical_id)?.name || '—'}</td>
-                      <td className="px-3 py-3">
-                        {graph && (
-                          <div className="flex flex-wrap gap-1 text-xs opacity-80">
-                            <span>Managers: {graph.agent_verticals.filter((av:any)=>av.vertical_id===c.vertical_id && graph.managers.some((m:any)=>m.id===av.user_id)).length}</span>
-                            <span>· Leads: {graph.agent_verticals.filter((av:any)=>av.vertical_id===c.vertical_id && graph.leads.some((m:any)=>m.id===av.user_id)).length}</span>
-                            <span>· Agents: {graph.agent_campaigns.filter((ac:any)=>ac.campaign_id===c.id).length}</span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-3">
-                        {graph ? graph.customer_campaigns.filter((cc:any)=>cc.campaign_id===c.id).length : 0}
-                      </td>
-                      <td className="px-3 py-3">{c.status}</td>
                       <td className="px-3 py-3 text-right">
                         <button className="underline mr-2" onClick={async () => {
                           const nm = prompt('Rename campaign', c.name) || ''; if (!nm.trim()) return;
@@ -502,7 +426,6 @@ export default function AgentPage() {
                 <Button variant="secondary"><IconFilter size={18} className="mr-2" />Filters</Button>
                 <Button><IconSearch size={18} className="mr-2" />Search</Button>
                 <Button variant="primary" onClick={() => setAddOpen(true)}>Add Customer</Button>
-                
               </div>
             } />
             <CardBody>
