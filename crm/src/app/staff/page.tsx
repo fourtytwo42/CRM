@@ -219,6 +219,11 @@ export default function AgentPage() {
   const [agentQ, setAgentQ] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all'|'manager'|'lead'|'agent'>('all');
   const [agentSort, setAgentSort] = useState<{ col: 'username'|'email'|'status'; dir: 'asc'|'desc' }>({ col: 'username', dir: 'asc' });
+  const [selectedAgentIds, setSelectedAgentIds] = useState<number[]>([]);
+  const [bulkRole, setBulkRole] = useState<'agent'|'lead'|'manager'>('agent');
+  const [agentBulkOpen, setAgentBulkOpen] = useState(false);
+  const [agentBulkVerticalId, setAgentBulkVerticalId] = useState<string>('');
+  const [agentBulkCampaignIds, setAgentBulkCampaignIds] = useState<number[]>([]);
 
   const filtered = useMemo(() => {
     return rows.filter((c) => {
@@ -346,7 +351,7 @@ export default function AgentPage() {
             } />
             <CardBody>
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-4">
-                <div className="md:col-span-4"><Input placeholder="Search by username" value={agentQ} onChange={(e) => setAgentQ(e.target.value)} /></div>
+                <div className="md:col-span-4"><Input placeholder="Search by username or email" value={agentQ} onChange={(e) => setAgentQ(e.target.value)} /></div>
                 <div className="md:col-span-4">
                   <Select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as any)}>
                     <option value="all">All Roles</option>
@@ -357,9 +362,53 @@ export default function AgentPage() {
                 </div>
               </div>
               <div className="overflow-auto -mx-6">
+                {selectedAgentIds.length > 0 && (
+                  <div className="px-6 py-3 flex items-center gap-3 text-sm">
+                    <span>{selectedAgentIds.length} selected</span>
+                    <Button variant="destructive" onClick={async () => {
+                      if (!confirm('Delete selected agents?')) return;
+                      const token = await getAccessToken(); if (!token) return;
+                      await Promise.allSettled(selectedAgentIds.map(id => fetch(`/api/admin/agents/${id}?force=1`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } })));
+                      // Reload agents
+                      try {
+                        const qs = new URLSearchParams(); if (agentQ) qs.set('q', agentQ);
+                        const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
+                        const ja = await resAgents.json().catch(() => null);
+                        if (ja && ja.ok) setAgents(ja.data.agents || []);
+                      } catch {}
+                      setSelectedAgentIds([]);
+                    }}>Delete</Button>
+                    <select className="rounded-lg border px-2 py-1" value={bulkRole} onChange={(e) => setBulkRole(e.target.value as any)}>
+                      <option value="agent">Agent</option>
+                      <option value="lead">Team Lead</option>
+                      <option value="manager">Manager</option>
+                    </select>
+                    <Button variant="secondary" onClick={async () => {
+                      if (!confirm(`Set role to ${bulkRole} for ${selectedAgentIds.length} agents?`)) return;
+                      const token = await getAccessToken(); if (!token) return;
+                      await Promise.allSettled(selectedAgentIds.map(id => fetch(`/api/admin/users/${id}/role`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ role: bulkRole }) })));
+                      // Reload agents
+                      try {
+                        const qs = new URLSearchParams(); if (agentQ) qs.set('q', agentQ);
+                        const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
+                        const ja = await resAgents.json().catch(() => null);
+                        if (ja && ja.ok) setAgents(ja.data.agents || []);
+                      } catch {}
+                      setSelectedAgentIds([]);
+                    }}>Set Role</Button>
+                    <Button onClick={() => { setAgentBulkVerticalId(''); setAgentBulkCampaignIds([]); setAgentBulkOpen(true); }}>Set Campaigns</Button>
+                  </div>
+                )}
                 <table className="min-w-full table-auto text-sm">
                   <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
                     <tr className="text-left">
+                      <th className="px-3 py-3">
+                        <input type="checkbox" checked={selectedAgentIds.length > 0 && selectedAgentIds.length === agents.filter(a => roleFilter==='all'? true : a.role===roleFilter).length} onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedAgentIds(agents.filter(a => roleFilter==='all'? true : a.role===roleFilter).map(a => a.id));
+                          } else setSelectedAgentIds([]);
+                        }} />
+                      </th>
                       <th className="px-6 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'username', dir: s.col==='username' && s.dir==='asc' ? 'desc' : 'asc' }))}>Username</th>
                       <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'email', dir: s.col==='email' && s.dir==='asc' ? 'desc' : 'asc' }))}>Email</th>
                       <th className="px-3 py-3 font-medium">Role</th>
@@ -371,6 +420,9 @@ export default function AgentPage() {
                   <tbody>
                     {agents.filter(a => roleFilter==='all' ? true : a.role === roleFilter).map((a) => (
                       <tr key={a.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
+                        <td className="px-3 py-3"><input type="checkbox" checked={selectedAgentIds.includes(a.id)} onChange={(e) => {
+                          setSelectedAgentIds(prev => e.target.checked ? Array.from(new Set([...prev, a.id])) : prev.filter(id => id !== a.id));
+                        }} /></td>
                         <td className="px-6 py-3">{a.username}</td>
                         <td className="px-3 py-3">{a.email}</td>
                         <td className="px-3 py-3">{a.role}</td>
@@ -441,6 +493,38 @@ export default function AgentPage() {
             </CardBody>
           </Card>
         )}
+
+        {/* Agent bulk set campaigns dialog */}
+        <Dialog open={agentBulkOpen} onOpenChange={setAgentBulkOpen} title="Set campaigns for selected agents">
+          <div className="space-y-3 text-sm">
+            <label className="text-sm block">
+              <span className="text-xs opacity-70">Filter by vertical (optional)</span>
+              <Select value={agentBulkVerticalId} onChange={(e) => setAgentBulkVerticalId(e.target.value)}>
+                <option value="">All</option>
+                {verticals.map(v => <option key={v.id} value={String(v.id)}>{v.name}</option>)}
+              </Select>
+            </label>
+            <div>
+              <div className="text-xs opacity-70 mb-1">Select campaigns</div>
+              <div className="max-h-48 overflow-auto rounded-lg border border-black/10 dark:border-white/10 p-2">
+                {(campaigns.filter(c => agentBulkVerticalId ? String(c.vertical_id||'')===agentBulkVerticalId : true)).map(c => (
+                  <label key={c.id} className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={agentBulkCampaignIds.includes(c.id)} onChange={(e) => setAgentBulkCampaignIds(prev => e.target.checked ? Array.from(new Set([...prev, c.id])) : prev.filter(id => id !== c.id))} />
+                    <span>{c.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogActions>
+            <Button variant="secondary" onClick={() => setAgentBulkOpen(false)}>Cancel</Button>
+            <Button onClick={async () => {
+              const token = await getAccessToken(); if (!token) return;
+              await Promise.allSettled(selectedAgentIds.map(id => fetch(`/api/admin/agents/${id}/campaigns`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ campaign_ids: agentBulkCampaignIds }) })));
+              setAgentBulkOpen(false); setSelectedAgentIds([]);
+            }}>Save</Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Verticals management */}
         {activeTab === 'Verticals' && (
