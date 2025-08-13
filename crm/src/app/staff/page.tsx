@@ -290,6 +290,12 @@ export default function AgentPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'agent'|'manager'|'lead'>('agent');
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiUsername, setAiUsername] = useState('');
+  const [aiRole, setAiRole] = useState<'agent'|'manager'|'lead'>('agent');
+  const [aiPersonality, setAiPersonality] = useState('');
+  const [aiBusy, setAiBusy] = useState<'idle'|'saving'>('idle');
+  const [aiError, setAiError] = useState<string | null>(null);
   const [verticals, setVerticals] = useState<Array<{ id:number; name:string }>>([]);
   const [campaigns, setCampaigns] = useState<Array<{ id:number; name:string; vertical_id: number|null; status: string }>>([]);
   const [graph, setGraph] = useState<any>(null);
@@ -419,23 +425,7 @@ export default function AgentPage() {
             <CardHeader title="Agents" subtitle="Manage and browse agents" actions={
               <div className="hidden md:flex items-center gap-2">
                 <Button variant="primary" onClick={() => setInviteOpen(true)}>Invite Agent</Button>
-                <Button variant="secondary" onClick={async () => {
-                  const username = prompt('AI agent username (a-z0-9_):','ai_helper');
-                  if (!username) return;
-                  const role = prompt('Role (agent/lead/manager):','agent') || 'agent';
-                  const personality = prompt('AI personality/system message (optional):','You are a helpful sales assistant.');
-                  const token = await getAccessToken(); if (!token) return;
-                  const res = await fetch('/api/admin/agents', { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'createAiAgent', username, role, personality }) });
-                  const j = await res.json().catch(()=>null);
-                  if (!j || !j.ok) { alert(j?.error?.message || 'Failed to create AI agent'); return; }
-                  // reload agents
-                  try {
-                    const qs = new URLSearchParams(); if (agentQ) qs.set('q', agentQ);
-                    const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
-                    const ja = await resAgents.json().catch(() => null);
-                    if (ja && ja.ok) setAgents(ja.data.agents || []);
-                  } catch {}
-                }}>Create AI Agent</Button>
+                <Button variant="secondary" onClick={() => { setAiUsername(''); setAiRole('agent'); setAiPersonality(''); setAiError(null); setAiOpen(true); }}>Create AI Agent</Button>
               </div>
             } />
             <CardBody>
@@ -860,6 +850,43 @@ export default function AgentPage() {
                 setInviteRole('agent');
               }}>Send Invite</Button>
             </DialogActions>
+        </Dialog>
+
+        {/* Create AI Agent Dialog */}
+        <Dialog open={aiOpen} onOpenChange={setAiOpen} title="Create AI Agent">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {aiError && <div className="md:col-span-2 text-sm text-red-600">{aiError}</div>}
+            <Input placeholder="Username (a-z0-9_)" value={aiUsername} onChange={(e) => setAiUsername(e.target.value)} />
+            <Select value={aiRole} onChange={(e) => setAiRole(e.target.value as any)}>
+              <option value="agent">Agent</option>
+              <option value="manager">Manager</option>
+              <option value="lead">Lead</option>
+            </Select>
+            <textarea className="md:col-span-2 rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 min-h-[120px]" placeholder="AI personality/system message" value={aiPersonality} onChange={(e)=>setAiPersonality(e.target.value)} />
+          </div>
+          <DialogActions>
+            <Button variant="secondary" onClick={() => setAiOpen(false)}>Cancel</Button>
+            <Button disabled={aiBusy!=='idle'} onClick={async () => {
+              setAiError(null);
+              const uname = aiUsername.trim().toLowerCase();
+              if (!/^[a-z0-9_]{3,20}$/.test(uname)) { setAiError('Username must be 3-20 chars (a-z, 0-9, _)'); return; }
+              setAiBusy('saving');
+              try {
+                const token = await getAccessToken(); if (!token) { setAiError('Not authorized'); return; }
+                const res = await fetch('/api/admin/agents', { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'createAiAgent', username: uname, role: aiRole, personality: aiPersonality }) });
+                const j = await res.json().catch(()=>null);
+                if (!j || !j.ok) { setAiError(j?.error?.message || 'Failed to create AI agent'); return; }
+                // reload agents
+                try {
+                  const qs = new URLSearchParams(); if (agentQ) qs.set('q', agentQ);
+                  const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
+                  const ja = await resAgents.json().catch(() => null);
+                  if (ja && ja.ok) setAgents(ja.data.agents || []);
+                } catch {}
+                setAiOpen(false);
+              } finally { setAiBusy('idle'); }
+            }}>{aiBusy==='saving' ? 'Creating…' : 'Create'}</Button>
+          </DialogActions>
         </Dialog>
 
         {activeTab === 'Agents' && (
