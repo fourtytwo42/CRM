@@ -655,6 +655,8 @@ export default function AdminPage() {
               if (!token) return;
               const res = await fetch('/api/crm/inbound/email/poll', { method: 'POST', headers: { authorization: `Bearer ${token}` } });
               const j = await res.json();
+              // eslint-disable-next-line no-console
+              console.log('Check Now:', j);
               // Reload current box
               const res2 = await fetch(`/api/admin/email?box=${box}&page=${page}&pageSize=${pageSize}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
               const json2 = await res2.json();

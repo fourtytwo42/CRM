@@ -54,7 +54,9 @@ async function runOnce(): Promise<number> {
     const range = lastUid > 0 ? `${lastUid + 1}:*` : '1:*';
     let processed = 0;
     const uids: number[] = [];
-    for await (const msg of client.fetch(range, { uid: true })) { uids.push(Number(msg.uid)); }
+    for await (const msg of client.fetch(range, { uid: true }, { uid: true })) { uids.push(Number(msg.uid)); }
+    // eslint-disable-next-line no-console
+    console.log('[imap] fetch range', { lastUid, range, count: uids.length, min: uids[0], max: uids[uids.length - 1] });
     uids.sort((a,b) => a - b);
     for (const uid of uids) {
       const it = client.fetchOne(uid, { uid: true, envelope: true, bodyStructure: true, source: true, flags: true }, { uid: true });
@@ -132,9 +134,12 @@ async function runOnce(): Promise<number> {
       processed += 1;
     }
     await client.logout();
+    // eslint-disable-next-line no-console
+    console.log('[imap] processed', { processed, lastUid: (uids.length ? uids[uids.length - 1] : lastUid) });
     return processed;
-  } catch {
-    // ignore
+  } catch (e: any) {
+    // eslint-disable-next-line no-console
+    console.error('[imap] error', { message: e?.message || String(e) });
     return 0;
   }
 }

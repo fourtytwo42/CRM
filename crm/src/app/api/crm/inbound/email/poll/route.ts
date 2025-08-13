@@ -16,7 +16,9 @@ export async function POST(req: NextRequest) {
   if (!row || !row.imap_enabled) return jsonOk({ skipped: true });
   if (!row.imap_host || !row.imap_username || !row.imap_password) return jsonError('MISSING', { status: 400, message: 'IMAP not fully configured' });
   const n = await runImapPollOnce();
-  return jsonOk({ processed: n });
+  // Return some recent head of inbox for debugging
+  const rows = getDb().prepare(`SELECT id, imap_uid, subject, created_at FROM mail_messages WHERE direction='in' ORDER BY created_at DESC LIMIT 5`).all();
+  return jsonOk({ processed: n, head: rows });
 }
 
 export function GET() { return methodNotAllowed(['POST']); }
