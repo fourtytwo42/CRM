@@ -24,22 +24,26 @@ export function ensureImapPollerRunning(): void {
       return;
     }
     if (state.timer) return; // already scheduled
-    state.timer = setInterval(runOnce, intervalSec * 1000);
+    state.timer = setInterval(() => { runOnce().catch(() => {}); }, intervalSec * 1000);
     state.running = true;
     // Kick immediate
-    runOnce();
+    runOnce().catch(() => {});
   } catch {
     // ignore
   }
 }
 
-async function runOnce(): Promise<void> {
+export async function runImapPollOnce(): Promise<number> {
+  return runOnce();
+}
+
+async function runOnce(): Promise<number> {
   try {
     const db = getDb();
     const row = db.prepare(`SELECT imap_enabled, imap_host, imap_port, imap_secure, imap_username, imap_password, imap_last_uid FROM email_settings WHERE id = 1`).get() as any;
-    if (!row || !row.imap_enabled) return;
+    if (!row || !row.imap_enabled) return 0;
     const host = row.imap_host; const port = Number(row.imap_port || 993); const secure = !!row.imap_secure; const user = row.imap_username; const pass = row.imap_password;
-    if (!host || !user || !pass) return;
+    if (!host || !user || !pass) return 0;
     // Dynamically import to avoid bundling if unused
     const { ImapFlow } = await import('imapflow');
     const client = new ImapFlow({ host, port, secure, auth: { user, pass }, logger: false });
@@ -47,6 +51,7 @@ async function runOnce(): Promise<void> {
     await client.mailboxOpen('INBOX', { readOnly: false });
     const lastUid = Number(row.imap_last_uid || 0);
     const searchCriteria = lastUid > 0 ? { uid: `${lastUid + 1}:*` } : { seen: false } as any;
+    let processed = 0;
     for await (const msg of client.fetch(searchCriteria, { uid: true, envelope: true, bodyStructure: true, source: true, flags: true })) {
       const uid = Number(msg.uid);
       const env = msg.envelope as any;
@@ -88,10 +93,13 @@ async function runOnce(): Promise<void> {
       // mark seen and update last
       await client.messageFlagsAdd(uid, ['\\Seen']);
       db.prepare(`UPDATE email_settings SET imap_last_uid = ? WHERE id = 1`).run(uid);
+      processed += 1;
     }
     await client.logout();
+    return processed;
   } catch {
     // ignore
+    return 0;
   }
 }
 

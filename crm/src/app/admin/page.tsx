@@ -633,7 +633,20 @@ export default function AdminPage() {
         <div className="flex items-center gap-2 mb-3">
           <Button variant={box==='inbox'?'primary':'secondary'} onClick={() => { setBox('inbox'); setPage(1); }}>Inbox</Button>
           <Button variant={box==='sent'?'primary':'secondary'} onClick={() => { setBox('sent'); setPage(1); }}>Sent</Button>
-            <Button onClick={() => setComposeOpen(true)}>New</Button>
+          <Button onClick={() => setComposeOpen(true)}>New</Button>
+          <Button variant="secondary" onClick={async () => {
+            setBusy('loading');
+            try {
+              const token = await getAccessToken();
+              if (!token) return;
+              const res = await fetch('/api/crm/inbound/email/poll', { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+              const j = await res.json();
+              // Reload current box
+              const res2 = await fetch(`/api/admin/email?box=${box}&page=${page}&pageSize=${pageSize}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+              const json2 = await res2.json();
+              if (json2.ok) { setItems(json2.data.items || []); setTotal(json2.data.total || 0); setStats(json2.data.stats || stats); }
+            } finally { setBusy('idle'); }
+          }}>Check Now</Button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[520px] overflow-auto">
