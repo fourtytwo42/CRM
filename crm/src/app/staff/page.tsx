@@ -67,6 +67,8 @@ interface CustomersPaneProps {
   uniqueCampaigns: string[];
   filtered: Customer[];
   agents: AgentRow[];
+  verticals: Array<{ id:number; name:string }>;
+  campaigns: Array<{ id:number; name:string; vertical_id: number|null; status: string }>;
   addOpen: boolean;
   setAddOpen: (open: boolean) => void;
   addForm: any;
@@ -81,10 +83,13 @@ interface CustomersPaneProps {
 // CustomersPane component moved outside to avoid JSX nesting issues
 function CustomersPane({
   query, setQuery, vertical, setVertical, campaign, setCampaign,
-  uniqueVerticals, uniqueCampaigns, filtered, agents,
+  uniqueVerticals, uniqueCampaigns, filtered, agents, verticals, campaigns,
   addOpen, setAddOpen, addForm, setAddForm, setCounts, setRows,
   setUniqueVerticals, setUniqueCampaigns, getAccessToken
 }: CustomersPaneProps) {
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>([]);
+  const [customerBulkVerticalId, setCustomerBulkVerticalId] = useState<string>('');
+  const [customerBulkCampaignId, setCustomerBulkCampaignId] = useState<string>('');
   return (
     <>
       <Card>
@@ -117,19 +122,55 @@ function CustomersPane({
           </div>
 
           <div className="overflow-auto -mx-6">
+            {selectedCustomerIds.length > 0 && (
+              <div className="px-6 py-3 flex items-center gap-3 text-sm">
+                <span>{selectedCustomerIds.length} selected</span>
+                <Button variant="destructive" onClick={async () => {
+                  if (!confirm('Delete selected customers?')) return;
+                  const token = await getAccessToken(); if (!token) return;
+                  await Promise.allSettled(selectedCustomerIds.map(id => fetch(`/api/crm/customers/${id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } })));
+                  setRows(((p: Customer[]) => p.filter((x: Customer) => !selectedCustomerIds.includes(x.id))) as any);
+                  setSelectedCustomerIds([]);
+                }}>Delete</Button>
+                <Select value={customerBulkVerticalId} onChange={(e) => setCustomerBulkVerticalId(e.target.value)}>
+                  <option value="">Vertical (optional)</option>
+                  {verticals.map(v => <option key={v.id} value={String(v.id)}>{v.name}</option>)}
+                </Select>
+                <Select value={customerBulkCampaignId} onChange={(e) => setCustomerBulkCampaignId(e.target.value)}>
+                  <option value="">Campaign (optional)</option>
+                  {(campaigns.filter(c => customerBulkVerticalId ? String(c.vertical_id||'')===customerBulkVerticalId : true)).map(c => (
+                    <option key={c.id} value={String(c.id)}>{c.name}</option>
+                  ))}
+                </Select>
+                <Button onClick={async () => {
+                  const token = await getAccessToken(); if (!token) return;
+                  const cid = customerBulkCampaignId ? Number(customerBulkCampaignId) : null;
+                  if (!cid) { alert('Choose a campaign'); return; }
+                  await Promise.allSettled(selectedCustomerIds.map(id => fetch(`/api/crm/customers/${id}/campaigns`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ campaign_ids: [cid] }) })));
+                  setSelectedCustomerIds([]);
+                  try {
+                    const res = await fetch('/api/crm/overview', { cache: 'no-store', headers: { authorization: `Bearer ${token}` } });
+                    const json = await res.json().catch(() => null);
+                    if (json && json.ok) { setRows(json.data.customers || []); }
+                  } catch {}
+                }}>Set Campaign</Button>
+              </div>
+            )}
             <table className="min-w-full table-auto text-sm">
-                  <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
+              <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
                 <tr className="text-left">
-                      <th className="px-6 py-3 font-medium">Name</th>
-                      <th className="px-3 py-3 font-medium">Contact</th>
+                  <th className="px-3 py-3"><input type="checkbox" checked={selectedCustomerIds.length > 0 && selectedCustomerIds.length === filtered.length} onChange={(e) => setSelectedCustomerIds(e.target.checked ? filtered.map(x => x.id) : [])} /></th>
+                  <th className="px-6 py-3 font-medium">Name</th>
+                  <th className="px-3 py-3 font-medium">Contact</th>
                   <th className="px-3 py-3 font-medium">Vertical</th>
                   <th className="px-3 py-3 font-medium">Campaign</th>
-                      <th className="px-3 py-3 font-medium text-right">Actions</th>
+                  <th className="px-3 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((c) => (
                   <tr key={c.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
+                    <td className="px-3 py-3"><input type="checkbox" checked={selectedCustomerIds.includes(c.id)} onChange={(e) => setSelectedCustomerIds(e.target.checked ? Array.from(new Set([...selectedCustomerIds, c.id])) : selectedCustomerIds.filter(id => id !== c.id))} /></td>
                     <td className="px-6 py-3"><a className="underline" href={`/customers/${c.id}`}>{c.name}</a></td>
                     <td className="px-3 py-3">
                       <div className="opacity-80">{c.email}</div>
@@ -137,19 +178,18 @@ function CustomersPane({
                     </td>
                     <td className="px-3 py-3">{c.vertical}</td>
                     <td className="px-3 py-3">{c.campaign}</td>
-                        <td className="px-3 py-3 text-right">
-                          <a className="underline" href={`/customers/${c.id}`}>View</a>
-                          <a className="underline ml-2" href={`/customers/${c.id}`}>Open</a>
-                          <button className="ml-2" title="Delete" onClick={async (e) => {
-                            e.preventDefault();
-                            if (!confirm('Delete this customer?')) return;
-                            const token = await getAccessToken();
-                            if (!token) return;
-                            await fetch(`/api/crm/customers/${c.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
-                            // Optimistically remove from list
-                            setRows(((p: Customer[]) => p.filter((x: Customer) => x.id !== c.id)) as any);
-                          }}>🗑️</button>
-                        </td>
+                    <td className="px-3 py-3 text-right">
+                      <a className="underline" href={`/customers/${c.id}`}>View</a>
+                      <a className="underline ml-2" href={`/customers/${c.id}`}>Open</a>
+                      <button className="ml-2" title="Delete" onClick={async (e) => {
+                        e.preventDefault();
+                        if (!confirm('Delete this customer?')) return;
+                        const token = await getAccessToken();
+                        if (!token) return;
+                        await fetch(`/api/crm/customers/${c.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+                        setRows(((p: Customer[]) => p.filter((x: Customer) => x.id !== c.id)) as any);
+                      }}>🗑️</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -241,6 +281,9 @@ export default function AgentPage() {
   const [counts, setCounts] = useState({ usersByCampaign: [] as Array<{ name: string; count: number }>, activeCasesByAgent: [] as Array<{ name: string; count: number }>, tasks: { overdue: 0, completed: 0 } });
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState({ full_name: '', email: '', phone: '', company: '', title: '', notes: '', campaign_id: '' });
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>([]);
+  const [customerBulkVerticalId, setCustomerBulkVerticalId] = useState<string>('');
+  const [customerBulkCampaignId, setCustomerBulkCampaignId] = useState<string>('');
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'agent'|'manager'|'lead'>('agent');
@@ -378,11 +421,11 @@ export default function AgentPage() {
                       } catch {}
                       setSelectedAgentIds([]);
                     }}>Delete</Button>
-                    <select className="rounded-lg border px-2 py-1" value={bulkRole} onChange={(e) => setBulkRole(e.target.value as any)}>
+                    <Select value={bulkRole} onChange={(e) => setBulkRole(e.target.value as any)}>
                       <option value="agent">Agent</option>
                       <option value="lead">Team Lead</option>
                       <option value="manager">Manager</option>
-                    </select>
+                    </Select>
                     <Button variant="secondary" onClick={async () => {
                       if (!confirm(`Set role to ${bulkRole} for ${selectedAgentIds.length} agents?`)) return;
                       const token = await getAccessToken(); if (!token) return;
@@ -736,6 +779,8 @@ export default function AgentPage() {
               uniqueCampaigns={uniqueCampaigns}
               filtered={filtered}
               agents={agents}
+              verticals={verticals}
+              campaigns={campaigns}
               addOpen={addOpen}
               setAddOpen={setAddOpen}
               addForm={addForm}
