@@ -4,7 +4,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
-import { IconFilter, IconSearch, IconDownload, IconUpload, IconCircleCheck, IconAlertCircle } from "@tabler/icons-react";
+import { IconDownload, IconUpload } from "@tabler/icons-react";
 import Dialog, { DialogActions } from "@/components/ui/Dialog";
 
 type Customer = {
@@ -63,8 +63,6 @@ interface CustomersPaneProps {
   setVertical: (v: string) => void;
   campaign: string;
   setCampaign: (c: string) => void;
-  agent: number | "";
-  setAgent: (a: number | "") => void;
   uniqueVerticals: string[];
   uniqueCampaigns: string[];
   filtered: Customer[];
@@ -83,7 +81,7 @@ interface CustomersPaneProps {
 // CustomersPane component moved outside to avoid JSX nesting issues
 function CustomersPane({
   query, setQuery, vertical, setVertical, campaign, setCampaign,
-  agent, setAgent, uniqueVerticals, uniqueCampaigns, filtered, agents,
+  uniqueVerticals, uniqueCampaigns, filtered, agents,
   addOpen, setAddOpen, addForm, setAddForm, setCounts, setRows,
   setUniqueVerticals, setUniqueCampaigns, getAccessToken
 }: CustomersPaneProps) {
@@ -95,8 +93,6 @@ function CustomersPane({
           subtitle="Search and filter by vertical, campaign, or agent; Admins can add customers"
           actions={
             <div className="hidden md:flex items-center gap-2">
-              <Button variant="secondary"><IconFilter size={18} className="mr-2" />Filters</Button>
-              <Button><IconSearch size={18} className="mr-2" />Search</Button>
               <Button variant="primary" onClick={() => setAddOpen(true)}>Add Customer</Button>
             </div>
           }
@@ -118,12 +114,6 @@ function CustomersPane({
                 <option value="__unassigned__">Unassigned</option>
               </Select>
             </div>
-            <div className="md:col-span-2">
-              <Select value={agent as any} onChange={(e) => setAgent(e.target.value ? Number(e.target.value) : "" as any)}>
-                <option value="">All Agents</option>
-                {MOCK_AGENTS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </Select>
-            </div>
           </div>
 
           <div className="overflow-auto -mx-6">
@@ -132,10 +122,8 @@ function CustomersPane({
                 <tr className="text-left">
                       <th className="px-6 py-3 font-medium">Name</th>
                       <th className="px-3 py-3 font-medium">Contact</th>
-                      <th className="px-3 py-3 font-medium">Vertical</th>
-                      <th className="px-3 py-3 font-medium">Campaign</th>
-                      <th className="px-3 py-3 font-medium">Agent</th>
-                      <th className="px-3 py-3 font-medium">Status</th>
+                  <th className="px-3 py-3 font-medium">Vertical</th>
+                  <th className="px-3 py-3 font-medium">Campaign</th>
                       <th className="px-3 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
@@ -149,18 +137,6 @@ function CustomersPane({
                     </td>
                     <td className="px-3 py-3">{c.vertical}</td>
                     <td className="px-3 py-3">{c.campaign}</td>
-                    <td className="px-3 py-3">{agents.find((a) => a.id === c.agentId)?.username || '-'}</td>
-                    <td className="px-3 py-3">
-                      <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
-                        c.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-300' :
-                        c.status === 'lead' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300' :
-                        c.status === 'inactive' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300' :
-                        'bg-gray-200 text-gray-700 dark:bg-white/10 dark:text-white/70'
-                      }`}>
-                        {c.status === 'active' ? <IconCircleCheck size={14} /> : <IconAlertCircle size={14} />}
-                        {c.status}
-                      </span>
-                    </td>
                         <td className="px-3 py-3 text-right">
                           <a className="underline" href={`/customers/${c.id}`}>View</a>
                           <a className="underline ml-2" href={`/customers/${c.id}`}>Open</a>
@@ -246,7 +222,8 @@ export default function AgentPage() {
 
   const filtered = useMemo(() => {
     return rows.filter((c) => {
-      const byQ = !query || c.name.toLowerCase().includes(query.toLowerCase());
+      const q = (query || '').toLowerCase();
+      const byQ = !q || c.name.toLowerCase().includes(q) || (c.email ? c.email.toLowerCase().includes(q) : false);
       const isUnassignedVertical = !c.vertical;
       const isUnassignedCampaign = !c.campaign;
       const byV = !vertical || (vertical === '__unassigned__' ? isUnassignedVertical : c.vertical === vertical);
@@ -671,8 +648,6 @@ export default function AgentPage() {
               setVertical={setVertical}
               campaign={campaign}
               setCampaign={setCampaign}
-              agent={agent}
-              setAgent={setAgent}
               uniqueVerticals={uniqueVerticals}
               uniqueCampaigns={uniqueCampaigns}
               filtered={filtered}
