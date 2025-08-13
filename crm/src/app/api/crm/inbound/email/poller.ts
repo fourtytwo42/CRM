@@ -50,9 +50,15 @@ async function runOnce(): Promise<number> {
     await client.connect();
     await client.mailboxOpen('INBOX', { readOnly: false });
     const lastUid = Number(row.imap_last_uid || 0);
-    const searchCriteria = lastUid > 0 ? { uid: `${lastUid + 1}:*` } : { seen: false } as any;
+    // Fetch newest first; if no last UID, search all and process by UID asc but set last UID to the highest processed
+    const searchCriteria = lastUid > 0 ? { uid: `${lastUid + 1}:*` } : { all: true } as any;
     let processed = 0;
-    for await (const msg of client.fetch(searchCriteria, { uid: true, envelope: true, bodyStructure: true, source: true, flags: true })) {
+    const uids: number[] = [];
+    for await (const msg of client.fetch(searchCriteria, { uid: true })) { uids.push(Number(msg.uid)); }
+    uids.sort((a,b) => a - b);
+    for (const uid of uids) {
+      const it = client.fetchOne(uid, { uid: true, envelope: true, bodyStructure: true, source: true, flags: true }, { uid: true });
+      const msg: any = await it;
       const uid = Number(msg.uid);
       const env = msg.envelope as any;
       const from = (env.from && env.from[0] && (env.from[0].address || env.from[0].mailbox + '@' + env.from[0].host)) || '';
@@ -62,12 +68,13 @@ async function runOnce(): Promise<number> {
       // Parse plain text quickly (could use mailparser for HTML/attachments)
       const raw = source.toString('utf8');
       const text = extractPlainText(raw);
-      db.prepare(`INSERT INTO mail_messages (direction, from_email, to_email, subject, body, message_id, created_at) VALUES ('in', ?, ?, ?, ?, ?, ?)`).run(
+      db.prepare(`INSERT INTO mail_messages (direction, from_email, to_email, subject, body, message_id, imap_uid, created_at) VALUES ('in', ?, ?, ?, ?, ?, ?, ?)`).run(
         from || null,
         to || null,
         subject || null,
         text || null,
         extractHeader(raw, 'Message-Id'),
+        uid,
         new Date().toISOString(),
       );
       // Link or create customer

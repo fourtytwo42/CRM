@@ -682,6 +682,16 @@ export default function AdminPage() {
                       <div className="opacity-60 text-xs">{new Date(m.created_at).toLocaleString()}</div>
                     </div>
                     <div className="truncate font-medium">{m.subject || '(no subject)'}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <button className="underline text-xs text-red-600" onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!confirm('Delete this email?')) return;
+                        const token = await getAccessToken();
+                        await fetch(`/api/admin/email?id=${m.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+                        setItems(prev => prev.filter(x => x.id !== m.id));
+                        if (selected && selected.id === m.id) setSelected(null);
+                      }}>Delete</button>
+                    </div>
                   </li>
                 ))}
               </ul>

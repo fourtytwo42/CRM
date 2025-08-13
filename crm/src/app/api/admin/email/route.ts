@@ -32,7 +32,31 @@ export async function POST(req: NextRequest) {
   return jsonOk();
 }
 
-export function PUT() { return methodNotAllowed(['GET','POST']); }
-export function DELETE() { return methodNotAllowed(['GET','POST']); }
+export async function DELETE(req: NextRequest) {
+  try { await requireAdmin(req); } catch { return jsonError('FORBIDDEN', { status: 403 }); }
+  const url = new URL(req.url);
+  const id = Number(url.searchParams.get('id') || '0');
+  if (!id) return jsonError('VALIDATION', { status: 400 });
+  const db = getDb();
+  const row = db.prepare(`SELECT imap_uid FROM mail_messages WHERE id = ?`).get(id) as any;
+  db.prepare(`DELETE FROM mail_messages WHERE id = ?`).run(id);
+  // Optionally also delete from IMAP by UID if available
+  if (row && row.imap_uid) {
+    try {
+      const { ImapFlow } = await import('imapflow');
+      const cfg = db.prepare(`SELECT imap_host, imap_port, imap_secure, imap_username, imap_password FROM email_settings WHERE id = 1`).get() as any;
+      if (cfg && cfg.imap_host && cfg.imap_username && cfg.imap_password) {
+        const client = new ImapFlow({ host: cfg.imap_host, port: Number(cfg.imap_port || 993), secure: !!cfg.imap_secure, auth: { user: cfg.imap_username, pass: cfg.imap_password }, logger: false });
+        await client.connect();
+        await client.mailboxOpen('INBOX', { readOnly: false });
+        await client.messageDelete(Number(row.imap_uid), { uid: true });
+        await client.logout();
+      }
+    } catch {}
+  }
+  return jsonOk();
+}
+
+export function PUT() { return methodNotAllowed(['GET','POST','DELETE']); }
 
 

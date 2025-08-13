@@ -9,7 +9,7 @@ const g = globalThis as any;
 let dbInstance: Database.Database | null = g.__dbInstance || null;
 let migratedOnce = g.__dbMigratedOnce || false;
 
-const SCHEMA_VERSION = 11; // bump when schema/backfills change
+const SCHEMA_VERSION = 12; // bump when schema/backfills change
 
 function ensureDirectoryExists(directoryPath: string): void {
   if (!fs.existsSync(directoryPath)) {
@@ -457,6 +457,7 @@ function migrate(db: Database.Database): void {
       subject TEXT,
       body TEXT,
       message_id TEXT,
+      imap_uid INTEGER,
       in_reply_to TEXT,
       references_header TEXT,
       seen INTEGER NOT NULL DEFAULT 0,
@@ -564,12 +565,18 @@ function migrate(db: Database.Database): void {
         subject TEXT,
         body TEXT,
         message_id TEXT,
+        imap_uid INTEGER,
         in_reply_to TEXT,
         references_header TEXT,
         seen INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL
       );
     `);
+    // Backfill missing imap_uid
+    const mcols = db.prepare(`PRAGMA table_info(mail_messages)`).all() as Array<{ name: string }>;
+    if (!mcols.some(c => c.name === 'imap_uid')) {
+      db.exec(`ALTER TABLE mail_messages ADD COLUMN imap_uid INTEGER`);
+    }
   } catch {}
   // Backfill: IMAP fields on email_settings
   try {
