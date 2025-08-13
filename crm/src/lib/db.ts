@@ -9,7 +9,7 @@ const g = globalThis as any;
 let dbInstance: Database.Database | null = g.__dbInstance || null;
 let migratedOnce = g.__dbMigratedOnce || false;
 
-const SCHEMA_VERSION = 12; // bump when schema/backfills change
+const SCHEMA_VERSION = 14; // bump when schema/backfills change
 
 function ensureDirectoryExists(directoryPath: string): void {
   if (!fs.existsSync(directoryPath)) {
@@ -114,6 +114,8 @@ function migrate(db: Database.Database): void {
       new_email_verification_sent_at TEXT,
       last_login_at TEXT,
       last_seen_at TEXT,
+      is_ai INTEGER NOT NULL DEFAULT 0,
+      ai_personality TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -413,14 +415,17 @@ function migrate(db: Database.Database): void {
       agent_user_id INTEGER,
       customer_id INTEGER,
       campaign_id INTEGER,
+      case_id INTEGER,
       FOREIGN KEY(created_by_user_id) REFERENCES users(id),
       FOREIGN KEY(agent_user_id) REFERENCES users(id),
       FOREIGN KEY(customer_id) REFERENCES customers(id),
-      FOREIGN KEY(campaign_id) REFERENCES campaigns(id)
+      FOREIGN KEY(campaign_id) REFERENCES campaigns(id),
+      FOREIGN KEY(case_id) REFERENCES cases(id)
     );
     CREATE INDEX IF NOT EXISTS idx_notes_customer ON notes(customer_id);
     CREATE INDEX IF NOT EXISTS idx_notes_agent ON notes(agent_user_id);
     CREATE INDEX IF NOT EXISTS idx_notes_campaign ON notes(campaign_id);
+    CREATE INDEX IF NOT EXISTS idx_notes_case ON notes(case_id);
   `);
 
   // Communications (email/message/call) linked to customers and optionally agents/campaigns
@@ -434,17 +439,20 @@ function migrate(db: Database.Database): void {
       customer_id INTEGER NOT NULL,
       agent_user_id INTEGER,
       campaign_id INTEGER,
+      case_id INTEGER,
       message_id TEXT,
       in_reply_to TEXT,
       references_header TEXT,
       created_at TEXT NOT NULL,
       FOREIGN KEY(customer_id) REFERENCES customers(id),
       FOREIGN KEY(agent_user_id) REFERENCES users(id),
-      FOREIGN KEY(campaign_id) REFERENCES campaigns(id)
+      FOREIGN KEY(campaign_id) REFERENCES campaigns(id),
+      FOREIGN KEY(case_id) REFERENCES cases(id)
     );
     CREATE INDEX IF NOT EXISTS idx_comms_customer ON communications(customer_id);
     CREATE INDEX IF NOT EXISTS idx_comms_agent ON communications(agent_user_id);
     CREATE INDEX IF NOT EXISTS idx_comms_campaign ON communications(campaign_id);
+    CREATE INDEX IF NOT EXISTS idx_comms_case ON communications(case_id);
   `);
 
   // Site-wide mail messages (for admin email client)
@@ -468,10 +476,22 @@ function migrate(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_mail_messages_seen ON mail_messages(seen);
   `);
 
+  // Deleted mail tracking to avoid re-downloading deleted emails
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS mail_deleted (
+      message_id TEXT,
+      imap_uid INTEGER,
+      deleted_at TEXT NOT NULL,
+      UNIQUE(message_id),
+      UNIQUE(imap_uid)
+    );
+  `);
+
   // Lightweight "cases" (deals/tickets/projects)
   db.exec(`
     CREATE TABLE IF NOT EXISTS cases (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      case_number TEXT UNIQUE,
       title TEXT NOT NULL,
       stage TEXT NOT NULL DEFAULT 'new' CHECK (stage IN ('new','in-progress','won','lost','closed')),
       customer_id INTEGER NOT NULL,
@@ -486,6 +506,22 @@ function migrate(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_cases_customer ON cases(customer_id);
     CREATE INDEX IF NOT EXISTS idx_cases_campaign ON cases(campaign_id);
     CREATE INDEX IF NOT EXISTS idx_cases_agent ON cases(agent_user_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_cases_case_number ON cases(case_number);
+  `);
+  // Case versions history
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS case_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      case_id INTEGER NOT NULL,
+      version_no INTEGER NOT NULL,
+      data TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      created_by_user_id INTEGER,
+      FOREIGN KEY(case_id) REFERENCES cases(id),
+      FOREIGN KEY(created_by_user_id) REFERENCES users(id),
+      UNIQUE(case_id, version_no)
+    );
+    CREATE INDEX IF NOT EXISTS idx_case_versions_case ON case_versions(case_id);
   `);
   db.prepare(`
     INSERT OR IGNORE INTO email_settings (id, host, port, secure, username, password, from_email, from_name, updated_at)
@@ -577,6 +613,7 @@ function migrate(db: Database.Database): void {
     if (!mcols.some(c => c.name === 'imap_uid')) {
       db.exec(`ALTER TABLE mail_messages ADD COLUMN imap_uid INTEGER`);
     }
+    db.exec(`CREATE TABLE IF NOT EXISTS mail_deleted (message_id TEXT, imap_uid INTEGER, deleted_at TEXT NOT NULL, UNIQUE(message_id), UNIQUE(imap_uid))`);
   } catch {}
   // Backfill: IMAP fields on email_settings
   try {
@@ -593,6 +630,21 @@ function migrate(db: Database.Database): void {
     // Ensure defaults
     db.exec(`UPDATE email_settings SET imap_poll_seconds = COALESCE(imap_poll_seconds, 60)`);
     db.exec(`UPDATE email_settings SET imap_enabled = COALESCE(imap_enabled, 0)`);
+  } catch {}
+  // Backfill: add case_number to cases and populate
+  try {
+    const ccols = db.prepare(`PRAGMA table_info(cases)`).all() as Array<{ name: string }>;
+    if (!ccols.some(c => c.name === 'case_number')) {
+      db.exec(`ALTER TABLE cases ADD COLUMN case_number TEXT`);
+    }
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cases_case_number ON cases(case_number)`);
+    const missing = db.prepare(`SELECT id FROM cases WHERE case_number IS NULL OR case_number = ''`).all() as Array<{ id: number }>;
+    const gen = () => 'CS-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+    for (const r of missing) {
+      let code = gen();
+      while (db.prepare(`SELECT 1 FROM cases WHERE case_number = ?`).get(code)) code = gen();
+      db.prepare(`UPDATE cases SET case_number = ? WHERE id = ?`).run(code, r.id);
+    }
   } catch {}
   // Ensure unique index on email when present (nullable allowed)
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email) WHERE email IS NOT NULL`);
@@ -622,6 +674,8 @@ function migrate(db: Database.Database): void {
           new_email_verification_sent_at TEXT,
           last_login_at TEXT,
           last_seen_at TEXT,
+          is_ai INTEGER NOT NULL DEFAULT 0,
+          ai_personality TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
@@ -630,14 +684,14 @@ function migrate(db: Database.Database): void {
         INSERT INTO users_tmp (
           id, username, email, password_hash, role, status, ban_reason, avatar_url, theme_preference, token_version,
           email_verified_at, email_verification_code, email_verification_sent_at, new_email, new_email_verification_code, new_email_verification_sent_at,
-          last_login_at, last_seen_at, created_at, updated_at
+          last_login_at, last_seen_at, is_ai, ai_personality, created_at, updated_at
         )
         SELECT
           id, username, email, password_hash,
           role,
           status, ban_reason, avatar_url, theme_preference, token_version,
           email_verified_at, email_verification_code, email_verification_sent_at, new_email, new_email_verification_code, new_email_verification_sent_at,
-          last_login_at, last_seen_at, created_at, updated_at
+          last_login_at, last_seen_at, 0 as is_ai, NULL as ai_personality, created_at, updated_at
         FROM users;
       `);
       db.exec(`DROP TABLE users;`);
@@ -645,6 +699,17 @@ function migrate(db: Database.Database): void {
       db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique ON users(username);`);
       db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email) WHERE email IS NOT NULL`);
       db.exec('COMMIT');
+    }
+  } catch {}
+
+  // Backfill: AI agent columns on users table
+  try {
+    const ucols = db.prepare(`PRAGMA table_info(users)`).all() as Array<{ name: string }>;
+    if (!ucols.some(c => c.name === 'is_ai')) {
+      db.exec(`ALTER TABLE users ADD COLUMN is_ai INTEGER NOT NULL DEFAULT 0`);
+    }
+    if (!ucols.some(c => c.name === 'ai_personality')) {
+      db.exec(`ALTER TABLE users ADD COLUMN ai_personality TEXT`);
     }
   } catch {}
 

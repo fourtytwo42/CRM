@@ -179,8 +179,11 @@ function CustomersPane({
                     <td className="px-3 py-3">{c.vertical}</td>
                     <td className="px-3 py-3">{c.campaign}</td>
                     <td className="px-3 py-3 text-right">
-                      <a className="underline" href={`/customers/${c.id}`}>View</a>
-                      <a className="underline ml-2" href={`/customers/${c.id}`}>Open</a>
+                      <a className="ml-2" title="View" href={`/customers/${c.id}`}>🔍</a>
+                      <button className="ml-2" title="Open Case" onClick={async (e) => {
+                        e.preventDefault();
+                        window.location.href = `/cases/new?customer=${c.id}`;
+                      }}>📁</button>
                       <button className="ml-2" title="Delete" onClick={async (e) => {
                         e.preventDefault();
                         if (!confirm('Delete this customer?')) return;
@@ -246,7 +249,7 @@ function CustomersPane({
 }
 
 export default function AgentPage() {
-  const [activeTab, setActiveTab] = useState<'Verticals'|'Campaigns'|'Agents'|'Customers'>('Customers');
+  const [activeTab, setActiveTab] = useState<'Verticals'|'Campaigns'|'Agents'|'Customers'|'Cases'>('Customers');
   const [query, setQuery] = useState("");
   const [vertical, setVertical] = useState("");
   const [campaign, setCampaign] = useState("");
@@ -367,14 +370,40 @@ export default function AgentPage() {
           <p className="opacity-70">Manage agents, campaigns, verticals, and customers</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary"><IconUpload size={18} className="mr-2" />Import CSV</Button>
-          <Button variant="secondary"><IconDownload size={18} className="mr-2" />Export</Button>
+          <Button variant="secondary" onClick={async () => {
+            const token = await getAccessToken(); if (!token) return;
+            const type = activeTab.toLowerCase();
+            const res = await fetch(`/api/admin/export?type=${type}`, { headers: { authorization: `Bearer ${token}` } });
+            if (!res.ok) { alert('Export failed'); return; }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${type}-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.${type==='settings'?'json':(type==='emails'?'json':'csv')}`;
+            document.body.appendChild(a); a.click(); a.remove();
+            URL.revokeObjectURL(url);
+          }}><IconDownload size={18} className="mr-2" />Export</Button>
+          <Button variant="secondary" onClick={async () => {
+            const type = activeTab.toLowerCase();
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = (type==='settings' || type==='emails') ? '.json,application/json' : '.csv,text/csv';
+            input.onchange = async () => {
+              const file = (input.files && input.files[0]) || null; if (!file) return;
+              const token = await getAccessToken(); if (!token) return;
+              const text = await file.text();
+              const res = await fetch(`/api/admin/import?type=${type}`, { method: 'POST', headers: { 'content-type': (type==='settings' || type==='emails') ? 'application/json' : 'text/plain', authorization: `Bearer ${token}` }, body: text });
+              const j = await res.json().catch(()=>null);
+              if (!j || !j.ok) alert(j?.error?.message || 'Import failed'); else alert('Import complete');
+            };
+            input.click();
+          }}><IconUpload size={18} className="mr-2" />Import</Button>
         </div>
       </div>
 
       {/* Tab Navigation */}
       <div className="mb-4 flex flex-wrap gap-2">
-        {(['Verticals','Campaigns','Agents','Customers'] as const).map(tab => (
+        {(['Verticals','Campaigns','Agents','Customers','Cases'] as const).map(tab => (
           <button
             key={tab}
             className={`px-3 py-1.5 rounded-lg text-sm border ${activeTab===tab ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-transparent'} border-black/10 dark:border-white/10`}
@@ -390,6 +419,23 @@ export default function AgentPage() {
             <CardHeader title="Agents" subtitle="Manage and browse agents" actions={
               <div className="hidden md:flex items-center gap-2">
                 <Button variant="primary" onClick={() => setInviteOpen(true)}>Invite Agent</Button>
+                <Button variant="secondary" onClick={async () => {
+                  const username = prompt('AI agent username (a-z0-9_):','ai_helper');
+                  if (!username) return;
+                  const role = prompt('Role (agent/lead/manager):','agent') || 'agent';
+                  const personality = prompt('AI personality/system message (optional):','You are a helpful sales assistant.');
+                  const token = await getAccessToken(); if (!token) return;
+                  const res = await fetch('/api/admin/agents', { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'createAiAgent', username, role, personality }) });
+                  const j = await res.json().catch(()=>null);
+                  if (!j || !j.ok) { alert(j?.error?.message || 'Failed to create AI agent'); return; }
+                  // reload agents
+                  try {
+                    const qs = new URLSearchParams(); if (agentQ) qs.set('q', agentQ);
+                    const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
+                    const ja = await resAgents.json().catch(() => null);
+                    if (ja && ja.ok) setAgents(ja.data.agents || []);
+                  } catch {}
+                }}>Create AI Agent</Button>
               </div>
             } />
             <CardBody>

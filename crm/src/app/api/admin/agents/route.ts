@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const sortCol = allowedSort.has(sort) ? sort : 'username';
 
   const rows = db.prepare(`
-    SELECT id, username, email, role, status, created_at, last_login_at, last_seen_at
+    SELECT id, username, email, role, status, created_at, last_login_at, last_seen_at, is_ai
     FROM users
     WHERE role IN ('power','manager','lead','agent')
       AND (LOWER(username) LIKE ? OR LOWER(COALESCE(email,'')) LIKE ?)
@@ -50,6 +50,17 @@ export async function POST(req: NextRequest) {
   if (!body || !body.action) return jsonError('VALIDATION', { status: 400 });
   try {
     switch (body.action) {
+      case 'createAiAgent': {
+        const username = String(body.username || '').trim().toLowerCase();
+        const role = (['agent','lead','manager'].includes(String(body.role)) ? String(body.role) : 'agent');
+        if (!username.match(/^[a-z0-9_]{3,20}$/)) return jsonError('VALIDATION', { status: 400, message: 'Invalid username' });
+        const exists = db.prepare(`SELECT id FROM users WHERE username = ?`).get(username) as any;
+        if (exists) return jsonError('VALIDATION', { status: 400, message: 'Username taken' });
+        db.prepare(`INSERT INTO users (username, email, password_hash, role, status, is_ai, ai_personality, created_at, updated_at) VALUES (?, NULL, '', ?, 'active', 1, ?, ?, ?)`)
+          .run(username, role, String(body.personality || ''), now, now);
+        const row = db.prepare(`SELECT id FROM users WHERE username = ?`).get(username) as any;
+        return jsonOk({ id: row?.id });
+      }
       case 'assignSupervisor': {
         const { agent_user_id, supervisor_user_id, kind } = body;
         if (!agent_user_id || !supervisor_user_id || (kind !== 'manager' && kind !== 'lead')) return jsonError('VALIDATION', { status: 400 });

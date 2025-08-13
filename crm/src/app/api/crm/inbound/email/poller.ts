@@ -72,6 +72,10 @@ async function runOnce(): Promise<number> {
       const raw = source.toString('utf8');
       const text = extractPlainText(raw);
       const mid = extractHeader(raw, 'Message-Id');
+      // Skip if explicitly deleted earlier
+      const del = db.prepare(`SELECT 1 FROM mail_deleted WHERE (message_id IS NOT NULL AND message_id = ?) OR (imap_uid IS NOT NULL AND imap_uid = ?)`)
+        .get(mid || null, msgUid) as any;
+      if (del) { continue; }
       const exists = db.prepare(`SELECT id FROM mail_messages WHERE imap_uid = ? OR (message_id IS NOT NULL AND message_id = ?)`)
         .get(msgUid, mid || null) as any;
       if (!exists) {
@@ -96,12 +100,19 @@ async function runOnce(): Promise<number> {
         if (cust && cust.id) {
           const existsComm = mid ? db.prepare(`SELECT id FROM communications WHERE message_id = ? AND customer_id = ?`).get(mid, Number(cust.id)) as any : null;
           if (!existsComm) {
-            db.prepare(`INSERT INTO communications (type, direction, subject, body, customer_id, agent_user_id, campaign_id, message_id, created_at) VALUES ('email','in',?,?,?,?,?,?,?)`).run(
+            const caseMatch = subject.match(/\[(CS-[A-Z0-9]{6})\]/);
+            let caseId: number | null = null;
+            if (caseMatch && caseMatch[1]) {
+              const rowCase = db.prepare(`SELECT id FROM cases WHERE case_number = ?`).get(caseMatch[1]) as any;
+              caseId = rowCase?.id || null;
+            }
+            db.prepare(`INSERT INTO communications (type, direction, subject, body, customer_id, agent_user_id, campaign_id, case_id, message_id, created_at) VALUES ('email','in',?,?,?,?,?,?,?,?)`).run(
               subject || null,
               text || null,
               Number(cust.id),
               null,
               null,
+              caseId,
               mid,
               msgDate,
             );
@@ -118,12 +129,19 @@ async function runOnce(): Promise<number> {
         cust = { id: Number(info.lastInsertRowid) };
       }
       if (cust && cust.id) {
-        db.prepare(`INSERT INTO communications (type, direction, subject, body, customer_id, agent_user_id, campaign_id, message_id, created_at) VALUES ('email','in',?,?,?,?,?,?,?)`).run(
+        const caseMatch = subject.match(/\[(CS-[A-Z0-9]{6})\]/);
+        let caseId: number | null = null;
+        if (caseMatch && caseMatch[1]) {
+          const rowCase = db.prepare(`SELECT id FROM cases WHERE case_number = ?`).get(caseMatch[1]) as any;
+          caseId = rowCase?.id || null;
+        }
+        db.prepare(`INSERT INTO communications (type, direction, subject, body, customer_id, agent_user_id, campaign_id, case_id, message_id, created_at) VALUES ('email','in',?,?,?,?,?,?,?,?)`).run(
           subject || null,
           text || null,
           Number(cust.id),
           null,
           null,
+          caseId,
           extractHeader(raw, 'Message-Id') || null,
           new Date().toISOString(),
         );

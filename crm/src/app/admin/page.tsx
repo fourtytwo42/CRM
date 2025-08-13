@@ -199,7 +199,51 @@ export default function AdminPage() {
     <main className="container-hero py-8">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold">Admin</h1>
-        <div className="text-sm opacity-70">{activeTab === 'users' ? `${users.length} users` : (activeTab === 'ai' ? `${aiProviders.length} AI configs` : 'Telephony')}</div>
+        <div className="flex items-center gap-2">
+          {activeTab === 'email' ? (
+            <>
+              <Button variant="secondary" onClick={async ()=>{
+                const token = await getAccessToken(); if (!token) return;
+                const res = await fetch('/api/admin/export?type=emails', { headers: { authorization: `Bearer ${token}` } });
+                if (!res.ok) { alert('Export failed'); return; }
+                const blob = await res.blob(); const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = `emails-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+              }}>Export Email</Button>
+              <Button variant="secondary" onClick={async ()=>{
+                const input = document.createElement('input'); input.type = 'file'; input.accept = '.json,application/json';
+                input.onchange = async () => {
+                  const file = (input.files && input.files[0]) || null; if (!file) return;
+                  const token = await getAccessToken(); if (!token) return;
+                  const text = await file.text();
+                  const res = await fetch('/api/admin/import?type=emails', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: text });
+                  const j = await res.json().catch(()=>null); if (!j || !j.ok) alert(j?.error?.message || 'Import failed'); else alert('Import complete');
+                };
+                input.click();
+              }}>Import Email</Button>
+            </>
+          ) : activeTab === 'users' || activeTab === 'ai' || activeTab === 'telephony' ? (
+            <>
+              <Button variant="secondary" onClick={async ()=>{
+                const token = await getAccessToken(); if (!token) return;
+                const res = await fetch('/api/admin/export?type=settings', { headers: { authorization: `Bearer ${token}` } });
+                if (!res.ok) { alert('Export failed'); return; }
+                const blob = await res.blob(); const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = `settings-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+              }}>Export Settings</Button>
+              <Button variant="secondary" onClick={async ()=>{
+                const input = document.createElement('input'); input.type = 'file'; input.accept = '.json,application/json';
+                input.onchange = async () => {
+                  const file = (input.files && input.files[0]) || null; if (!file) return;
+                  const token = await getAccessToken(); if (!token) return;
+                  const text = await file.text();
+                  const res = await fetch('/api/admin/import?type=settings', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: text });
+                  const j = await res.json().catch(()=>null); if (!j || !j.ok) alert(j?.error?.message || 'Import failed'); else alert('Import complete');
+                };
+                input.click();
+              }}>Import Settings</Button>
+            </>
+          ) : null}
+        </div>
       </div>
       <div className="mb-4 flex items-center gap-2">
         <Button variant={activeTab === 'users' ? 'primary' : 'secondary'} onClick={() => setActiveTab('users')}>Users</Button>
@@ -617,155 +661,7 @@ export default function AdminPage() {
     </main>
   );
 
-  function AdminEmailClient() {
-    const [box, setBox] = useState<'inbox'|'sent'>('inbox');
-    const [items, setItems] = useState<Array<any>>([]);
-    const [stats, setStats] = useState<{ inbox: number; sent: number; read_in: number; unread_in: number }>({ inbox: 0, sent: 0, read_in: 0, unread_in: 0 });
-    const [selected, setSelected] = useState<any | null>(null);
-    const [page, setPage] = useState(1);
-    const [pageSize] = useState(50);
-    const [total, setTotal] = useState(0);
-    const [busy, setBusy] = useState<'idle'|'loading'|'sending'>('idle');
-    const [composeOpen, setComposeOpen] = useState(false);
-    const [compose, setCompose] = useState<{ to: string; subject: string; body: string }>({ to: '', subject: '', body: '' });
-    useEffect(() => { (async () => {
-      setBusy('loading');
-      try {
-        const token = await getAccessToken();
-        if (!token) return;
-        const res = await fetch(`/api/admin/email?box=${box}&page=${page}&pageSize=${pageSize}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-        const json = await res.json();
-        if (json.ok) { setItems(json.data.items || []); setTotal(json.data.total || 0); setStats(json.data.stats || { inbox: 0, sent: 0, read_in: 0, unread_in: 0 }); }
-      } finally { setBusy('idle'); }
-    })(); }, [box, page, pageSize]);
-    return (
-      <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Email</h2>
-          <div className="text-xs opacity-70">Inbox: {stats.inbox} ({stats.unread_in} unread) · Sent: {stats.sent}</div>
-        </div>
-        <div className="flex items-center gap-2 mb-3">
-          <Button variant={box==='inbox'?'primary':'secondary'} onClick={() => { setBox('inbox'); setPage(1); }}>Inbox</Button>
-          <Button variant={box==='sent'?'primary':'secondary'} onClick={() => { setBox('sent'); setPage(1); }}>Sent</Button>
-          <Button onClick={() => setComposeOpen(true)}>New</Button>
-          <Button variant="secondary" onClick={async () => {
-            setBusy('loading');
-            try {
-              const token = await getAccessToken();
-              if (!token) return;
-              const res = await fetch('/api/crm/inbound/email/poll', { method: 'POST', headers: { authorization: `Bearer ${token}` } });
-              const j = await res.json();
-              // eslint-disable-next-line no-console
-              console.log('Check Now:', j);
-              // Reload current box
-              const res2 = await fetch(`/api/admin/email?box=${box}&page=${page}&pageSize=${pageSize}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-              const json2 = await res2.json();
-              if (json2.ok) { setItems(json2.data.items || []); setTotal(json2.data.total || 0); setStats(json2.data.stats || stats); }
-            } finally { setBusy('idle'); }
-          }}>Check Now</Button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[520px] overflow-auto">
-            {items.length === 0 ? (
-              <div className="p-4 text-sm opacity-70">No messages.</div>
-            ) : (
-              <ul className="divide-y divide-black/5 dark:divide-white/10 text-sm">
-                {items.map((m) => (
-                  <li key={m.id} className={`px-3 py-2 cursor-pointer ${box==='inbox' && !m.seen ? 'bg-black/5 dark:bg-white/10' : ''}`} onClick={async () => {
-                    setSelected(m);
-                    if (box==='inbox' && !m.seen) {
-                      const token = await getAccessToken();
-                      await fetch('/api/admin/email', { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ id: m.id }) });
-                      setItems(items.map(x => x.id===m.id ? { ...x, seen: 1 } : x));
-                    }
-                  }}>
-                    <div className="flex items-center justify-between">
-                      <div className="truncate">{box==='inbox' ? m.from_email : m.to_email}</div>
-                      <div className="flex items-center gap-2">
-                        <div className="opacity-60 text-xs">{new Date(m.created_at).toLocaleString()}</div>
-                        <button title="Delete" className="text-red-600" onClick={async (e) => {
-                          e.stopPropagation();
-                          if (!confirm('Delete this email?')) return;
-                          const token = await getAccessToken();
-                          await fetch(`/api/admin/email?id=${m.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
-                          setItems(prev => prev.filter(x => x.id !== m.id));
-                          if (selected && selected.id === m.id) setSelected(null);
-                        }}>
-                          🗑️
-                        </button>
-                      </div>
-                    </div>
-                    <div className="truncate font-medium">{m.subject || '(no subject)'}</div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="rounded-xl border border-black/10 dark:border-white/10 min-h-[520px]">
-            {!selected ? (
-              <div className="p-4 text-sm opacity-70">Select an email to preview.</div>
-            ) : (
-              <div className="p-4 text-sm space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{selected.subject || '(no subject)'}</div>
-                    <div className="opacity-60 text-xs">{box==='inbox' ? selected.from_email : selected.to_email} · {new Date(selected.created_at).toLocaleString()}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setCompose({
-                          to: box === 'inbox' ? selected.from_email : (selected.to_email || ''),
-                          subject: `Re: ${selected.subject || ''}`,
-                          body: `\n\nOn ${new Date(selected.created_at).toLocaleString()}, they wrote:\n> ${String(selected.body || '').split('\n').map((l:string)=>l?'> '+l:'>').join('\n')}`,
-                        });
-                        setComposeOpen(true);
-                      }}
-                    >
-                      Reply
-                    </Button>
-                    <button title="Delete" className="text-red-600" onClick={async () => {
-                      if (!confirm('Delete this email?')) return;
-                      const token = await getAccessToken();
-                      await fetch(`/api/admin/email?id=${selected.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
-                      setItems(prev => prev.filter(x => x.id !== selected.id));
-                      setSelected(null);
-                    }}>
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-                <div className="whitespace-pre-wrap border-t pt-3 border-black/10 dark:border-white/10">{selected.body || ''}</div>
-              </div>
-            )}
-          </div>
-        </div>
-        <Dialog open={composeOpen} onOpenChange={setComposeOpen} title="Compose Email">
-          <div className="space-y-2">
-            <Input placeholder="To" value={compose.to} onChange={(e) => setCompose({ ...compose, to: e.target.value })} />
-            <Input placeholder="Subject" value={compose.subject} onChange={(e) => setCompose({ ...compose, subject: e.target.value })} />
-            <textarea className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 min-h-[160px]" placeholder="Message" value={compose.body} onChange={(e) => setCompose({ ...compose, body: e.target.value })} />
-          </div>
-          <DialogActions>
-            <Button variant="secondary" onClick={() => setComposeOpen(false)}>Cancel</Button>
-            <Button onClick={async () => {
-              setBusy('sending');
-              try {
-                const token = await getAccessToken();
-                if (!token) return;
-                // Real outbound send via SMTP
-                const res = await fetch(`/api/admin/email/send`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ to: compose.to, subject: compose.subject, body: compose.body }) });
-                const j = await res.json();
-                if (!j.ok) alert(j?.error?.message || 'Failed'); else { setComposeOpen(false); setBox('sent'); setPage(1); }
-              } finally { setBusy('idle'); }
-            }}>Send</Button>
-          </DialogActions>
-        </Dialog>
-      </div>
-    );
-  }
+  
   function isOnline(lastSeen?: string | null) {
     if (!lastSeen) return false;
     return Date.now() - new Date(lastSeen).getTime() < 60_000;
@@ -940,6 +836,197 @@ export default function AdminPage() {
       setChatBusy('idle');
     }
   }
+}
+
+// Standalone Admin email client with bulk delete and reduced flashing
+function AdminEmailClient() {
+  const [box, setBox] = useState<'inbox'|'sent'>('inbox');
+  const [items, setItems] = useState<Array<any>>([]);
+  const [stats, setStats] = useState<{ inbox: number; sent: number; read_in: number; unread_in: number }>({ inbox: 0, sent: 0, read_in: 0, unread_in: 0 });
+  const [selected, setSelected] = useState<any | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(50);
+  const [total, setTotal] = useState(0);
+  const [busy, setBusy] = useState<'idle'|'loading'|'sending'>('idle');
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [compose, setCompose] = useState<{ to: string; subject: string; body: string }>({ to: '', subject: '', body: '' });
+  const [checkedIds, setCheckedIds] = useState<number[]>([]);
+  const allChecked = items.length > 0 && checkedIds.length === items.length;
+
+  useEffect(() => { (async () => {
+    setBusy('loading');
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
+      const res = await fetch(`/api/admin/email?box=${box}&page=${page}&pageSize=${pageSize}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+      const json = await res.json();
+      if (json.ok) {
+        const nextItems = json.data.items || [];
+        const sameLength = nextItems.length === items.length;
+        const sameIds = sameLength && nextItems.every((n: any, i: number) => items[i]?.id === n.id && items[i]?.seen === n.seen);
+        if (!sameIds) setItems(nextItems);
+        setTotal(json.data.total || 0);
+        setStats(json.data.stats || { inbox: 0, sent: 0, read_in: 0, unread_in: 0 });
+        if (selected) {
+          const still = nextItems.find((x: any) => x.id === selected.id);
+          setSelected(still || null);
+        }
+        setCheckedIds((prev) => prev.filter((id) => nextItems.some((x: any) => x.id === id)));
+      }
+    } finally { setBusy('idle'); }
+  })(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [box, page, pageSize]);
+
+  return (
+    <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-semibold">Email</h2>
+        <div className="text-xs opacity-70">Inbox: {stats.inbox} ({stats.unread_in} unread) · Sent: {stats.sent}</div>
+      </div>
+      <div className="flex items-center gap-2 mb-3">
+        <Button variant={box==='inbox'?'primary':'secondary'} onClick={() => { setBox('inbox'); setPage(1); }}>Inbox</Button>
+        <Button variant={box==='sent'?'primary':'secondary'} onClick={() => { setBox('sent'); setPage(1); }}>Sent</Button>
+        <Button onClick={() => setComposeOpen(true)}>New</Button>
+        {checkedIds.length > 0 && (
+          <Button variant="destructive" onClick={async () => {
+            if (!confirm(`Delete ${checkedIds.length} selected email(s)?`)) return;
+            const token = await getAccessToken();
+            if (!token) return;
+            await fetch(`/api/admin/email`, { method: 'DELETE', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ ids: checkedIds }) });
+            setItems((prev) => prev.filter((x) => !checkedIds.includes(x.id)));
+            if (selected && checkedIds.includes(selected.id)) setSelected(null);
+            setCheckedIds([]);
+          }}>Delete selected</Button>
+        )}
+        <Button variant="secondary" onClick={async () => {
+          setBusy('loading');
+          try {
+            const token = await getAccessToken();
+            if (!token) return;
+            const res = await fetch('/api/crm/inbound/email/poll', { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+            const j = await res.json();
+            // eslint-disable-next-line no-console
+            console.log('Check Now:', j);
+            const res2 = await fetch(`/api/admin/email?box=${box}&page=${page}&pageSize=${pageSize}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+            const json2 = await res2.json();
+            if (json2.ok) { setItems(json2.data.items || []); setTotal(json2.data.total || 0); setStats(json2.data.stats || stats); }
+          } finally { setBusy('idle'); }
+        }}>Check Now</Button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[520px] overflow-auto">
+          {items.length === 0 ? (
+            <div className="p-4 text-sm opacity-70">No messages.</div>
+          ) : (
+            <ul className="divide-y divide-black/5 dark:divide-white/10 text-sm">
+              <li className="px-3 py-2 flex items-center gap-3 sticky top-0 bg-white/80 dark:bg-black/40 backdrop-blur z-10">
+                <input type="checkbox" className="size-4" checked={allChecked} onChange={(e) => {
+                  setCheckedIds(e.target.checked ? items.map((x) => x.id) : []);
+                }} />
+                <span className="text-xs opacity-70">Select all</span>
+              </li>
+              {items.map((m) => (
+                <li key={m.id} className={`px-3 py-2 cursor-pointer ${box==='inbox' && !m.seen ? 'bg-black/5 dark:bg-white/10' : ''}`} onClick={async () => {
+                  setSelected(m);
+                  if (box==='inbox' && !m.seen) {
+                    const token = await getAccessToken();
+                    await fetch('/api/admin/email', { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ id: m.id }) });
+                    setItems((prev) => prev.map(x => x.id===m.id ? { ...x, seen: 1 } : x));
+                  }
+                }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <input type="checkbox" className="size-4" checked={checkedIds.includes(m.id)} onChange={(e) => {
+                        e.stopPropagation();
+                        setCheckedIds((prev) => e.target.checked ? Array.from(new Set([...prev, m.id])) : prev.filter((id) => id !== m.id));
+                      }} />
+                      <div className="truncate">{box==='inbox' ? m.from_email : m.to_email}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="opacity-60 text-xs">{new Date(m.created_at).toLocaleString()}</div>
+                      <button title="Delete" className="text-red-600" onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!confirm('Delete this email?')) return;
+                        const token = await getAccessToken();
+                        await fetch(`/api/admin/email?id=${m.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+                        setItems(prev => prev.filter(x => x.id !== m.id));
+                        setCheckedIds((prev) => prev.filter((id) => id !== m.id));
+                        if (selected && selected.id === m.id) setSelected(null);
+                      }}>
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                  <div className="truncate font-medium">{m.subject || '(no subject)'}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="rounded-xl border border-black/10 dark:border-white/10 min-h-[520px]">
+          {!selected ? (
+            <div className="p-4 text-sm opacity-70">Select an email to preview.</div>
+          ) : (
+            <div className="p-4 text-sm space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">{selected.subject || '(no subject)'}</div>
+                  <div className="opacity-60 text-xs">{box==='inbox' ? selected.from_email : selected.to_email} · {new Date(selected.created_at).toLocaleString()}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setCompose({
+                        to: box === 'inbox' ? selected.from_email : (selected.to_email || ''),
+                        subject: `Re: ${selected.subject || ''}`,
+                        body: `\n\nOn ${new Date(selected.created_at).toLocaleString()}, they wrote:\n> ${String(selected.body || '').split('\n').map((l:string)=>l?'> '+l:'>').join('\n')}`,
+                      });
+                      setComposeOpen(true);
+                    }}
+                  >
+                    Reply
+                  </Button>
+                  <button title="Delete" className="text-red-600" onClick={async () => {
+                    if (!confirm('Delete this email?')) return;
+                    const token = await getAccessToken();
+                    await fetch(`/api/admin/email?id=${selected.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+                    setItems(prev => prev.filter(x => x.id !== selected.id));
+                    setCheckedIds((prev) => prev.filter((id) => id !== selected.id));
+                    setSelected(null);
+                  }}>
+                    🗑️
+                  </button>
+                </div>
+              </div>
+              <div className="whitespace-pre-wrap border-t pt-3 border-black/10 dark:border-white/10">{selected.body || ''}</div>
+            </div>
+          )}
+        </div>
+      </div>
+      <Dialog open={composeOpen} onOpenChange={setComposeOpen} title="Compose Email">
+        <div className="space-y-2">
+          <Input placeholder="To" value={compose.to} onChange={(e) => setCompose({ ...compose, to: e.target.value })} />
+          <Input placeholder="Subject" value={compose.subject} onChange={(e) => setCompose({ ...compose, subject: e.target.value })} />
+          <textarea className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 min-h-[160px]" placeholder="Message" value={compose.body} onChange={(e) => setCompose({ ...compose, body: e.target.value })} />
+        </div>
+        <DialogActions>
+          <Button variant="secondary" onClick={() => setComposeOpen(false)}>Cancel</Button>
+          <Button onClick={async () => {
+            setBusy('sending');
+            try {
+              const token = await getAccessToken();
+              if (!token) return;
+              const res = await fetch(`/api/admin/email/send`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ to: compose.to, subject: compose.subject, body: compose.body }) });
+              const j = await res.json();
+              if (!j.ok) alert(j?.error?.message || 'Failed'); else { setComposeOpen(false); setBox('sent'); setPage(1); }
+            } finally { setBusy('idle'); }
+          }}>Send</Button>
+        </DialogActions>
+      </Dialog>
+    </div>
+  );
 }
 function TelephonySettingsBlock() {
   const [provider, setProvider] = useState<'bulkvs'>('bulkvs');

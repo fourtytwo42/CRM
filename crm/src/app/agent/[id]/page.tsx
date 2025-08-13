@@ -35,8 +35,8 @@ export default function AgentDetailPage() {
     <main className="container-hero py-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Agent: {data.info.username}</h1>
-          <p className="opacity-70">{data.info.email} · {data.info.status}</p>
+          <h1 className="text-2xl font-bold">Agent: {data.info.username} {data.info.is_ai ? '🤖' : ''}</h1>
+          <p className="opacity-70">{data.info.is_ai ? 'AI Agent' : (data.info.email || '—')} · {data.info.status}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={() => router.back()}>Back</Button>
@@ -106,6 +106,20 @@ export default function AgentDetailPage() {
               </div>
             </CardBody>
           </Card>
+          {data.info.is_ai && (
+            <Card>
+              <CardHeader title="AI Personality" />
+              <CardBody>
+                <div className="grid gap-2 text-sm">
+                  <div className="opacity-70">This system message will guide how the AI agent behaves.</div>
+                  <textarea className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 min-h-[120px]" defaultValue={data.info.ai_personality || ''} onBlur={async (e) => {
+                    const token = await getAccessToken(); if (!token) return;
+                    await fetch(`/api/crm/agents/${id}/ai`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ personality: e.target.value }) });
+                  }} />
+                </div>
+              </CardBody>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-6">

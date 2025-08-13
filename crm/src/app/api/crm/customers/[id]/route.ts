@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const campaigns = db.prepare(`SELECT c.id, c.name, v.name as vertical FROM campaigns c LEFT JOIN verticals v ON v.id = c.vertical_id JOIN customer_campaigns cc ON cc.campaign_id = c.id WHERE cc.customer_id = ? ORDER BY v.name, c.name`).all(id);
   const tasks = db.prepare(`SELECT * FROM tasks WHERE customer_id = ? ORDER BY due_date ASC LIMIT 200`).all(id);
   const notes = db.prepare(`SELECT n.*, u.username as createdBy FROM notes n JOIN users u ON u.id = n.created_by_user_id WHERE n.customer_id = ? ORDER BY n.created_at DESC LIMIT 200`).all(id);
-  const comms = db.prepare(`SELECT id, type, direction, subject, body, created_at, agent_user_id, campaign_id, message_id, in_reply_to, references_header FROM communications WHERE customer_id = ? ORDER BY created_at DESC LIMIT 200`).all(id);
+  const comms = db.prepare(`SELECT id, type, direction, subject, body, created_at, agent_user_id, campaign_id, case_id, message_id, in_reply_to, references_header FROM communications WHERE customer_id = ? ORDER BY created_at DESC LIMIT 200`).all(id);
   return jsonOk({ info, campaigns, tasks, notes, comms });
 }
 

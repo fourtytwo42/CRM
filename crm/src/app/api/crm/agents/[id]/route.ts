@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (me.status !== 'active') return jsonError('FORBIDDEN', { status: 403 });
   const db = getDb();
   const id = Number(params.id);
-  const info = db.prepare(`SELECT id, username, email, role, status, created_at, last_login_at, last_seen_at FROM users WHERE id = ?`).get(id);
+  const info = db.prepare(`SELECT id, username, email, role, status, is_ai, ai_personality, created_at, last_login_at, last_seen_at FROM users WHERE id = ?`).get(id);
   if (!info) return jsonError('NOT_FOUND', { status: 404 });
   const campaigns = db.prepare(`
     SELECT c.id, c.name, v.name as vertical

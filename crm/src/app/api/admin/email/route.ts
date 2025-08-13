@@ -34,14 +34,31 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try { await requireAdmin(req); } catch { return jsonError('FORBIDDEN', { status: 403 }); }
-  const url = new URL(req.url);
-  const id = Number(url.searchParams.get('id') || '0');
-  if (!id) return jsonError('VALIDATION', { status: 400 });
   const db = getDb();
-  const row = db.prepare(`SELECT imap_uid FROM mail_messages WHERE id = ?`).get(id) as any;
-  db.prepare(`DELETE FROM mail_messages WHERE id = ?`).run(id);
-  // Optionally also delete from IMAP by UID if available
-  if (row && row.imap_uid) {
+  const url = new URL(req.url);
+  let ids: number[] = [];
+  const qpId = Number(url.searchParams.get('id') || '0');
+  if (qpId) ids = [qpId];
+  if (!qpId) {
+    const body = await req.json().catch(() => null) as { ids?: number[] } | null;
+    if (body && Array.isArray(body.ids)) ids = body.ids.map((n) => Number(n)).filter(Number.isFinite);
+  }
+  if (!ids.length) return jsonError('VALIDATION', { status: 400, message: 'No ids provided' });
+
+  const rows = db.prepare(`SELECT id, message_id, imap_uid FROM mail_messages WHERE id IN (${ids.map(()=>'?').join(',')})`).all(...ids) as Array<{ id: number; message_id?: string|null; imap_uid?: number|null }>;
+  if (!rows.length) return jsonOk();
+
+  // Delete from local table
+  db.prepare(`DELETE FROM mail_messages WHERE id IN (${ids.map(()=>'?').join(',')})`).run(...ids);
+
+  // Record as deleted to suppress re-download
+  const now = new Date().toISOString();
+  const ins = db.prepare(`INSERT OR IGNORE INTO mail_deleted (message_id, imap_uid, deleted_at) VALUES (?, ?, ?)`);
+  for (const r of rows) ins.run(r.message_id || null, r.imap_uid || null, now);
+
+  // Attempt IMAP delete in one session for all UIDs
+  const uids = rows.map(r => r.imap_uid).filter((u): u is number => Number.isFinite(u as any));
+  if (uids.length) {
     try {
       const { ImapFlow } = await import('imapflow');
       const cfg = db.prepare(`SELECT imap_host, imap_port, imap_secure, imap_username, imap_password FROM email_settings WHERE id = 1`).get() as any;
@@ -49,11 +66,14 @@ export async function DELETE(req: NextRequest) {
         const client = new ImapFlow({ host: cfg.imap_host, port: Number(cfg.imap_port || 993), secure: !!cfg.imap_secure, auth: { user: cfg.imap_username, pass: cfg.imap_password }, logger: false });
         await client.connect();
         await client.mailboxOpen('INBOX', { readOnly: false });
-        await client.messageDelete(Number(row.imap_uid), { uid: true });
+        for (const uid of uids) {
+          try { await client.messageDelete(Number(uid), { uid: true }); } catch {}
+        }
         await client.logout();
       }
     } catch {}
   }
+
   return jsonOk();
 }
 
