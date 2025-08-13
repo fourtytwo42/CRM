@@ -25,7 +25,7 @@ type AiProviderRow = {
 };
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'users'|'ai'|'telephony'>('users');
+  const [activeTab, setActiveTab] = useState<'users'|'ai'|'telephony'|'email'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<'username'|'role'|'status'|'created_at'|'last_login_at'|'last_seen_at'>('created_at');
@@ -44,6 +44,15 @@ export default function AdminPage() {
   const [emailMsg, setEmailMsg] = useState<string | null>(null);
   const [regEnabled, setRegEnabled] = useState<boolean>(true);
   const [emailVerificationEnabled, setEmailVerificationEnabled] = useState<boolean>(false);
+  // IMAP inbound polling settings
+  const [imapEnabled, setImapEnabled] = useState(false);
+  const [imapHost, setImapHost] = useState('');
+  const [imapPort, setImapPort] = useState<number | ''>('');
+  const [imapSecure, setImapSecure] = useState(true);
+  const [imapUsername, setImapUsername] = useState('');
+  const [imapHasPassword, setImapHasPassword] = useState(false);
+  const [imapPassword, setImapPassword] = useState('');
+  const [imapPollSeconds, setImapPollSeconds] = useState<number | ''>('');
 
   // AI tab state
   const [aiLoading, setAiLoading] = useState<boolean>(false);
@@ -122,6 +131,15 @@ export default function AdminPage() {
           });
           setSmtpHasPassword(!!json.data?.hasPassword);
           setSmtpClearPassword(false);
+          // IMAP
+          setImapEnabled(!!json.data?.imap_enabled);
+          setImapHost(json.data?.imap_host || '');
+          setImapPort(Number(json.data?.imap_port || 993));
+          setImapSecure(!!json.data?.imap_secure);
+          setImapUsername(json.data?.imap_username || '');
+          setImapHasPassword(!!json.data?.imap_password);
+          setImapPassword('');
+          setImapPollSeconds(Number(json.data?.imap_poll_seconds || 60));
         }
       } catch {}
     };
@@ -187,6 +205,7 @@ export default function AdminPage() {
         <Button variant={activeTab === 'users' ? 'primary' : 'secondary'} onClick={() => setActiveTab('users')}>Users</Button>
         <Button variant={activeTab === 'ai' ? 'primary' : 'secondary'} onClick={() => setActiveTab('ai')}>AI</Button>
         <Button variant={activeTab === 'telephony' ? 'primary' : 'secondary'} onClick={() => setActiveTab('telephony')}>Call/SMS</Button>
+        <Button variant={activeTab === 'email' ? 'primary' : 'secondary'} onClick={() => setActiveTab('email')}>Email</Button>
       </div>
       {activeTab === 'users' ? (
         <>
@@ -283,7 +302,7 @@ export default function AdminPage() {
                 setEmailBusy('saving'); setEmailMsg(null);
                 const token = await getAccessToken();
                 if (!token) { setEmailBusy('idle'); setEmailMsg('Not authorized. Please sign in again.'); return; }
-                const payload: any = { ...emailCfg };
+                const payload: any = { ...emailCfg, imap_enabled: imapEnabled, imap_host: imapHost, imap_port: imapPort || 993, imap_secure: imapSecure, imap_username: imapUsername, imap_poll_seconds: imapPollSeconds || 60 };
                 // Apply password intent:
                 // - If Clear is checked, set to null (remove from DB)
                 // - Else if user typed a new password, send it
@@ -295,6 +314,7 @@ export default function AdminPage() {
                 } else {
                   delete payload.password;
                 }
+                if ((imapPassword || '').length > 0) payload.imap_password = imapPassword; else payload.imap_password = undefined;
                 const res = await fetch('/api/admin/settings/email', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
                 const json = await res.json();
                 setEmailBusy('idle');
@@ -307,6 +327,7 @@ export default function AdminPage() {
                   }
                   setEmailCfg((cfg) => ({ ...cfg, password: '' }));
                   setSmtpClearPassword(false);
+                  setImapPassword('');
                 }
               }}>
                 <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -354,6 +375,30 @@ export default function AdminPage() {
                   <Button type="submit" variant="primary">Save</Button>
                 </div>
               </form>
+
+            {/* IMAP inbound poller settings */}
+            <div className="h-px bg-black/10 dark:bg-white/10 my-5" />
+            <div className="space-y-2">
+              <h3 className="font-medium">Inbound Email (IMAP poller)</h3>
+              <p className="text-sm opacity-70">Enable polling your mailbox every N seconds to ingest incoming emails into customer communications.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="text-sm flex items-center gap-2">
+                  <input type="checkbox" checked={imapEnabled} onChange={(e) => setImapEnabled(e.target.checked)} /> Enable IMAP polling
+                </label>
+                <div />
+                <Input placeholder="IMAP host" value={imapHost} onChange={(e) => setImapHost(e.target.value)} />
+                <div className="grid grid-cols-[1fr_auto] gap-3">
+                  <Input placeholder="Port" type="number" value={imapPort as any} onChange={(e) => setImapPort(e.target.value ? Number(e.target.value) : '')} />
+                  <select className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10" value={imapSecure ? 'true' : 'false'} onChange={(e) => setImapSecure(e.target.value === 'true')}>
+                    <option value="true">TLS</option>
+                    <option value="false">STARTTLS</option>
+                  </select>
+                </div>
+                <Input placeholder="IMAP username" value={imapUsername} onChange={(e) => setImapUsername(e.target.value)} />
+                <Input placeholder={imapHasPassword ? '•••••• (stored)' : 'IMAP password'} value={imapPassword} onChange={(e) => setImapPassword(e.target.value)} />
+                <Input placeholder="Poll interval seconds (15–3600)" type="number" value={imapPollSeconds as any} onChange={(e) => setImapPollSeconds(e.target.value ? Number(e.target.value) : '')} />
+              </div>
+            </div>
 
             {/* Divider and send test section */}
             <div className="h-px bg-black/10 dark:bg-white/10 my-5" />
@@ -532,6 +577,8 @@ export default function AdminPage() {
             </DialogActions>
           </Dialog>
         </>
+      ) : activeTab === 'email' ? (
+        <AdminEmailClient />
       ) : (
         <>
           {/* Telephony: SMS and Call ring-through */}
@@ -556,6 +603,119 @@ export default function AdminPage() {
     </main>
   );
 
+  function AdminEmailClient() {
+    const [box, setBox] = useState<'inbox'|'sent'>('inbox');
+    const [items, setItems] = useState<Array<any>>([]);
+    const [stats, setStats] = useState<{ inbox: number; sent: number; read_in: number; unread_in: number }>({ inbox: 0, sent: 0, read_in: 0, unread_in: 0 });
+    const [selected, setSelected] = useState<any | null>(null);
+    const [page, setPage] = useState(1);
+    const [pageSize] = useState(50);
+    const [total, setTotal] = useState(0);
+    const [busy, setBusy] = useState<'idle'|'loading'|'sending'>('idle');
+    const [composeOpen, setComposeOpen] = useState(false);
+    const [compose, setCompose] = useState<{ to: string; subject: string; body: string }>({ to: '', subject: '', body: '' });
+    useEffect(() => { (async () => {
+      setBusy('loading');
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        const res = await fetch(`/api/admin/email?box=${box}&page=${page}&pageSize=${pageSize}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+        const json = await res.json();
+        if (json.ok) { setItems(json.data.items || []); setTotal(json.data.total || 0); setStats(json.data.stats || { inbox: 0, sent: 0, read_in: 0, unread_in: 0 }); }
+      } finally { setBusy('idle'); }
+    })(); }, [box, page, pageSize]);
+    return (
+      <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold">Email</h2>
+          <div className="text-xs opacity-70">Inbox: {stats.inbox} ({stats.unread_in} unread) · Sent: {stats.sent}</div>
+        </div>
+        <div className="flex items-center gap-2 mb-3">
+          <Button variant={box==='inbox'?'primary':'secondary'} onClick={() => { setBox('inbox'); setPage(1); }}>Inbox</Button>
+          <Button variant={box==='sent'?'primary':'secondary'} onClick={() => { setBox('sent'); setPage(1); }}>Sent</Button>
+            <Button onClick={() => setComposeOpen(true)}>New</Button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[520px] overflow-auto">
+            {items.length === 0 ? (
+              <div className="p-4 text-sm opacity-70">No messages.</div>
+            ) : (
+              <ul className="divide-y divide-black/5 dark:divide-white/10 text-sm">
+                {items.map((m) => (
+                  <li key={m.id} className={`px-3 py-2 cursor-pointer ${box==='inbox' && !m.seen ? 'bg-black/5 dark:bg-white/10' : ''}`} onClick={async () => {
+                    setSelected(m);
+                    if (box==='inbox' && !m.seen) {
+                      const token = await getAccessToken();
+                      await fetch('/api/admin/email', { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ id: m.id }) });
+                      setItems(items.map(x => x.id===m.id ? { ...x, seen: 1 } : x));
+                    }
+                  }}>
+                    <div className="flex items-center justify-between">
+                      <div className="truncate">{box==='inbox' ? m.from_email : m.to_email}</div>
+                      <div className="opacity-60 text-xs">{new Date(m.created_at).toLocaleString()}</div>
+                    </div>
+                    <div className="truncate font-medium">{m.subject || '(no subject)'}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="rounded-xl border border-black/10 dark:border-white/10 min-h-[520px]">
+            {!selected ? (
+              <div className="p-4 text-sm opacity-70">Select an email to preview.</div>
+            ) : (
+              <div className="p-4 text-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">{selected.subject || '(no subject)'}</div>
+                    <div className="opacity-60 text-xs">{box==='inbox' ? selected.from_email : selected.to_email} · {new Date(selected.created_at).toLocaleString()}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setCompose({
+                          to: box === 'inbox' ? selected.from_email : (selected.to_email || ''),
+                          subject: `Re: ${selected.subject || ''}`,
+                          body: `\n\nOn ${new Date(selected.created_at).toLocaleString()}, they wrote:\n> ${String(selected.body || '').split('\n').map((l:string)=>l?'> '+l:'>').join('\n')}`,
+                        });
+                        setComposeOpen(true);
+                      }}
+                    >
+                      Reply
+                    </Button>
+                  </div>
+                </div>
+                <div className="whitespace-pre-wrap border-t pt-3 border-black/10 dark:border-white/10">{selected.body || ''}</div>
+              </div>
+            )}
+          </div>
+        </div>
+        <Dialog open={composeOpen} onOpenChange={setComposeOpen} title="Compose Email">
+          <div className="space-y-2">
+            <Input placeholder="To" value={compose.to} onChange={(e) => setCompose({ ...compose, to: e.target.value })} />
+            <Input placeholder="Subject" value={compose.subject} onChange={(e) => setCompose({ ...compose, subject: e.target.value })} />
+            <textarea className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 min-h-[160px]" placeholder="Message" value={compose.body} onChange={(e) => setCompose({ ...compose, body: e.target.value })} />
+          </div>
+          <DialogActions>
+            <Button variant="secondary" onClick={() => setComposeOpen(false)}>Cancel</Button>
+            <Button onClick={async () => {
+              setBusy('sending');
+              try {
+                const token = await getAccessToken();
+                if (!token) return;
+                // Real outbound send via SMTP
+                const res = await fetch(`/api/admin/email/send`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ to: compose.to, subject: compose.subject, body: compose.body }) });
+                const j = await res.json();
+                if (!j.ok) alert(j?.error?.message || 'Failed'); else { setComposeOpen(false); setBox('sent'); setPage(1); }
+              } finally { setBusy('idle'); }
+            }}>Send</Button>
+          </DialogActions>
+        </Dialog>
+      </div>
+    );
+  }
   function isOnline(lastSeen?: string | null) {
     if (!lastSeen) return false;
     return Date.now() - new Date(lastSeen).getTime() < 60_000;
@@ -859,7 +1019,7 @@ function TelephonySettingsBlock() {
           }}>Save</Button>
         </div>
       </div>
-      <p className="text-xs opacity-70">Basic Auth should be the base64 of username:token without the leading "Basic ". Example: Authorization: Basic [value]</p>
+      <p className="text-xs opacity-70">Basic Auth should be the base64 of username:token without the leading &quot;Basic &quot;. Example: Authorization: Basic [value]</p>
     </div>
   );
 }

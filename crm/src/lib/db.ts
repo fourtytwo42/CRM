@@ -9,7 +9,7 @@ const g = globalThis as any;
 let dbInstance: Database.Database | null = g.__dbInstance || null;
 let migratedOnce = g.__dbMigratedOnce || false;
 
-const SCHEMA_VERSION = 8; // bump when schema/backfills change
+const SCHEMA_VERSION = 11; // bump when schema/backfills change
 
 function ensureDirectoryExists(directoryPath: string): void {
   if (!fs.existsSync(directoryPath)) {
@@ -196,6 +196,15 @@ function migrate(db: Database.Database): void {
       password TEXT,
       from_email TEXT NOT NULL DEFAULT '',
       from_name TEXT,
+      -- IMAP inbound settings
+      imap_host TEXT,
+      imap_port INTEGER,
+      imap_secure INTEGER,
+      imap_username TEXT,
+      imap_password TEXT,
+      imap_poll_seconds INTEGER NOT NULL DEFAULT 60,
+      imap_enabled INTEGER NOT NULL DEFAULT 0,
+      imap_last_uid INTEGER,
       updated_at TEXT NOT NULL
     );
   `);
@@ -425,6 +434,9 @@ function migrate(db: Database.Database): void {
       customer_id INTEGER NOT NULL,
       agent_user_id INTEGER,
       campaign_id INTEGER,
+      message_id TEXT,
+      in_reply_to TEXT,
+      references_header TEXT,
       created_at TEXT NOT NULL,
       FOREIGN KEY(customer_id) REFERENCES customers(id),
       FOREIGN KEY(agent_user_id) REFERENCES users(id),
@@ -433,6 +445,26 @@ function migrate(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_comms_customer ON communications(customer_id);
     CREATE INDEX IF NOT EXISTS idx_comms_agent ON communications(agent_user_id);
     CREATE INDEX IF NOT EXISTS idx_comms_campaign ON communications(campaign_id);
+  `);
+
+  // Site-wide mail messages (for admin email client)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS mail_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      direction TEXT NOT NULL CHECK (direction IN ('in','out')),
+      from_email TEXT,
+      to_email TEXT,
+      subject TEXT,
+      body TEXT,
+      message_id TEXT,
+      in_reply_to TEXT,
+      references_header TEXT,
+      seen INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_mail_messages_created_at ON mail_messages(created_at);
+    CREATE INDEX IF NOT EXISTS idx_mail_messages_direction ON mail_messages(direction);
+    CREATE INDEX IF NOT EXISTS idx_mail_messages_seen ON mail_messages(seen);
   `);
 
   // Lightweight "cases" (deals/tickets/projects)
@@ -459,10 +491,7 @@ function migrate(db: Database.Database): void {
     VALUES (1, '', 465, 1, NULL, NULL, '', NULL, ?)
   `).run(new Date().toISOString());
 
-  db.prepare(`
-    INSERT OR IGNORE INTO telephony_settings (id, provider, bulkvs_base_url, bulkvs_basic_auth, bulkvs_from_did, inbound_token, twilio_account_sid, twilio_auth_token, twilio_from_number, twilio_messaging_service_sid, updated_at)
-    VALUES (1, 'bulkvs', 'https://portal.bulkvs.com/api/v1.0', NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?)
-  `).run(new Date().toISOString());
+  // Note: default seed for telephony_settings (id=1) is handled elsewhere with a minimal column set
 
   // Backfill migration for email column and unique index on existing databases
   try {
@@ -485,6 +514,19 @@ function migrate(db: Database.Database): void {
       }
       if (!cols.some(c => c.name === 'twilio_messaging_service_sid')) {
         db.exec(`ALTER TABLE telephony_settings ADD COLUMN twilio_messaging_service_sid TEXT`);
+      }
+    } catch {}
+    // Backfill: add threading fields to communications if missing
+    try {
+      const commCols = db.prepare(`PRAGMA table_info(communications)`).all() as Array<{ name: string }>;
+      if (!commCols.some(c => c.name === 'message_id')) {
+        db.exec(`ALTER TABLE communications ADD COLUMN message_id TEXT`);
+      }
+      if (!commCols.some(c => c.name === 'in_reply_to')) {
+        db.exec(`ALTER TABLE communications ADD COLUMN in_reply_to TEXT`);
+      }
+      if (!commCols.some(c => c.name === 'references_header')) {
+        db.exec(`ALTER TABLE communications ADD COLUMN references_header TEXT`);
       }
     } catch {}
     const cols = db.prepare(`PRAGMA table_info(users)`).all() as Array<{ name: string }>;
@@ -510,6 +552,40 @@ function migrate(db: Database.Database): void {
     if (!cols.some(c => c.name === 'new_email_verification_sent_at')) {
       db.exec(`ALTER TABLE users ADD COLUMN new_email_verification_sent_at TEXT`);
     }
+  } catch {}
+  // Backfill: create mail_messages table on existing DBs
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS mail_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        direction TEXT NOT NULL CHECK (direction IN ('in','out')),
+        from_email TEXT,
+        to_email TEXT,
+        subject TEXT,
+        body TEXT,
+        message_id TEXT,
+        in_reply_to TEXT,
+        references_header TEXT,
+        seen INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+    `);
+  } catch {}
+  // Backfill: IMAP fields on email_settings
+  try {
+    const ecols = db.prepare(`PRAGMA table_info(email_settings)`).all() as Array<{ name: string }>;
+    const addIfMissing = (name: string, ddl: string) => { if (!ecols.some(c => c.name === name)) db.exec(ddl); };
+    addIfMissing('imap_host', `ALTER TABLE email_settings ADD COLUMN imap_host TEXT`);
+    addIfMissing('imap_port', `ALTER TABLE email_settings ADD COLUMN imap_port INTEGER`);
+    addIfMissing('imap_secure', `ALTER TABLE email_settings ADD COLUMN imap_secure INTEGER`);
+    addIfMissing('imap_username', `ALTER TABLE email_settings ADD COLUMN imap_username TEXT`);
+    addIfMissing('imap_password', `ALTER TABLE email_settings ADD COLUMN imap_password TEXT`);
+    addIfMissing('imap_poll_seconds', `ALTER TABLE email_settings ADD COLUMN imap_poll_seconds INTEGER NOT NULL DEFAULT 60`);
+    addIfMissing('imap_enabled', `ALTER TABLE email_settings ADD COLUMN imap_enabled INTEGER NOT NULL DEFAULT 0`);
+    addIfMissing('imap_last_uid', `ALTER TABLE email_settings ADD COLUMN imap_last_uid INTEGER`);
+    // Ensure defaults
+    db.exec(`UPDATE email_settings SET imap_poll_seconds = COALESCE(imap_poll_seconds, 60)`);
+    db.exec(`UPDATE email_settings SET imap_enabled = COALESCE(imap_enabled, 0)`);
   } catch {}
   // Ensure unique index on email when present (nullable allowed)
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email) WHERE email IS NOT NULL`);

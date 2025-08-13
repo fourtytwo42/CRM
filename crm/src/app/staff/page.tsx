@@ -55,6 +55,171 @@ const MOCK_CASES: Case[] = [];
 
 const MOCK_TASKS: Task[] = [];
 
+// Props interface for CustomersPane
+interface CustomersPaneProps {
+  query: string;
+  setQuery: (q: string) => void;
+  vertical: string;
+  setVertical: (v: string) => void;
+  campaign: string;
+  setCampaign: (c: string) => void;
+  agent: number | "";
+  setAgent: (a: number | "") => void;
+  uniqueVerticals: string[];
+  uniqueCampaigns: string[];
+  filtered: Customer[];
+  agents: AgentRow[];
+  addOpen: boolean;
+  setAddOpen: (open: boolean) => void;
+  addForm: any;
+  setAddForm: (form: any) => void;
+  setCounts: (counts: any) => void;
+  setRows: (rows: Customer[]) => void;
+  setUniqueVerticals: (verticals: string[]) => void;
+  setUniqueCampaigns: (campaigns: string[]) => void;
+  getAccessToken: () => Promise<string>;
+}
+
+// CustomersPane component moved outside to avoid JSX nesting issues
+function CustomersPane({
+  query, setQuery, vertical, setVertical, campaign, setCampaign,
+  agent, setAgent, uniqueVerticals, uniqueCampaigns, filtered, agents,
+  addOpen, setAddOpen, addForm, setAddForm, setCounts, setRows,
+  setUniqueVerticals, setUniqueCampaigns, getAccessToken
+}: CustomersPaneProps) {
+  return (
+    <>
+      <Card>
+        <CardHeader
+          title="Customers"
+          subtitle="Search and filter by vertical, campaign, or agent; Admins can add customers"
+          actions={
+            <div className="hidden md:flex items-center gap-2">
+              <Button variant="secondary"><IconFilter size={18} className="mr-2" />Filters</Button>
+              <Button><IconSearch size={18} className="mr-2" />Search</Button>
+              <Button variant="primary" onClick={() => setAddOpen(true)}>Add Customer</Button>
+            </div>
+          }
+        />
+        <CardBody>
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-4">
+            <div className="md:col-span-4"><Input placeholder="Search by name" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
+            <div className="md:col-span-3">
+              <Select value={vertical} onChange={(e) => setVertical(e.target.value)}>
+                <option value="">All Verticals</option>
+                {uniqueVerticals.map((v) => <option key={v} value={v}>{v}</option>)}
+                <option value="__unassigned__">Unassigned</option>
+              </Select>
+            </div>
+            <div className="md:col-span-3">
+              <Select value={campaign} onChange={(e) => setCampaign(e.target.value)}>
+                <option value="">All Campaigns</option>
+                {uniqueCampaigns.map((v) => <option key={v} value={v}>{v}</option>)}
+                <option value="__unassigned__">Unassigned</option>
+              </Select>
+            </div>
+            <div className="md:col-span-2">
+              <Select value={agent as any} onChange={(e) => setAgent(e.target.value ? Number(e.target.value) : "" as any)}>
+                <option value="">All Agents</option>
+                {MOCK_AGENTS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </Select>
+            </div>
+          </div>
+
+          <div className="overflow-auto -mx-6">
+            <table className="min-w-full table-auto text-sm">
+              <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
+                <tr className="text-left">
+                  <th className="px-6 py-3 font-medium">Name</th>
+                  <th className="px-3 py-3 font-medium">Contact</th>
+                  <th className="px-3 py-3 font-medium">Vertical</th>
+                  <th className="px-3 py-3 font-medium">Campaign</th>
+                  <th className="px-3 py-3 font-medium">Agent</th>
+                  <th className="px-3 py-3 font-medium">Status</th>
+                  <th className="px-3 py-3 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((c) => (
+                  <tr key={c.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
+                    <td className="px-6 py-3"><a className="underline" href={`/customers/${c.id}`}>{c.name}</a></td>
+                    <td className="px-3 py-3">
+                      <div className="opacity-80">{c.email}</div>
+                      <div className="opacity-60 text-xs">{c.phone}</div>
+                    </td>
+                    <td className="px-3 py-3">{c.vertical}</td>
+                    <td className="px-3 py-3">{c.campaign}</td>
+                    <td className="px-3 py-3">{agents.find((a) => a.id === c.agentId)?.username || '-'}</td>
+                    <td className="px-3 py-3">
+                      <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
+                        c.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-300' :
+                        c.status === 'lead' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300' :
+                        c.status === 'inactive' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300' :
+                        'bg-gray-200 text-gray-700 dark:bg-white/10 dark:text-white/70'
+                      }`}>
+                        {c.status === 'active' ? <IconCircleCheck size={14} /> : <IconAlertCircle size={14} />}
+                        {c.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <a className="underline" href={`/customers/${c.id}`}>View</a>
+                      <a className="underline ml-2" href={`/customers/${c.id}`}>Open</a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Add Customer Dialog */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen} title="Add Customer">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <Input placeholder="Full name" value={addForm.full_name} onChange={(e) => setAddForm({ ...addForm, full_name: e.target.value })} />
+          <Input placeholder="Email" type="email" value={addForm.email} onChange={(e) => setAddForm({ ...addForm, email: e.target.value })} />
+          <Input placeholder="Phone" value={addForm.phone} onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })} />
+          <Input placeholder="Company" value={addForm.company} onChange={(e) => setAddForm({ ...addForm, company: e.target.value })} />
+          <Input placeholder="Title" value={addForm.title} onChange={(e) => setAddForm({ ...addForm, title: e.target.value })} />
+          <Select value={addForm.campaign_id} onChange={(e) => setAddForm({ ...addForm, campaign_id: e.target.value })}>
+            <option value="">Select campaign…</option>
+            {uniqueCampaigns.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </Select>
+          <textarea className="md:col-span-2 w-full min-h-24 rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10" placeholder="Notes" value={addForm.notes} onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })} />
+        </div>
+        <DialogActions>
+          <Button variant="secondary" onClick={() => setAddOpen(false)}>Cancel</Button>
+          <Button onClick={async () => {
+            const token = await getAccessToken();
+            if (!token) { setAddOpen(false); return; }
+            if (!addForm.full_name.trim()) { alert('Full name is required'); return; }
+            if (!addForm.campaign_id) { alert('Please select a campaign'); return; }
+            // resolve campaign name -> id via overview campaigns list call
+            const resCamps = await fetch('/api/crm/overview', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+            const jc = await resCamps.json().catch(() => null);
+            const campId = jc && jc.ok ? (jc.data.campaigns.find((c: any) => c.name === addForm.campaign_id)?.id || null) : null;
+            await fetch('/api/crm/customers/new', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ ...addForm, campaign_id: campId }) });
+            setAddOpen(false);
+            // Refresh overview lists
+            try {
+              const res = await fetch('/api/crm/overview', { cache: 'no-store', headers: { authorization: `Bearer ${token}` } });
+              const json = await res.json().catch(() => null);
+              if (json && json.ok) {
+                setCounts({ usersByCampaign: json.data.usersByCampaign || [], activeCasesByAgent: json.data.activeCasesByAgent || [], tasks: { overdue: 0, completed: 0 } });
+                setRows(json.data.customers || []);
+                setUniqueVerticals(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.vertical))));
+                setUniqueCampaigns(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.name))));
+              }
+            } catch {}
+          }}>Save</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
+
 export default function AgentPage() {
   const [activeTab, setActiveTab] = useState<'Verticals'|'Campaigns'|'Agents'|'Customers'>('Customers');
   const [query, setQuery] = useState("");
@@ -98,7 +263,14 @@ export default function AgentPage() {
   const [addCampaignOpen, setAddCampaignOpen] = useState(false);
   const [addCampaignName, setAddCampaignName] = useState('');
   const [addCampaignVerticalId, setAddCampaignVerticalId] = useState<string>('');
+  const [addCampaignNewVerticalName, setAddCampaignNewVerticalName] = useState('');
   const [addCampaignError, setAddCampaignError] = useState<string | null>(null);
+
+  // Dialog: set vertical for a campaign
+  const [setVerticalOpenForCampaignId, setSetVerticalOpenForCampaignId] = useState<number | null>(null);
+  const [setVerticalSelect, setSetVerticalSelect] = useState<string>('');
+  const [setVerticalNewName, setSetVerticalNewName] = useState('');
+  const [setVerticalError, setSetVerticalError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -110,10 +282,10 @@ export default function AgentPage() {
       if (json && json.ok) {
         setRows(json.data.customers || []);
         // Build unique verticals/campaigns including blanks if no assignment
-        const allVerts = (json.data.campaigns || []).map((c: any) => c.vertical).filter(Boolean);
-        const allCamps = (json.data.campaigns || []).map((c: any) => c.name).filter(Boolean);
-        setUniqueVerticals(Array.from(new Set(allVerts)).sort());
-        setUniqueCampaigns(Array.from(new Set(allCamps)).sort());
+        const allVerts = (json.data.campaigns || []).map((c: any) => c.vertical).filter(Boolean) as string[];
+        const allCamps = (json.data.campaigns || []).map((c: any) => c.name).filter(Boolean) as string[];
+        setUniqueVerticals(Array.from(new Set<string>(allVerts)).sort());
+        setUniqueCampaigns(Array.from(new Set<string>(allCamps)).sort());
       }
       const qs = new URLSearchParams();
       if (agentQ) qs.set('q', agentQ);
@@ -178,8 +350,8 @@ export default function AgentPage() {
       </div>
 
       <div className="space-y-6">
-          {/* Agents */}
-          {activeTab === 'Agents' && (
+        {/* Agents */}
+        {activeTab === 'Agents' && (
           <Card>
             <CardHeader title="Agents" subtitle="Manage and browse agents" actions={
               <div className="hidden md:flex items-center gap-2">
@@ -282,10 +454,10 @@ export default function AgentPage() {
               </div>
             </CardBody>
           </Card>
-          )}
+        )}
 
-          {/* Verticals management */}
-          {activeTab === 'Verticals' && (
+        {/* Verticals management */}
+        {activeTab === 'Verticals' && (
           <Card>
             <CardHeader title="Verticals" subtitle="Create, rename, or delete verticals" actions={
               <div className="hidden md:flex items-center gap-2">
@@ -320,10 +492,10 @@ export default function AgentPage() {
               </table>
             </CardBody>
           </Card>
-          )}
+        )}
 
-          {/* Campaigns management */}
-          {activeTab === 'Campaigns' && (
+        {/* Campaigns management */}
+        {activeTab === 'Campaigns' && (
           <Card>
             <CardHeader title="Campaigns" subtitle="Create, reassign vertical, rename, or delete" actions={
               <div className="hidden md:flex items-center gap-2">
@@ -346,13 +518,7 @@ export default function AgentPage() {
                           const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
                           const cj = await cres.json().catch(() => null); if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
                         }}>Rename</button>
-                        <button className="underline mr-2" onClick={async () => {
-                          const vid = prompt('Set vertical id (blank for none)', c.vertical_id ? String(c.vertical_id) : '') || '';
-                          const token = await getAccessToken(); if (!token) return;
-                          await fetch(`/api/admin/campaigns/${c.id}`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ vertical_id: vid ? Number(vid) : null }) });
-                          const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-                          const cj = await cres.json().catch(() => null); if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
-                        }}>Set Vertical</button>
+                        <button className="underline mr-2" onClick={() => { setSetVerticalOpenForCampaignId(c.id); setSetVerticalSelect(c.vertical_id ? String(c.vertical_id) : ''); setSetVerticalNewName(''); setSetVerticalError(null); }}>Set Vertical</button>
                         <button className="underline text-red-600" onClick={async () => {
                           if (!confirm('Delete this campaign?')) return; const token = await getAccessToken(); if (!token) return;
                           await fetch(`/api/admin/campaigns/${c.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
@@ -366,9 +532,55 @@ export default function AgentPage() {
               </table>
             </CardBody>
           </Card>
-          )}
+        )}
 
-          {/* Add Vertical Dialog */}
+        {/* Set Campaign Vertical Dialog */}
+          <Dialog open={!!setVerticalOpenForCampaignId} onOpenChange={(o) => setSetVerticalOpenForCampaignId(o ? setVerticalOpenForCampaignId : null)} title="Set campaign vertical">
+            <div className="space-y-3">
+              {setVerticalError && <div className="text-sm text-red-600">{setVerticalError}</div>}
+              <label className="text-sm block">
+                <span className="text-xs opacity-70">Choose existing vertical</span>
+                <Select value={setVerticalSelect} onChange={(e) => setSetVerticalSelect(e.target.value)}>
+                  <option value="">No vertical</option>
+                  {verticals.map(v => <option key={v.id} value={String(v.id)}>{v.name}</option>)}
+                </Select>
+              </label>
+              <div className="text-xs opacity-70">Or create a new vertical</div>
+              <Input placeholder="New vertical name (optional)" value={setVerticalNewName} onChange={(e) => setSetVerticalNewName(e.target.value)} />
+            </div>
+            <DialogActions>
+              <Button variant="secondary" onClick={() => setSetVerticalOpenForCampaignId(null)}>Cancel</Button>
+              <Button onClick={async () => {
+                setSetVerticalError(null);
+                const token = await getAccessToken(); if (!token) { setSetVerticalError('Not authorized'); return; }
+                let verticalId: number | null = setVerticalSelect ? Number(setVerticalSelect) : null;
+                const newName = setVerticalNewName.trim();
+                try {
+                  if (newName) {
+                    const res = await fetch('/api/admin/verticals', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ name: newName }) });
+                    const j = await res.json().catch(() => ({ ok: false }));
+                    if (!j.ok) { setSetVerticalError(j?.error?.message || 'Failed to create vertical'); return; }
+                    // refresh verticals list
+                    const vres = await fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                    const vj = await vres.json().catch(() => null); if (vj && vj.ok) setVerticals(vj.data.verticals || []);
+                    // find created id
+                    const created = (vj?.data?.verticals || []).find((v: any) => v.name === newName);
+                    verticalId = created ? Number(created.id) : verticalId;
+                  }
+                  if (setVerticalOpenForCampaignId != null) {
+                    await fetch(`/api/admin/campaigns/${setVerticalOpenForCampaignId}`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ vertical_id: verticalId }) });
+                    const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                    const cj = await cres.json().catch(() => null); if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
+                  }
+                  setSetVerticalOpenForCampaignId(null);
+                } catch {
+                  setSetVerticalError('Failed to save');
+                }
+              }}>Save</Button>
+            </DialogActions>
+        </Dialog>
+
+        {/* Add Vertical Dialog */}
           <Dialog open={addVerticalOpen} onOpenChange={setAddVerticalOpen} title="Add vertical">
             <div className="space-y-3">
               {addVerticalError && <div className="text-sm text-red-600">{addVerticalError}</div>}
@@ -388,9 +600,9 @@ export default function AgentPage() {
                 setAddVerticalOpen(false);
               }}>Save</Button>
             </DialogActions>
-          </Dialog>
+        </Dialog>
 
-          {/* Add Campaign Dialog */}
+        {/* Add Campaign Dialog */}
           <Dialog open={addCampaignOpen} onOpenChange={setAddCampaignOpen} title="Add campaign">
             <div className="space-y-3">
               {addCampaignError && <div className="text-sm text-red-600">{addCampaignError}</div>}
@@ -402,6 +614,8 @@ export default function AgentPage() {
                   {verticals.map(v => <option key={v.id} value={String(v.id)}>{v.name}</option>)}
                 </Select>
               </label>
+              <div className="text-xs opacity-70">Or create a new vertical</div>
+              <Input placeholder="New vertical name (optional)" value={addCampaignNewVerticalName} onChange={(e) => setAddCampaignNewVerticalName(e.target.value)} />
             </div>
             <DialogActions>
               <Button variant="secondary" onClick={() => setAddCampaignOpen(false)}>Cancel</Button>
@@ -409,142 +623,64 @@ export default function AgentPage() {
                 setAddCampaignError(null);
                 const name = addCampaignName.trim(); if (!name) { setAddCampaignError('Name required'); return; }
                 const token = await getAccessToken(); if (!token) { setAddCampaignError('Not authorized'); return; }
-                const payload: any = { name };
-                if (addCampaignVerticalId) payload.vertical_id = Number(addCampaignVerticalId);
-                const res = await fetch('/api/admin/campaigns', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
-                const j = await res.json().catch(() => ({ ok: false }));
-                if (!j.ok) { setAddCampaignError(j?.error?.message || 'Failed to add'); return; }
+                let verticalId: number | undefined = undefined;
+                try {
+                  const newName = addCampaignNewVerticalName.trim();
+                  if (newName) {
+                    const resV = await fetch('/api/admin/verticals', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ name: newName }) });
+                    const jv = await resV.json().catch(() => ({ ok: false }));
+                    if (!jv.ok) { setAddCampaignError(jv?.error?.message || 'Failed to create vertical'); return; }
+                    const vres = await fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                    const vj = await vres.json().catch(() => null);
+                    if (vj && vj.ok) setVerticals(vj.data.verticals || []);
+                    const created = (vj?.data?.verticals || []).find((v: any) => v.name === newName);
+                    verticalId = created ? Number(created.id) : undefined;
+                  } else if (addCampaignVerticalId) {
+                    verticalId = Number(addCampaignVerticalId);
+                  }
+                  const payload: any = { name };
+                  if (verticalId !== undefined) payload.vertical_id = verticalId;
+                  const res = await fetch('/api/admin/campaigns', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+                  const j = await res.json().catch(() => ({ ok: false }));
+                  if (!j.ok) { setAddCampaignError(j?.error?.message || 'Failed to add'); return; }
+                } catch {
+                  setAddCampaignError('Failed to save'); return;
+                }
                 const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
                 const cj = await cres.json().catch(() => null); if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
                 setAddCampaignOpen(false);
               }}>Save</Button>
             </DialogActions>
-          </Dialog>
-          <Card>
-            <CardHeader title="Customers" subtitle="Search and filter by vertical, campaign, or agent; Admins can add customers" actions={
-              <div className="hidden md:flex items-center gap-2">
-                <Button variant="secondary"><IconFilter size={18} className="mr-2" />Filters</Button>
-                <Button><IconSearch size={18} className="mr-2" />Search</Button>
-                <Button variant="primary" onClick={() => setAddOpen(true)}>Add Customer</Button>
-              </div>
-            } />
-            <CardBody>
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-4">
-                <div className="md:col-span-4"><Input placeholder="Search by name" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
-                <div className="md:col-span-3">
-                  <Select value={vertical} onChange={(e) => setVertical(e.target.value)}>
-                    <option value="">All Verticals</option>
-                    {uniqueVerticals.map((v) => <option key={v} value={v}>{v}</option>)}
-                    <option value="__unassigned__">Unassigned</option>
-                  </Select>
-                </div>
-                <div className="md:col-span-3">
-                  <Select value={campaign} onChange={(e) => setCampaign(e.target.value)}>
-                    <option value="">All Campaigns</option>
-                    {uniqueCampaigns.map((v) => <option key={v} value={v}>{v}</option>)}
-                    <option value="__unassigned__">Unassigned</option>
-                  </Select>
-                </div>
-                <div className="md:col-span-2">
-                  <Select value={agent as any} onChange={(e) => setAgent(e.target.value ? Number(e.target.value) : "") as any}>
-                    <option value="">All Agents</option>
-                    {MOCK_AGENTS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </Select>
-                </div>
-              </div>
+        </Dialog>
 
-              <div className="overflow-auto -mx-6">
-                <table className="min-w-full table-auto text-sm">
-                  <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
-                    <tr className="text-left">
-                      <th className="px-6 py-3 font-medium">Name</th>
-                      <th className="px-3 py-3 font-medium">Contact</th>
-                      <th className="px-3 py-3 font-medium">Vertical</th>
-                      <th className="px-3 py-3 font-medium">Campaign</th>
-                      <th className="px-3 py-3 font-medium">Agent</th>
-                      <th className="px-3 py-3 font-medium">Status</th>
-                      <th className="px-3 py-3 font-medium text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((c) => (
-                      <tr key={c.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
-                        <td className="px-6 py-3"><a className="underline" href={`/customers/${c.id}`}>{c.name}</a></td>
-                        <td className="px-3 py-3">
-                          <div className="opacity-80">{c.email}</div>
-                          <div className="opacity-60 text-xs">{c.phone}</div>
-                        </td>
-                        <td className="px-3 py-3">{c.vertical}</td>
-                        <td className="px-3 py-3">{c.campaign}</td>
-                        <td className="px-3 py-3">{agents.find((a) => a.id === c.agentId)?.username || '-'}</td>
-                        <td className="px-3 py-3">
-                          <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
-                            c.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-300' :
-                            c.status === 'lead' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300' :
-                            c.status === 'inactive' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300' :
-                            'bg-gray-200 text-gray-700 dark:bg-white/10 dark:text-white/70'
-                          }`}>
-                            {c.status === 'active' ? <IconCircleCheck size={14} /> : <IconAlertCircle size={14} />}
-                            {c.status}
-                          </span>
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          <a className="underline" href={`/customers/${c.id}`}>View</a>
-                          <a className="underline ml-2" href={`/customers/${c.id}`}>Open</a>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardBody>
-          </Card>
+        {/* Customers Pane */}
+        {activeTab === 'Customers' && (
+            <CustomersPane
+              query={query}
+              setQuery={setQuery}
+              vertical={vertical}
+              setVertical={setVertical}
+              campaign={campaign}
+              setCampaign={setCampaign}
+              agent={agent}
+              setAgent={setAgent}
+              uniqueVerticals={uniqueVerticals}
+              uniqueCampaigns={uniqueCampaigns}
+              filtered={filtered}
+              agents={agents}
+              addOpen={addOpen}
+              setAddOpen={setAddOpen}
+              addForm={addForm}
+              setAddForm={setAddForm}
+              setCounts={setCounts}
+              setRows={setRows}
+              setUniqueVerticals={setUniqueVerticals}
+              setUniqueCampaigns={setUniqueCampaigns}
+              getAccessToken={getAccessToken}
+            />
+        )}
 
-          {/* Add Customer Dialog */}
-          <Dialog open={addOpen} onOpenChange={setAddOpen} title="Add Customer">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <Input placeholder="Full name" value={addForm.full_name} onChange={(e) => setAddForm({ ...addForm, full_name: e.target.value })} />
-              <Input placeholder="Email" type="email" value={addForm.email} onChange={(e) => setAddForm({ ...addForm, email: e.target.value })} />
-              <Input placeholder="Phone" value={addForm.phone} onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })} />
-              <Input placeholder="Company" value={addForm.company} onChange={(e) => setAddForm({ ...addForm, company: e.target.value })} />
-              <Input placeholder="Title" value={addForm.title} onChange={(e) => setAddForm({ ...addForm, title: e.target.value })} />
-              <Select value={addForm.campaign_id} onChange={(e) => setAddForm({ ...addForm, campaign_id: e.target.value })}>
-                <option value="">Select campaign…</option>
-                {uniqueCampaigns.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </Select>
-              <textarea className="md:col-span-2 w-full min-h-24 rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10" placeholder="Notes" value={addForm.notes} onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })} />
-            </div>
-            <DialogActions>
-              <Button variant="secondary" onClick={() => setAddOpen(false)}>Cancel</Button>
-              <Button onClick={async () => {
-                const token = await getAccessToken();
-                if (!token) { setAddOpen(false); return; }
-                if (!addForm.full_name.trim()) { alert('Full name is required'); return; }
-                if (!addForm.campaign_id) { alert('Please select a campaign'); return; }
-                // resolve campaign name -> id via overview campaigns list call
-                const resCamps = await fetch('/api/crm/overview', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-                const jc = await resCamps.json().catch(() => null);
-                const campId = jc && jc.ok ? (jc.data.campaigns.find((c: any) => c.name === addForm.campaign_id)?.id || null) : null;
-                await fetch('/api/crm/customers/new', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ ...addForm, campaign_id: campId }) });
-                setAddOpen(false);
-                // Refresh overview lists
-                try {
-                  const res = await fetch('/api/crm/overview', { cache: 'no-store', headers: { authorization: `Bearer ${token}` } });
-                  const json = await res.json().catch(() => null);
-                  if (json && json.ok) {
-                    setCounts({ usersByCampaign: json.data.usersByCampaign || [], activeCasesByAgent: json.data.activeCasesByAgent || [], tasks: json.data.tasks || { overdue: 0, completed: 0 } });
-                    setRows(json.data.customers || []);
-                    setUniqueVerticals(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.vertical))));
-                    setUniqueCampaigns(Array.from(new Set((json.data.campaigns || []).map((c: any) => c.name))));
-                  }
-                } catch {}
-              }}>Save</Button>
-            </DialogActions>
-          </Dialog>
-
-          {/* Invite Agent Dialog */}
+        {/* Invite Agent Dialog */}
           <Dialog open={inviteOpen} onOpenChange={setInviteOpen} title="Invite Agent">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <Input placeholder="Agent email" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
@@ -565,9 +701,9 @@ export default function AgentPage() {
                 setInviteRole('agent');
               }}>Send Invite</Button>
             </DialogActions>
-          </Dialog>
+        </Dialog>
 
-          {activeTab === 'Agents' && (
+        {activeTab === 'Agents' && (
           <Card>
             <CardHeader title="Tasks & Activities" subtitle="Assign to agents, campaigns, or users" actions={<Button size="sm">New Task</Button>} />
             <CardBody>
@@ -590,55 +726,7 @@ export default function AgentPage() {
               </div>
             </CardBody>
           </Card>
-          )}
-        </div>
-
-        {/* Right: Calendar, Campaigns, Reporting */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader title="Calendar" subtitle="Internal events only" actions={<Button size="sm" variant="secondary"><IconCalendarEvent size={16} className="mr-1" />New Event</Button>} />
-            <CardBody>
-              <div className="grid grid-cols-7 gap-2 text-center text-xs">
-                {[...Array(28)].map((_, i) => (
-                  <div key={i} className={`aspect-square rounded-lg border border-black/5 dark:border-white/5 flex items-center justify-center ${i % 7 === 1 ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
-                    {i + 1}
-                  </div>
-                ))}
-              </div>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader title="Campaigns" subtitle="Active counts by users and agents" />
-            <CardBody>
-              <div className="space-y-3">
-                {MOCK_CAMPAIGNS.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">{c.name}</div>
-                      <div className="text-xs opacity-70">{c.vertical}</div>
-                    </div>
-                    <div className="text-sm opacity-80">{c.users} users · {c.agents} agents</div>
-                  </div>
-                ))}
-              </div>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader title="Reports" subtitle="Quick KPIs and filters" actions={<Button size="sm" variant="secondary"><IconReportAnalytics size={16} className="mr-1" />Open</Button>} />
-            <CardBody>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                {counts.usersByCampaign.map((r) => (
-                  <div key={r.name} className="p-3 rounded-lg border border-black/5 dark:border-white/5">
-                    <div className="opacity-70">{r.name}</div>
-                    <div className="text-xl font-semibold">{r.count}</div>
-                  </div>
-                ))}
-              </div>
-            </CardBody>
-          </Card>
-        </div>
+        )}
       </div>
     </main>
   );
@@ -657,5 +745,3 @@ async function getAccessToken(): Promise<string> {
   } catch {}
   return json.data.accessToken as string;
 }
-
-

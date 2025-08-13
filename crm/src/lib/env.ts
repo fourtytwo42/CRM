@@ -13,6 +13,12 @@ export const env = {
   smtpConnectionTimeoutMs: toNumber(process.env.SMTP_CONNECTION_TIMEOUT_MS, 10000),
   smtpGreetingTimeoutMs: toNumber(process.env.SMTP_GREETING_TIMEOUT_MS, 10000),
   smtpSocketTimeoutMs: toNumber(process.env.SMTP_SOCKET_TIMEOUT_MS, 15000),
+  // IMAP (optional) for inbound email polling
+  imapHost: process.env.IMAP_HOST || '',
+  imapPort: toNumber(process.env.IMAP_PORT, 993),
+  imapSecure: (process.env.IMAP_SECURE || 'true').toLowerCase() !== 'false',
+  imapUsername: process.env.IMAP_USERNAME || '',
+  imapPassword: process.env.IMAP_PASSWORD || '',
   // AI request timeout (used as a default for failover)
   aiRequestTimeoutMs: toNumber(process.env.AI_REQUEST_TIMEOUT_MS, 20000),
   // Public/base URL for links in emails (e.g., https://yourdomain.com)

@@ -17,6 +17,14 @@ const EmailSchema = z.object({
   password: z.string().nullable().optional(),
   from_email: z.string().email(),
   from_name: z.string().nullable().optional(),
+  // IMAP
+  imap_host: z.string().nullable().optional(),
+  imap_port: z.coerce.number().int().min(1).max(65535).nullable().optional(),
+  imap_secure: z.coerce.boolean().nullable().optional(),
+  imap_username: z.string().nullable().optional(),
+  imap_password: z.string().nullable().optional(),
+  imap_enabled: z.coerce.boolean().nullable().optional(),
+  imap_poll_seconds: z.coerce.number().int().min(15).max(3600).nullable().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -26,12 +34,15 @@ export async function GET(req: NextRequest) {
     return jsonError('FORBIDDEN', { status: 403 });
   }
   const db = getDb();
-  const row = db.prepare('SELECT host, port, secure, username, password, from_email, from_name FROM email_settings WHERE id = 1').get() as any;
+  const row = db.prepare('SELECT host, port, secure, username, password, from_email, from_name, imap_host, imap_port, imap_secure, imap_username, imap_password, imap_enabled, imap_poll_seconds FROM email_settings WHERE id = 1').get() as any;
   if (row) {
     row.port = Number(row.port || 0);
     row.secure = !!row.secure;
     row.hasPassword = !!(row.password && String(row.password).length > 0);
+    row.imap_secure = !!row.imap_secure;
+    row.imap_enabled = !!row.imap_enabled;
     delete row.password;
+    delete row.imap_password;
   }
   return jsonOk(row || null);
 }
@@ -49,16 +60,23 @@ export async function PUT(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const parsed = EmailSchema.safeParse(body);
   if (!parsed.success) return jsonError('VALIDATION', { status: 400 });
-  const { host, port, secure, username, password, from_email, from_name } = parsed.data;
+  const { host, port, secure, username, password, from_email, from_name, imap_host, imap_port, imap_secure, imap_username, imap_password, imap_enabled, imap_poll_seconds } = parsed.data as any;
   const db = getDb();
-  db.prepare('UPDATE email_settings SET host = ?, port = ?, secure = ?, username = ?, from_email = ?, from_name = ?, updated_at = ? WHERE id = 1')
-    .run(host, Number(port), secure ? 1 : 0, username ?? null, from_email, from_name ?? null, new Date().toISOString());
+  db.prepare('UPDATE email_settings SET host = ?, port = ?, secure = ?, username = ?, from_email = ?, from_name = ?, imap_host = ?, imap_port = ?, imap_secure = ?, imap_username = ?, imap_enabled = ?, imap_poll_seconds = ?, updated_at = ? WHERE id = 1')
+    .run(host, Number(port), secure ? 1 : 0, username ?? null, from_email, from_name ?? null, imap_host ?? null, imap_port ?? null, imap_secure ? 1 : 0, imap_username ?? null, imap_enabled ? 1 : 0, imap_poll_seconds ?? 60, new Date().toISOString());
   if (password === null) {
     db.prepare('UPDATE email_settings SET password = NULL, updated_at = ? WHERE id = 1')
       .run(new Date().toISOString());
   } else if (typeof password === 'string' && password.length > 0) {
     db.prepare('UPDATE email_settings SET password = ?, updated_at = ? WHERE id = 1')
       .run(password, new Date().toISOString());
+  }
+  if (imap_password === null) {
+    db.prepare('UPDATE email_settings SET imap_password = NULL, updated_at = ? WHERE id = 1')
+      .run(new Date().toISOString());
+  } else if (typeof imap_password === 'string' && imap_password.length > 0) {
+    db.prepare('UPDATE email_settings SET imap_password = ?, updated_at = ? WHERE id = 1')
+      .run(imap_password, new Date().toISOString());
   }
   return jsonOk();
 }

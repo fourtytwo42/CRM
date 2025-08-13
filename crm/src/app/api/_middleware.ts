@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ensureImapPollerRunning } from './crm/inbound/email/poller';
 
 // Method guard for routes that only implement specific verbs: respond 405 for unsupported methods.
 // Note: Next automatically 405s for missing handlers in App Router, but this provides explicit control
@@ -7,6 +8,8 @@ import { NextRequest, NextResponse } from 'next/server';
 export function middleware(req: NextRequest) {
   // Allow all; per-route handlers determine support. This file is a placeholder in case
   // we opt into global API behaviors in the future (e.g., security headers).
+  // Ensure the IMAP poller is scheduled while the server is up
+  try { ensureImapPollerRunning(); } catch {}
   return NextResponse.next();
 }
 
