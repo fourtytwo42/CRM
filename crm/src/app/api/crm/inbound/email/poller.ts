@@ -50,33 +50,62 @@ async function runOnce(): Promise<number> {
     await client.connect();
     await client.mailboxOpen('INBOX', { readOnly: false });
     const lastUid = Number(row.imap_last_uid || 0);
-    // Fetch newest first; if no last UID, search all and process by UID asc but set last UID to the highest processed
-    const searchCriteria = lastUid > 0 ? { uid: `${lastUid + 1}:*` } : { all: true } as any;
+    // Build explicit UID range; on first run fetch 1:*
+    const range = lastUid > 0 ? `${lastUid + 1}:*` : '1:*';
     let processed = 0;
     const uids: number[] = [];
-    for await (const msg of client.fetch(searchCriteria, { uid: true })) { uids.push(Number(msg.uid)); }
+    for await (const msg of client.fetch(range, { uid: true })) { uids.push(Number(msg.uid)); }
     uids.sort((a,b) => a - b);
     for (const uid of uids) {
       const it = client.fetchOne(uid, { uid: true, envelope: true, bodyStructure: true, source: true, flags: true }, { uid: true });
       const msg: any = await it;
       const uid = Number(msg.uid);
       const env = msg.envelope as any;
-      const from = (env.from && env.from[0] && (env.from[0].address || env.from[0].mailbox + '@' + env.from[0].host)) || '';
-      const to = (env.to && env.to[0] && (env.to[0].address || env.to[0].mailbox + '@' + env.to[0].host)) || '';
-      const subject = env.subject || '';
+      const from = (env?.from && env.from[0] && (env.from[0].address || (env.from[0].mailbox && env.from[0].host ? `${env.from[0].mailbox}@${env.from[0].host}` : ''))) || '';
+      const to = (env?.to && env.to[0] && (env.to[0].address || (env.to[0].mailbox && env.to[0].host ? `${env.to[0].mailbox}@${env.to[0].host}` : ''))) || '';
+      const subject = (env?.subject || '').toString();
+      const msgDate: string = env?.date ? new Date(env.date).toISOString() : new Date().toISOString();
       const source = msg.source as Buffer;
       // Parse plain text quickly (could use mailparser for HTML/attachments)
       const raw = source.toString('utf8');
       const text = extractPlainText(raw);
-      db.prepare(`INSERT INTO mail_messages (direction, from_email, to_email, subject, body, message_id, imap_uid, created_at) VALUES ('in', ?, ?, ?, ?, ?, ?, ?)`).run(
-        from || null,
-        to || null,
-        subject || null,
-        text || null,
-        extractHeader(raw, 'Message-Id'),
-        uid,
-        new Date().toISOString(),
-      );
+      const mid = extractHeader(raw, 'Message-Id');
+      const exists = db.prepare(`SELECT id FROM mail_messages WHERE imap_uid = ? OR (message_id IS NOT NULL AND message_id = ?)`)
+        .get(uid, mid || null) as any;
+      if (!exists) {
+        db.prepare(`INSERT INTO mail_messages (direction, from_email, to_email, subject, body, message_id, imap_uid, created_at) VALUES ('in', ?, ?, ?, ?, ?, ?, ?)`).run(
+          from || null,
+          to || null,
+          subject || null,
+          text || null,
+          mid || null,
+          uid,
+          msgDate,
+        );
+        // Link or create customer
+        const fromLower = String(from || '').toLowerCase();
+        let cust = fromLower ? db.prepare(`SELECT id FROM customers WHERE LOWER(email) = ?`).get(fromLower) as any : null;
+        if (!cust && fromLower) {
+          const now = new Date().toISOString();
+          const name = fromLower.split('@')[0];
+          const info = db.prepare(`INSERT INTO customers (first_name, last_name, full_name, email, status, preferred_contact, created_at, updated_at) VALUES (?, ?, ?, ?, 'lead', 'email', ?, ?)`).run(null, null, name, fromLower, now, now);
+          cust = { id: Number(info.lastInsertRowid) };
+        }
+        if (cust && cust.id) {
+          const existsComm = mid ? db.prepare(`SELECT id FROM communications WHERE message_id = ? AND customer_id = ?`).get(mid, Number(cust.id)) as any : null;
+          if (!existsComm) {
+            db.prepare(`INSERT INTO communications (type, direction, subject, body, customer_id, agent_user_id, campaign_id, message_id, created_at) VALUES ('email','in',?,?,?,?,?,?,?)`).run(
+              subject || null,
+              text || null,
+              Number(cust.id),
+              null,
+              null,
+              mid,
+              msgDate,
+            );
+          }
+        }
+      }
       // Link or create customer
       const fromLower = String(from || '').toLowerCase();
       let cust = fromLower ? db.prepare(`SELECT id FROM customers WHERE LOWER(email) = ?`).get(fromLower) as any : null;
