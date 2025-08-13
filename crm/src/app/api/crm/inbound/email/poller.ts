@@ -61,7 +61,7 @@ async function runOnce(): Promise<number> {
     for (const uid of uids) {
       const it = client.fetchOne(uid, { uid: true, envelope: true, bodyStructure: true, source: true, flags: true }, { uid: true });
       const msg: any = await it;
-      const uid = Number(msg.uid);
+      const msgUid = Number(msg.uid);
       const env = msg.envelope as any;
       const from = (env?.from && env.from[0] && (env.from[0].address || (env.from[0].mailbox && env.from[0].host ? `${env.from[0].mailbox}@${env.from[0].host}` : ''))) || '';
       const to = (env?.to && env.to[0] && (env.to[0].address || (env.to[0].mailbox && env.to[0].host ? `${env.to[0].mailbox}@${env.to[0].host}` : ''))) || '';
@@ -73,7 +73,7 @@ async function runOnce(): Promise<number> {
       const text = extractPlainText(raw);
       const mid = extractHeader(raw, 'Message-Id');
       const exists = db.prepare(`SELECT id FROM mail_messages WHERE imap_uid = ? OR (message_id IS NOT NULL AND message_id = ?)`)
-        .get(uid, mid || null) as any;
+        .get(msgUid, mid || null) as any;
       if (!exists) {
         db.prepare(`INSERT INTO mail_messages (direction, from_email, to_email, subject, body, message_id, imap_uid, created_at) VALUES ('in', ?, ?, ?, ?, ?, ?, ?)`).run(
           from || null,
@@ -81,7 +81,7 @@ async function runOnce(): Promise<number> {
           subject || null,
           text || null,
           mid || null,
-          uid,
+          msgUid,
           msgDate,
         );
         // Link or create customer
@@ -129,8 +129,8 @@ async function runOnce(): Promise<number> {
         );
       }
       // mark seen and update last
-      await client.messageFlagsAdd(uid, ['\\Seen']);
-      db.prepare(`UPDATE email_settings SET imap_last_uid = ? WHERE id = 1`).run(uid);
+      await client.messageFlagsAdd(msgUid, ['\\Seen']);
+      db.prepare(`UPDATE email_settings SET imap_last_uid = ? WHERE id = 1`).run(msgUid);
       processed += 1;
     }
     await client.logout();
