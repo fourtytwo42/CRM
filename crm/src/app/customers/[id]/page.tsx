@@ -106,6 +106,29 @@ export default function CustomerDetailPage() {
           </Card>
 
           <Card>
+            <CardHeader title="Cases" />
+            <CardBody>
+              <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[360px] overflow-auto">
+                {(!data.cases || data.cases.length === 0) ? (
+                  <div className="p-3 text-sm opacity-70">No cases yet.</div>
+                ) : (
+                  <ul className="divide-y divide-black/5 dark:divide-white/10 text-sm">
+                    {data.cases.map((c:any) => (
+                      <li key={c.id} className="px-3 py-2 flex items-center justify-between">
+                        <div>
+                          <div className="font-medium">{c.case_number}</div>
+                          <div className="opacity-70 text-xs">{c.title} · {c.stage} · {new Date(c.created_at).toLocaleString()}</div>
+                        </div>
+                        <a className="underline" href={`/cases/${c.id}`}>Open</a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </CardBody>
+          </Card>
+
+          <Card>
             <CardHeader title="Campaign Assignments" />
             <CardBody>
               <div className="space-y-3 text-sm">

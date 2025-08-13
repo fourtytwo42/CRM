@@ -154,55 +154,7 @@ export default function CaseDetailPage() {
             <Card className="lg:col-span-2">
               <CardHeader title="Emails" />
               <CardBody>
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 text-sm">
-                  {/* List */}
-                  <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[520px] overflow-auto">
-                    {(data.emails || []).length === 0 ? (
-                      <div className="p-4 opacity-70">No emails.</div>
-                    ) : (
-                      <ul className="divide-y divide-black/5 dark:divide-white/10">
-                        {(data.emails || []).map((m:any, idx:number) => (
-                          <li key={m.id} className="px-3 py-2 cursor-pointer hover:bg-black/5 dark:hover:bg-white/10" onClick={()=>{
-                            const area = document.getElementById('case-email-preview');
-                            if (area) area.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                            setCompose((c)=>c); // noop to trigger re-render
-                            (window as any).__case_preview = m;
-                          }}>
-                            <div className="flex items-center justify-between">
-                              <div className="truncate font-medium">{m.subject || '(no subject)'}</div>
-                              <div className="opacity-60 text-xs ml-2">{new Date(m.created_at).toLocaleString()}</div>
-                            </div>
-                            <div className="opacity-70 text-xs">{m.direction}{m.agent_username ? ` · by ${m.agent_username}` : ''}</div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  {/* Preview */}
-                  <div id="case-email-preview" className="rounded-xl border border-black/10 dark:border-white/10 min-h-[240px] p-3">
-                    {!(window as any).__case_preview ? (
-                      <div className="opacity-70">Select an email to preview.</div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium">{((window as any).__case_preview?.subject) || '(no subject)'}</div>
-                            <div className="opacity-60 text-xs">{new Date((window as any).__case_preview.created_at).toLocaleString()}</div>
-                          </div>
-                          {((window as any).__case_preview?.direction) === 'in' && (
-                            <Button size="sm" variant="secondary" onClick={() => {
-                              const m:any = (window as any).__case_preview;
-                              const quoted = `\n\nOn ${new Date(m.created_at).toLocaleString()}, they wrote:\n> ` + String(m.body || '').split('\n').map((l: string) => l ? `> ${l}` : '>' ).join('\n');
-                              const subj = m.subject?.startsWith('Re:') ? m.subject : `Re: ${m.subject || ''}`;
-                              setCompose({ to: data.customer.email || '', subject: subj, body: quoted, in_reply_to: null, references: [] });
-                            }}>Reply</Button>
-                          )}
-                        </div>
-                        <div className="whitespace-pre-wrap">{((window as any).__case_preview?.body) || ''}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <CaseEmailPane emails={data.emails || []} customerId={data.customer.id} onReply={(subj, body) => setCompose({ to: data.customer.email || '', subject: subj, body, in_reply_to: null, references: [] })} />
               </CardBody>
             </Card>
           </div>

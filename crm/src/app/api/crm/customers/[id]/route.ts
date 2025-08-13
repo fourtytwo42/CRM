@@ -19,7 +19,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const tasks = db.prepare(`SELECT * FROM tasks WHERE customer_id = ? ORDER BY due_date ASC LIMIT 200`).all(id);
   const notes = db.prepare(`SELECT n.*, u.username as createdBy FROM notes n JOIN users u ON u.id = n.created_by_user_id WHERE n.customer_id = ? ORDER BY n.created_at DESC LIMIT 200`).all(id);
   const comms = db.prepare(`SELECT id, type, direction, subject, body, created_at, agent_user_id, campaign_id, case_id, message_id, in_reply_to, references_header FROM communications WHERE customer_id = ? ORDER BY created_at DESC LIMIT 200`).all(id);
-  return jsonOk({ info, campaigns, tasks, notes, comms });
+  const cases = db.prepare(`SELECT id, case_number, title, stage, created_at FROM cases WHERE customer_id = ? ORDER BY created_at DESC`).all(id);
+  return jsonOk({ info, campaigns, tasks, notes, comms, cases });
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {

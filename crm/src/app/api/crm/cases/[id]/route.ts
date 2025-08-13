@@ -34,7 +34,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     LEFT JOIN users u ON u.id = c.agent_user_id
     WHERE c.customer_id = ? AND c.type = 'email'
     ORDER BY c.created_at DESC
-  `).all(id);
+  `).all(cs.customer_id);
   // Versions
   let versions: Array<{ version_no: number; created_at: string; createdBy?: string|null } & { data: any }> = [];
   try {
