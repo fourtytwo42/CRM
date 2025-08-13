@@ -137,7 +137,7 @@ export default function AdminPage() {
           setImapPort(Number(json.data?.imap_port || 993));
           setImapSecure(!!json.data?.imap_secure);
           setImapUsername(json.data?.imap_username || '');
-          setImapHasPassword(!!json.data?.imap_password);
+          setImapHasPassword(!!json.data?.imapHasPassword);
           setImapPassword('');
           setImapPollSeconds(Number(json.data?.imap_poll_seconds || 60));
         }
@@ -328,6 +328,20 @@ export default function AdminPage() {
                   setEmailCfg((cfg) => ({ ...cfg, password: '' }));
                   setSmtpClearPassword(false);
                   setImapPassword('');
+                  // Refresh from server to reflect saved IMAP settings + password presence
+                  try {
+                    const res2 = await fetch('/api/admin/settings/email', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                    const j2 = await res2.json();
+                    if (j2.ok) {
+                      setImapEnabled(!!j2.data?.imap_enabled);
+                      setImapHost(j2.data?.imap_host || '');
+                      setImapPort(Number(j2.data?.imap_port || 993));
+                      setImapSecure(!!j2.data?.imap_secure);
+                      setImapUsername(j2.data?.imap_username || '');
+                      setImapHasPassword(!!j2.data?.imapHasPassword);
+                      setImapPollSeconds(Number(j2.data?.imap_poll_seconds || 60));
+                    }
+                  } catch {}
                 }
               }}>
                 <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">

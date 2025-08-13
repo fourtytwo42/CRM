@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
     row.port = Number(row.port || 0);
     row.secure = !!row.secure;
     row.hasPassword = !!(row.password && String(row.password).length > 0);
+    row.imapHasPassword = !!(row.imap_password && String(row.imap_password).length > 0);
     row.imap_secure = !!row.imap_secure;
     row.imap_enabled = !!row.imap_enabled;
     delete row.password;
