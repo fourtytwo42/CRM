@@ -128,15 +128,15 @@ function CustomersPane({
 
           <div className="overflow-auto -mx-6">
             <table className="min-w-full table-auto text-sm">
-              <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
+                  <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
                 <tr className="text-left">
-                  <th className="px-6 py-3 font-medium">Name</th>
-                  <th className="px-3 py-3 font-medium">Contact</th>
-                  <th className="px-3 py-3 font-medium">Vertical</th>
-                  <th className="px-3 py-3 font-medium">Campaign</th>
-                  <th className="px-3 py-3 font-medium">Agent</th>
-                  <th className="px-3 py-3 font-medium">Status</th>
-                  <th className="px-3 py-3 font-medium text-right">Actions</th>
+                      <th className="px-6 py-3 font-medium">Name</th>
+                      <th className="px-3 py-3 font-medium">Contact</th>
+                      <th className="px-3 py-3 font-medium">Vertical</th>
+                      <th className="px-3 py-3 font-medium">Campaign</th>
+                      <th className="px-3 py-3 font-medium">Agent</th>
+                      <th className="px-3 py-3 font-medium">Status</th>
+                      <th className="px-3 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -161,10 +161,19 @@ function CustomersPane({
                         {c.status}
                       </span>
                     </td>
-                    <td className="px-3 py-3 text-right">
-                      <a className="underline" href={`/customers/${c.id}`}>View</a>
-                      <a className="underline ml-2" href={`/customers/${c.id}`}>Open</a>
-                    </td>
+                        <td className="px-3 py-3 text-right">
+                          <a className="underline" href={`/customers/${c.id}`}>View</a>
+                          <a className="underline ml-2" href={`/customers/${c.id}`}>Open</a>
+                          <button className="ml-2" title="Delete" onClick={async (e) => {
+                            e.preventDefault();
+                            if (!confirm('Delete this customer?')) return;
+                            const token = await getAccessToken();
+                            if (!token) return;
+                            await fetch(`/api/crm/customers/${c.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+                            // Optimistically remove from list
+                            setRows(((p: Customer[]) => p.filter((x: Customer) => x.id !== c.id)) as any);
+                          }}>🗑️</button>
+                        </td>
                   </tr>
                 ))}
               </tbody>
