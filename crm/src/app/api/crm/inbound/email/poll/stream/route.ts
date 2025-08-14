@@ -20,9 +20,15 @@ export async function GET(req: NextRequest) {
     // Verify the token directly instead of using requireAdmin
     try {
       console.log('[SSE] Verifying token...');
+      console.log('[SSE] Token length:', token.length);
+      console.log('[SSE] Token preview:', token.substring(0, 20) + '...');
+      
       const { verifyAccessToken } = await import('@/lib/auth');
       const claims = await verifyAccessToken(token);
       console.log('[SSE] Token verification result:', claims ? 'valid' : 'invalid');
+      if (claims) {
+        console.log('[SSE] Claims:', { sub: claims.sub, iat: claims.iat, exp: claims.exp });
+      }
       
       if (!claims || !claims.sub) {
         console.log('[SSE] Invalid token claims, returning 403');
@@ -44,6 +50,7 @@ export async function GET(req: NextRequest) {
       console.log('[SSE] Authentication successful, user is admin');
     } catch (error) {
       console.log('[SSE] Auth error:', error);
+      console.log('[SSE] Auth error details:', error.message, error.stack);
       return new Response('auth failed', { status: 403 });
     }
   } catch (error) {

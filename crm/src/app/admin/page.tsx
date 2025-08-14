@@ -931,6 +931,7 @@ function AdminEmailClient() {
     (async () => {
       try {
         const token = await getAccessToken();
+        console.log('[AdminEmailClient] Token for SSE connection:', token ? 'present' : 'missing');
         if (!token) {
           console.log('[AdminEmailClient] No token for SSE connection');
           return;
