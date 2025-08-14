@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import { IconDownload, IconUpload } from "@tabler/icons-react";
 import Dialog, { DialogActions } from "@/components/ui/Dialog";
+import CaseDetail from "@/app/cases/CaseDetail";
 
 type Customer = {
   id: number;
@@ -369,6 +370,9 @@ export default function AgentPage() {
   const [casesPage, setCasesPage] = useState(1);
   const casesPageSize = 25;
   const [casesSort, setCasesSort] = useState<{ col: 'case_number'|'title'|'customer_name'|'campaign_name'|'vertical_name'|'stage'|'created_at'; dir: 'asc'|'desc' }>({ col: 'created_at', dir: 'desc' });
+  const [openCaseTabs, setOpenCaseTabs] = useState<Array<{ id:number; case_number:string }>>([]);
+  const [activeCaseTabId, setActiveCaseTabId] = useState<number | null>(null);
+  const tabsScrollRef = useRef<HTMLDivElement|null>(null);
   // Dialogs for adding verticals/campaigns
   const [addVerticalOpen, setAddVerticalOpen] = useState(false);
   const [addVerticalName, setAddVerticalName] = useState('');
@@ -712,7 +716,11 @@ export default function AgentPage() {
                   <tbody>
                     {casesDisplay.map(cs => (
                       <tr key={cs.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
-                        <td className="px-6 py-3"><a className="underline" href={`/cases/${cs.id}`}>{cs.case_number}</a></td>
+                        <td className="px-6 py-3">
+                          <a className="underline cursor-pointer" href={`/cases/${cs.id}`} onClick={(e)=>{ e.preventDefault(); setActiveTab('Cases'); setOpenCaseTabs(prev => prev.some(t=>t.id===cs.id) ? prev : [...prev, { id: cs.id, case_number: cs.case_number }]); setActiveCaseTabId(cs.id); }}>
+                            {cs.case_number}
+                          </a>
+                        </td>
                         <td className="px-3 py-3 truncate max-w-[280px]" title={cs.title}>{cs.title}</td>
                         <td className="px-3 py-3">
                           <div className="font-medium truncate max-w-[240px]" title={cs.customer_name}>{cs.customer_name}</div>
@@ -723,7 +731,7 @@ export default function AgentPage() {
                         <td className="px-3 py-3">{cs.stage}</td>
                         <td className="px-3 py-3">{new Date(cs.created_at).toLocaleString()}</td>
                         <td className="px-3 py-3 text-right">
-                          <a className="underline" href={`/cases/${cs.id}`}>Open</a>
+                          <button className="underline" onClick={(e)=>{ e.preventDefault(); setActiveTab('Cases'); setOpenCaseTabs(prev => prev.some(t=>t.id===cs.id) ? prev : [...prev, { id: cs.id, case_number: cs.case_number }]); setActiveCaseTabId(cs.id); }}>Open</button>
                         </td>
                       </tr>
                     ))}
@@ -737,6 +745,39 @@ export default function AgentPage() {
                   <Button variant="secondary" onClick={() => setCasesPage(p => (p * casesPageSize < casesRows.length ? p + 1 : p))} disabled={casesPage * casesPageSize >= casesRows.length}>Next</Button>
                 </div>
               </div>
+
+              {openCaseTabs.length > 0 && (
+                <div className="mt-4">
+                  <div className="relative">
+                    <button aria-label="Scroll left" className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full border border-black/10 dark:border-white/10 bg-white dark:bg-black hidden md:block" onClick={()=> tabsScrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}>
+                      ◀
+                    </button>
+                    <div ref={tabsScrollRef} className="mx-8 md:mx-10 overflow-x-auto no-scrollbar">
+                      <div className="flex items-center gap-2 min-w-max">
+                        {openCaseTabs.map(tab => (
+                          <div key={tab.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${activeCaseTabId===tab.id ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-transparent'} border-black/10 dark:border-white/10`}> 
+                            <button onClick={()=> setActiveCaseTabId(tab.id)} className="font-medium whitespace-nowrap">{tab.case_number}</button>
+                            <button aria-label="Close" onClick={()=>{
+                              setOpenCaseTabs(prev => prev.filter(t => t.id !== tab.id));
+                              setActiveCaseTabId(prev => (prev===tab.id ? (openCaseTabs.find(t=>t.id!==tab.id)?.id ?? null) : prev));
+                            }}>✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <button aria-label="Scroll right" className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full border border-black/10 dark:border-white/10 bg-white dark:bg-black hidden md:block" onClick={()=> tabsScrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}>
+                      ▶
+                    </button>
+                  </div>
+                  <div className="mt-3 rounded-xl border border-black/10 dark:border-white/10">
+                    {activeCaseTabId != null ? (
+                      <CaseDetail caseId={activeCaseTabId} embedded />
+                    ) : (
+                      <div className="p-4 text-sm opacity-70">Select a case tab to view details.</div>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardBody>
           </Card>
         )}
