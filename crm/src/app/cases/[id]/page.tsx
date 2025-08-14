@@ -12,7 +12,7 @@ export default function CaseDetailPage() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string|null>(null);
   const [title, setTitle] = useState('');
-  const [stage, setStage] = useState<'new'|'in-progress'|'won'|'lost'|'closed'>('new');
+  const [stage, setStage] = useState<'new'|'in-progress'|'closed'>('new');
   const [saving, setSaving] = useState<'idle'|'saving'>('idle');
   const [campaignId, setCampaignId] = useState<string>('');
   const [campaigns, setCampaigns] = useState<Array<{ id:number; name:string }>>([]);
@@ -88,8 +88,8 @@ export default function CaseDetailPage() {
 
       {/* Stage path */}
       <div className="mb-4 flex items-center gap-2 text-xs">
-        {(['new','in-progress','won','lost','closed'] as const).map((st, idx) => {
-          const activeIdx = ['new','in-progress','won','lost','closed'].indexOf(data.info.stage);
+        {(['new','in-progress','closed'] as const).map((st, idx) => {
+          const activeIdx = ['new','in-progress','closed'].indexOf(data.info.stage);
           const isDone = idx < activeIdx;
           const isActive = idx === activeIdx;
           return (
@@ -234,8 +234,6 @@ export default function CaseDetailPage() {
                   <select className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 w-full" value={stage} onChange={(e)=>setStage(e.target.value as any)}>
                     <option value="new">New</option>
                     <option value="in-progress">In Progress</option>
-                    <option value="won">Won</option>
-                    <option value="lost">Lost</option>
                     <option value="closed">Closed</option>
                   </select>
                 </div>

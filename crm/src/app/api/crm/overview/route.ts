@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const activeCasesByAgent = db.prepare(`
     SELECT u.username as name, COUNT(*) as count
     FROM cases k JOIN users u ON u.id = k.agent_user_id
-    WHERE k.stage != 'lost'
+    WHERE k.stage IN ('new','in-progress')
     GROUP BY k.agent_user_id
   `).all();
   const overdueTasks = db.prepare(`SELECT COUNT(*) as n FROM tasks WHERE status != 'done'`).get() as { n: number };

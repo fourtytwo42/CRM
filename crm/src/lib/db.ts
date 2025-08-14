@@ -9,7 +9,7 @@ const g = globalThis as any;
 let dbInstance: Database.Database | null = g.__dbInstance || null;
 let migratedOnce = g.__dbMigratedOnce || false;
 
-const SCHEMA_VERSION = 15; // bump when schema/backfills change
+const SCHEMA_VERSION = 16; // bump when schema/backfills change
 
 function ensureDirectoryExists(directoryPath: string): void {
   if (!fs.existsSync(directoryPath)) {
@@ -123,7 +123,8 @@ function migrate(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS site_settings (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       registration_enabled INTEGER NOT NULL DEFAULT 1,
-      email_verification_enabled INTEGER NOT NULL DEFAULT 0
+      email_verification_enabled INTEGER NOT NULL DEFAULT 0,
+      default_campaign_id INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS refresh_tokens (
@@ -723,6 +724,9 @@ function migrate(db: Database.Database): void {
     const cols = db.prepare(`PRAGMA table_info(site_settings)`).all() as Array<{ name: string }>;
     if (!cols.some(c => c.name === 'email_verification_enabled')) {
       db.exec(`ALTER TABLE site_settings ADD COLUMN email_verification_enabled INTEGER NOT NULL DEFAULT 0`);
+    }
+    if (!cols.some(c => c.name === 'default_campaign_id')) {
+      db.exec(`ALTER TABLE site_settings ADD COLUMN default_campaign_id INTEGER`);
     }
   } catch {}
 

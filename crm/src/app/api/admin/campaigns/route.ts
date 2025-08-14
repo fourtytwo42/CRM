@@ -12,6 +12,10 @@ function canManage(role: string) {
 export async function GET(req: NextRequest) {
   const me = await requireAuth(req);
   if (me.status !== 'active') return jsonError('FORBIDDEN', { status: 403 });
+  // Only leads, managers, power users, and admins can list campaigns
+  if (!(me.role === 'lead' || me.role === 'manager' || me.role === 'power' || me.role === 'admin')) {
+    return jsonError('FORBIDDEN', { status: 403 });
+  }
   const db = getDb();
   const rows = db.prepare('SELECT id, vertical_id, name, status, created_at, updated_at FROM campaigns ORDER BY name ASC').all();
   // Include relationships for tab summaries

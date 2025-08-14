@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
-import { IconDownload, IconUpload } from "@tabler/icons-react";
+import { IconDownload, IconUpload, IconPencil, IconTrash, IconStar, IconStarFilled, IconCategory2, IconEye, IconSend } from "@tabler/icons-react";
 import Dialog, { DialogActions } from "@/components/ui/Dialog";
 import CaseDetail from "@/app/cases/CaseDetail";
 
@@ -314,6 +314,30 @@ export default function AgentPage() {
   const [agentBulkOpen, setAgentBulkOpen] = useState(false);
   const [agentBulkVerticalId, setAgentBulkVerticalId] = useState<string>('');
   const [agentBulkCampaignIds, setAgentBulkCampaignIds] = useState<number[]>([]);
+  const [defaultCampaignId, setDefaultCampaignId] = useState<number | null>(null);
+  // Load default campaign from server (fallback to localStorage)
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        if (token) {
+          const res = await fetch('/api/admin/settings', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+          const j = await res.json().catch(() => null);
+          if (j && j.ok) {
+            setDefaultCampaignId(j.data?.defaultCampaignId != null ? Number(j.data.defaultCampaignId) : null);
+            return;
+          }
+        }
+      } catch {}
+      try {
+        const s = typeof window !== 'undefined' ? localStorage.getItem('staff.defaultCampaignId') : null;
+        setDefaultCampaignId(s ? Number(s) : null);
+      } catch {}
+    })();
+  }, []);
+  useEffect(() => {
+    try { if (typeof window !== 'undefined') localStorage.setItem('staff.defaultCampaignId', defaultCampaignId != null ? String(defaultCampaignId) : ''); } catch {}
+  }, [defaultCampaignId]);
 
   const filtered = useMemo(() => {
     return rows.filter((c) => {
@@ -374,6 +398,7 @@ export default function AgentPage() {
   const [openCaseTabs, setOpenCaseTabs] = useState<Array<{ id:number; case_number:string }>>([]);
   const [activeCaseTabId, setActiveCaseTabId] = useState<number | null>(null);
   const tabsScrollRef = useRef<HTMLDivElement|null>(null);
+  const tabsRestoredRef = useRef(false);
   const setOpenCaseTabsImmediate = (next: Array<{ id:number; case_number:string }>) => {
     setOpenCaseTabs(next);
     try { if (typeof window !== 'undefined') localStorage.setItem('staff.openCaseTabs', JSON.stringify(next)); } catch {}
@@ -382,28 +407,38 @@ export default function AgentPage() {
     setActiveCaseTabId(next);
     try { if (typeof window !== 'undefined') localStorage.setItem('staff.activeCaseTabId', next != null ? String(next) : ''); } catch {}
   };
-  // Restore tabs after mount to avoid hydration mismatch
-  useEffect(() => {
+  // Restore tabs before paint to avoid any chance of empty-state overwrite
+  useLayoutEffect(() => {
     try {
       const raw = typeof window !== 'undefined' ? localStorage.getItem('staff.openCaseTabs') : null;
-      const rawActive = typeof window !== 'undefined' ? localStorage.getItem('staff.activeCaseTabId') : null;
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.every((t:any)=> typeof t.id==='number' && typeof t.case_number==='string')) {
           setOpenCaseTabs(parsed);
-          const storedActive = rawActive ? Number(rawActive) : NaN;
-          const found = parsed.find((t:any)=> t.id === storedActive);
-          setActiveCaseTabId(found ? found.id : (parsed[0]?.id ?? null));
-          if (parsed.length > 0) setActiveTab('Cases');
+          // Always default to the Cases table tab on reload
+          setActiveCaseTabId(null);
+          setActiveTab('Cases');
         }
       }
+      tabsRestoredRef.current = true;
     } catch {}
   }, []);
   // Persist tabs and active tab id
   useEffect(() => {
-    try { if (typeof window !== 'undefined') localStorage.setItem('staff.openCaseTabs', JSON.stringify(openCaseTabs)); } catch {}
+    if (!tabsRestoredRef.current) return;
+    try {
+      if (typeof window === 'undefined') return;
+      // Do not clobber a non-empty stored array with an initial empty state
+      const existingRaw = localStorage.getItem('staff.openCaseTabs');
+      const existing = existingRaw ? JSON.parse(existingRaw) : null;
+      const existingNonEmpty = Array.isArray(existing) && existing.length > 0;
+      const nextNonEmpty = Array.isArray(openCaseTabs) && openCaseTabs.length > 0;
+      if (!nextNonEmpty && existingNonEmpty) return;
+      localStorage.setItem('staff.openCaseTabs', JSON.stringify(openCaseTabs));
+    } catch {}
   }, [openCaseTabs]);
   useEffect(() => {
+    if (!tabsRestoredRef.current) return;
     try { if (typeof window !== 'undefined') localStorage.setItem('staff.activeCaseTabId', activeCaseTabId != null ? String(activeCaseTabId) : ''); } catch {}
   }, [activeCaseTabId]);
   // Dialogs for adding verticals/campaigns
@@ -423,39 +458,48 @@ export default function AgentPage() {
   const [setVerticalError, setSetVerticalError] = useState<string | null>(null);
 
   useEffect(() => {
-    (async () => {
+    let cancelled = false;
+    let attempts = 0;
+    const loadAll = async (): Promise<void> => {
+      if (cancelled) return;
+      attempts += 1;
       const token = await getAccessToken();
-      if (!token) return;
-      const res = await fetch('/api/crm/overview', { cache: 'no-store', headers: { authorization: `Bearer ${token}` } });
-      let json: any = null;
-      try { json = await res.json(); } catch {}
-      if (json && json.ok) {
-        setRows(json.data.customers || []);
-        // Build unique verticals/campaigns including blanks if no assignment
-        const allVerts = (json.data.campaigns || []).map((c: any) => c.vertical).filter(Boolean) as string[];
-        const allCamps = (json.data.campaigns || []).map((c: any) => c.name).filter(Boolean) as string[];
-        setUniqueVerticals(Array.from(new Set<string>(allVerts)).sort());
-        setUniqueCampaigns(Array.from(new Set<string>(allCamps)).sort());
+      if (!token) {
+        if (!cancelled && attempts < 5) { setTimeout(loadAll, 250); }
+        return;
       }
-      const qs = new URLSearchParams();
-      if (agentQ) qs.set('q', agentQ);
-      const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
-      const ja = await resAgents.json().catch(() => null);
-      if (ja && ja.ok) setAgents(ja.data.agents || []);
-      // Load verticals & campaigns for admin/manager
+      let anyFailed = false;
+      try {
+        const res = await fetch('/api/crm/overview', { cache: 'no-store', headers: { authorization: `Bearer ${token}` } });
+        const json = await res.json().catch(() => null);
+        if (json && json.ok) {
+          setRows(json.data.customers || []);
+          const allVerts = (json.data.campaigns || []).map((c: any) => c.vertical).filter(Boolean) as string[];
+          const allCamps = (json.data.campaigns || []).map((c: any) => c.name).filter(Boolean) as string[];
+          setUniqueVerticals(Array.from(new Set<string>(allVerts)).sort());
+          setUniqueCampaigns(Array.from(new Set<string>(allCamps)).sort());
+        } else { anyFailed = true; }
+      } catch { anyFailed = true; }
+
+      try {
+        const qs = new URLSearchParams(); if (agentQ) qs.set('q', agentQ);
+        const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
+        const ja = await resAgents.json().catch(() => null);
+        if (ja && ja.ok) setAgents(ja.data.agents || []); else anyFailed = true;
+      } catch { anyFailed = true; }
+
       try {
         const vres = await fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
         const vj = await vres.json().catch(() => null);
-        if (vj && vj.ok) setVerticals(vj.data.verticals || []);
-      } catch {}
+        if (vj && vj.ok) setVerticals(vj.data.verticals || []); else anyFailed = true;
+      } catch { anyFailed = true; }
       try {
         const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
         const cj = await cres.json().catch(() => null);
-        if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
-      } catch {}
-      // Load CRM graph for relationships across tabs
+        if (cj && cj.ok) setCampaigns(cj.data.campaigns || []); else anyFailed = true;
+      } catch { anyFailed = true; }
+
       try {
-        // Compose graph from existing endpoints
         const [vres2, cres2] = await Promise.all([
           fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' }),
           fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' }),
@@ -470,15 +514,22 @@ export default function AgentPage() {
             agent_campaigns: cj2.meta?.agent_campaigns || [],
             customer_campaigns: cj2.meta?.customer_campaigns || [],
           });
-        }
-      } catch {}
-      // Load cases for Cases tab (reuse token)
+        } else { anyFailed = true; }
+      } catch { anyFailed = true; }
+
       try {
-        const qs = new URLSearchParams(); if (casesQ) qs.set('q', casesQ); if (casesVertical) qs.set('vertical', casesVertical); if (casesCampaign) qs.set('campaign', casesCampaign);
-        const rcases = await fetch(`/api/crm/cases?${qs.toString()}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-        const jc = await rcases.json().catch(()=>null); if (jc && jc.ok) setCasesRows(jc.data.cases || []);
-      } catch {}
-    })();
+        const qs2 = new URLSearchParams(); if (casesQ) qs2.set('q', casesQ); if (casesVertical) qs2.set('vertical', casesVertical); if (casesCampaign) qs2.set('campaign', casesCampaign);
+        const rcases = await fetch(`/api/crm/cases?${qs2.toString()}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+        const jc = await rcases.json().catch(()=>null);
+        if (jc && jc.ok) setCasesRows(jc.data.cases || []); else anyFailed = true;
+      } catch { anyFailed = true; }
+
+      if (!cancelled && anyFailed && attempts < 5) {
+        setTimeout(loadAll, 300);
+      }
+    };
+    loadAll();
+    return () => { cancelled = true; };
   }, [agentSort, agentQ, casesQ, casesVertical, casesCampaign]);
 
   const casesSorted = useMemo(() => {
@@ -542,6 +593,18 @@ export default function AgentPage() {
             key={tab}
             className={`px-3 py-1.5 rounded-lg text-sm border ${activeTab===tab ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-transparent'} border-black/10 dark:border-white/10`}
             onClick={() => setActiveTab(tab)}
+            disabled={(() => {
+              const role = (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('auth.user')||'{}')?.role || 'agent') : 'agent');
+              if (role === 'agent') return !(tab === 'Customers' || tab === 'Cases');
+              if (role === 'lead') return !(tab === 'Agents' || tab === 'Customers' || tab === 'Cases');
+              return false;
+            })()}
+            title={(() => {
+              const role = (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('auth.user')||'{}')?.role || 'agent') : 'agent');
+              if (role === 'agent' && !(tab === 'Customers' || tab === 'Cases')) return 'Insufficient permissions';
+              if (role === 'lead' && !(tab === 'Agents' || tab === 'Customers' || tab === 'Cases')) return 'Insufficient permissions';
+              return '';
+            })()}
           >{tab}</button>
         ))}
       </div>
@@ -651,48 +714,54 @@ export default function AgentPage() {
                         </td>
                         <td className="px-3 py-3">{a.status}</td>
                         <td className="px-3 py-3 text-right">
-                          <a href={`/agent/${a.id}`} className="underline">Open</a>
-                          {a.status === 'suspended' && (
-                            <button
-                              className="underline ml-2"
-                              onClick={async () => {
-                                const token = await getAccessToken();
-                                if (!token) return;
-                                try {
-                                  const res = await fetch(`/api/admin/agents/${a.id}/resend`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` } });
-                                  const j = await res.json().catch(() => null);
-                                  if (j && j.ok) {
-                                    alert(j.data?.sent ? 'Invite email sent.' : 'Invite queued (no SMTP). Check outbox.');
-                                  } else {
+                          <div className="flex items-center justify-end gap-2">
+                            <a href={`/agent/${a.id}`} aria-label="Open" title="Open" className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10"><IconEye size={16} /></a>
+                            {a.status === 'suspended' && (
+                              <button
+                                aria-label="Resend Invite"
+                                title="Resend Invite"
+                                className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10"
+                                onClick={async () => {
+                                  const token = await getAccessToken();
+                                  if (!token) return;
+                                  try {
+                                    const res = await fetch(`/api/admin/agents/${a.id}/resend`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` } });
+                                    const j = await res.json().catch(() => null);
+                                    if (j && j.ok) {
+                                      alert(j.data?.sent ? 'Invite email sent.' : 'Invite queued (no SMTP). Check outbox.');
+                                    } else {
+                                      alert('Failed to resend invite.');
+                                    }
+                                  } catch {
                                     alert('Failed to resend invite.');
                                   }
-                                } catch {
-                                  alert('Failed to resend invite.');
-                                }
+                                }}
+                              >
+                                <IconSend size={16} />
+                              </button>
+                            )}
+                            <button
+                              aria-label="Delete"
+                              title="Delete"
+                              className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-red-600"
+                              onClick={async () => {
+                                if (!confirm('Delete this user? This cannot be undone.')) return;
+                                const token = await getAccessToken();
+                                if (!token) return;
+                                await fetch(`/api/admin/agents/${a.id}?force=1`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+                                // Refresh agents list
+                                try {
+                                  const qs = new URLSearchParams();
+                                  if (agentQ) qs.set('q', agentQ);
+                                  const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
+                                  const ja = await resAgents.json().catch(() => null);
+                                  if (ja && ja.ok) setAgents(ja.data.agents || []);
+                                } catch {}
                               }}
                             >
-                              Resend Invite
+                              <IconTrash size={16} />
                             </button>
-                          )}
-                          <button
-                            className="underline ml-2 text-red-600"
-                            onClick={async () => {
-                              if (!confirm('Delete this user? This cannot be undone.')) return;
-                              const token = await getAccessToken();
-                              if (!token) return;
-                              await fetch(`/api/admin/agents/${a.id}?force=1`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
-                              // Refresh agents list
-                              try {
-                                const qs = new URLSearchParams();
-                                if (agentQ) qs.set('q', agentQ);
-                                const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
-                                const ja = await resAgents.json().catch(() => null);
-                                if (ja && ja.ok) setAgents(ja.data.agents || []);
-                              } catch {}
-                            }}
-                          >
-                            Delete
-                          </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -715,101 +784,97 @@ export default function AgentPage() {
           <Card>
             <CardHeader title="Cases" subtitle="Search and filter by vertical or campaign" />
             <CardBody>
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-4">
-                <div className="md:col-span-4"><Input placeholder="Search by case #, customer, contact, or campaign" value={casesQ} onChange={(e)=>setCasesQ(e.target.value)} /></div>
-                <div className="md:col-span-3">
-                  <Select value={casesVertical} onChange={(e)=>setCasesVertical(e.target.value)}>
-                    <option value="">All Verticals</option>
-                    {uniqueVerticals.map(v => <option key={v} value={v}>{v}</option>)}
-                  </Select>
-                </div>
-                <div className="md:col-span-3">
-                  <Select value={casesCampaign} onChange={(e)=>setCasesCampaign(e.target.value)}>
-                    <option value="">All Campaigns</option>
-                    {uniqueCampaigns.map(v => <option key={v} value={v}>{v}</option>)}
-                  </Select>
-                </div>
-              </div>
-              <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[420px] overflow-auto -mx-6">
-                <table className="min-w-full table-auto text-sm">
-                  <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
-                    <tr className="text-left">
-                      <th className="px-6 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'case_number', dir: s.col==='case_number' && s.dir==='asc' ? 'desc' : 'asc' }))}>Case #</th>
-                      <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'title', dir: s.col==='title' && s.dir==='asc' ? 'desc' : 'asc' }))}>Title</th>
-                      <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'customer_name', dir: s.col==='customer_name' && s.dir==='asc' ? 'desc' : 'asc' }))}>Customer</th>
-                      <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'campaign_name', dir: s.col==='campaign_name' && s.dir==='asc' ? 'desc' : 'asc' }))}>Campaign</th>
-                      <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'vertical_name', dir: s.col==='vertical_name' && s.dir==='asc' ? 'desc' : 'asc' }))}>Vertical</th>
-                      <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'stage', dir: s.col==='stage' && s.dir==='asc' ? 'desc' : 'asc' }))}>Stage</th>
-                      <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'created_at', dir: s.col==='created_at' && s.dir==='asc' ? 'desc' : 'asc' }))}>Created</th>
-                      <th className="px-3 py-3 font-medium text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {casesDisplay.map(cs => (
-                      <tr key={cs.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
-                        <td className="px-6 py-3">
-                          <a className="underline cursor-pointer" href={`/cases/${cs.id}`} onClick={(e)=>{ e.preventDefault(); setActiveTab('Cases'); const nextTabs = (openCaseTabs.some(t=>t.id===cs.id) ? openCaseTabs : [...openCaseTabs, { id: cs.id, case_number: cs.case_number }]); setOpenCaseTabsImmediate(nextTabs); setActiveCaseTabIdImmediate(cs.id); }}>
-                            {cs.case_number}
-                          </a>
-                        </td>
-                        <td className="px-3 py-3 truncate max-w-[280px]" title={cs.title}>{cs.title}</td>
-                        <td className="px-3 py-3">
-                          <div className="font-medium truncate max-w-[240px]" title={cs.customer_name}>{cs.customer_name}</div>
-                          <div className="opacity-60 text-xs truncate max-w-[240px]" title={cs.customer_email || cs.customer_phone || ''}>{cs.customer_email || cs.customer_phone || '—'}</div>
-                        </td>
-                        <td className="px-3 py-3">{cs.campaign_name || '—'}</td>
-                        <td className="px-3 py-3">{cs.vertical_name || '—'}</td>
-                        <td className="px-3 py-3">{cs.stage}</td>
-                        <td className="px-3 py-3">{new Date(cs.created_at).toLocaleString()}</td>
-                        <td className="px-3 py-3 text-right">
-                          <button className="underline" onClick={(e)=>{ e.preventDefault(); setActiveTab('Cases'); const nextTabs = (openCaseTabs.some(t=>t.id===cs.id) ? openCaseTabs : [...openCaseTabs, { id: cs.id, case_number: cs.case_number }]); setOpenCaseTabsImmediate(nextTabs); setActiveCaseTabIdImmediate(cs.id); }}>Open</button>
-                        </td>
-                      </tr>
+              <div className="relative">
+                <button aria-label="Scroll left" className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full border border-black/10 dark:border-white/10 bg-white dark:bg-black hidden md:block" onClick={()=> tabsScrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}>◀</button>
+                <div ref={tabsScrollRef} className="mx-8 md:mx-10 overflow-x-auto no-scrollbar">
+                  <div className="flex items-center gap-2 min-w-max">
+                    {/* Non-closable Cases table tab */}
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${activeCaseTabId==null ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-transparent'} border-black/10 dark:border-white/10`}>
+                      <button onClick={()=> setActiveCaseTabIdImmediate(null)} className="font-medium whitespace-nowrap">Cases</button>
+                    </div>
+                    {openCaseTabs.map(tab => (
+                      <div key={tab.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${activeCaseTabId===tab.id ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-transparent'} border-black/10 dark:border-white/10`}>
+                        <button onClick={()=> setActiveCaseTabIdImmediate(tab.id)} className="font-medium whitespace-nowrap">{tab.case_number}</button>
+                        <button aria-label="Close" onClick={()=>{
+                          const remaining = openCaseTabs.filter(t => t.id !== tab.id);
+                          setOpenCaseTabsImmediate(remaining);
+                          setActiveCaseTabIdImmediate(activeCaseTabId===tab.id ? (remaining[0]?.id ?? null) : activeCaseTabId);
+                        }}>✕</button>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-2 flex items-center justify-between text-xs">
-                <div>Showing {Math.min((casesPage - 1) * casesPageSize + 1, casesRows.length)}–{Math.min(casesPage * casesPageSize, casesRows.length)} of {casesRows.length}</div>
-                <div className="flex items-center gap-2">
-                  <Button variant="secondary" onClick={() => setCasesPage(p => Math.max(1, p - 1))} disabled={casesPage === 1}>Prev</Button>
-                  <Button variant="secondary" onClick={() => setCasesPage(p => (p * casesPageSize < casesRows.length ? p + 1 : p))} disabled={casesPage * casesPageSize >= casesRows.length}>Next</Button>
+                  </div>
                 </div>
+                <button aria-label="Scroll right" className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full border border-black/10 dark:border-white/10 bg-white dark:bg-black hidden md:block" onClick={()=> tabsScrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}>▶</button>
               </div>
-
-              {openCaseTabs.length > 0 && (
-                <div className="mt-4">
-                  <div className="relative">
-                    <button aria-label="Scroll left" className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full border border-black/10 dark:border-white/10 bg-white dark:bg-black hidden md:block" onClick={()=> tabsScrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}>
-                      ◀
-                    </button>
-                    <div ref={tabsScrollRef} className="mx-8 md:mx-10 overflow-x-auto no-scrollbar">
-                      <div className="flex items-center gap-2 min-w-max">
-                        {openCaseTabs.map(tab => (
-                          <div key={tab.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${activeCaseTabId===tab.id ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-transparent'} border-black/10 dark:border-white/10`}> 
-                            <button onClick={()=> setActiveCaseTabIdImmediate(tab.id)} className="font-medium whitespace-nowrap">{tab.case_number}</button>
-                            <button aria-label="Close" onClick={()=>{
-                              const remaining = openCaseTabs.filter(t => t.id !== tab.id);
-                              setOpenCaseTabsImmediate(remaining);
-                              setActiveCaseTabIdImmediate(activeCaseTabId===tab.id ? (remaining[0]?.id ?? null) : activeCaseTabId);
-                            }}>✕</button>
-                          </div>
-                        ))}
+              <div className="mt-3 rounded-xl border border-black/10 dark:border-white/10">
+                {activeCaseTabId != null ? (
+                  <CaseDetail caseId={activeCaseTabId} embedded />
+                ) : (
+                  <div className="p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-4">
+                      <div className="md:col-span-4"><Input placeholder="Search by case #, customer, contact, or campaign" value={casesQ} onChange={(e)=>setCasesQ(e.target.value)} /></div>
+                      <div className="md:col-span-3">
+                        <Select value={casesVertical} onChange={(e)=>setCasesVertical(e.target.value)}>
+                          <option value="">All Verticals</option>
+                          {uniqueVerticals.map(v => <option key={v} value={v}>{v}</option>)}
+                        </Select>
+                      </div>
+                      <div className="md:col-span-3">
+                        <Select value={casesCampaign} onChange={(e)=>setCasesCampaign(e.target.value)}>
+                          <option value="">All Campaigns</option>
+                          {uniqueCampaigns.map(v => <option key={v} value={v}>{v}</option>)}
+                        </Select>
                       </div>
                     </div>
-                    <button aria-label="Scroll right" className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full border border-black/10 dark:border-white/10 bg-white dark:bg-black hidden md:block" onClick={()=> tabsScrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}>
-                      ▶
-                    </button>
+                    <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[420px] overflow-auto -mx-6">
+                      <table className="min-w-full table-auto text-sm">
+                        <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
+                          <tr className="text-left">
+                            <th className="px-6 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'case_number', dir: s.col==='case_number' && s.dir==='asc' ? 'desc' : 'asc' }))}>Case #</th>
+                            <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'title', dir: s.col==='title' && s.dir==='asc' ? 'desc' : 'asc' }))}>Title</th>
+                            <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'customer_name', dir: s.col==='customer_name' && s.dir==='asc' ? 'desc' : 'asc' }))}>Customer</th>
+                            <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'campaign_name', dir: s.col==='campaign_name' && s.dir==='asc' ? 'desc' : 'asc' }))}>Campaign</th>
+                            <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'vertical_name', dir: s.col==='vertical_name' && s.dir==='asc' ? 'desc' : 'asc' }))}>Vertical</th>
+                            <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'stage', dir: s.col==='stage' && s.dir==='asc' ? 'desc' : 'asc' }))}>Stage</th>
+                            <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'created_at', dir: s.col==='created_at' && s.dir==='asc' ? 'desc' : 'asc' }))}>Created</th>
+                            <th className="px-3 py-3 font-medium text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {casesDisplay.map(cs => (
+                            <tr key={cs.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
+                              <td className="px-6 py-3">
+                                <a className="underline cursor-pointer" href={`/cases/${cs.id}`} onClick={(e)=>{ e.preventDefault(); const nextTabs = (openCaseTabs.some(t=>t.id===cs.id) ? openCaseTabs : [...openCaseTabs, { id: cs.id, case_number: cs.case_number }]); setOpenCaseTabsImmediate(nextTabs); setActiveCaseTabIdImmediate(cs.id); }}>
+                                  {cs.case_number}
+                                </a>
+                              </td>
+                              <td className="px-3 py-3 truncate max-w-[280px]" title={cs.title}>{cs.title}</td>
+                              <td className="px-3 py-3">
+                                <div className="font-medium truncate max-w-[240px]" title={cs.customer_name}>{cs.customer_name}</div>
+                                <div className="opacity-60 text-xs truncate max-w-[240px]" title={cs.customer_email || cs.customer_phone || ''}>{cs.customer_email || cs.customer_phone || '—'}</div>
+                              </td>
+                              <td className="px-3 py-3">{cs.campaign_name || '—'}</td>
+                              <td className="px-3 py-3">{cs.vertical_name || '—'}</td>
+                              <td className="px-3 py-3">{cs.stage}</td>
+                              <td className="px-3 py-3">{new Date(cs.created_at).toLocaleString()}</td>
+                              <td className="px-3 py-3 text-right">
+                                <button className="underline" onClick={(e)=>{ e.preventDefault(); const nextTabs = (openCaseTabs.some(t=>t.id===cs.id) ? openCaseTabs : [...openCaseTabs, { id: cs.id, case_number: cs.case_number }]); setOpenCaseTabsImmediate(nextTabs); setActiveCaseTabIdImmediate(cs.id); }}>Open</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs">
+                      <div>Showing {Math.min((casesPage - 1) * casesPageSize + 1, casesRows.length)}–{Math.min(casesPage * casesPageSize, casesRows.length)} of {casesRows.length}</div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="secondary" onClick={() => setCasesPage(p => Math.max(1, p - 1))} disabled={casesPage === 1}>Prev</Button>
+                        <Button variant="secondary" onClick={() => setCasesPage(p => (p * casesPageSize < casesRows.length ? p + 1 : p))} disabled={casesPage * casesPageSize >= casesRows.length}>Next</Button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-3 rounded-xl border border-black/10 dark:border-white/10">
-                    {activeCaseTabId != null ? (
-                      <CaseDetail caseId={activeCaseTabId} embedded />
-                    ) : (
-                      <div className="p-4 text-sm opacity-70">Select a case tab to view details.</div>
-                    )}
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </CardBody>
           </Card>
         )}
@@ -868,19 +933,25 @@ export default function AgentPage() {
                     <tr key={v.id} className="border-t border-black/5 dark:border-white/5">
                       <td className="px-6 py-3">{v.name}</td>
                       <td className="px-3 py-3 text-right">
-                        <button className="underline mr-2" onClick={async () => {
-                          const val = prompt('Rename vertical', v.name) || ''; if (!val.trim()) return;
-                          const token = await getAccessToken(); if (!token) return;
-                          await fetch(`/api/admin/verticals/${v.id}`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ name: val.trim() }) });
-                          const vres = await fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-                          const vj = await vres.json().catch(() => null); if (vj && vj.ok) setVerticals(vj.data.verticals || []);
-                        }}>Rename</button>
-                        <button className="underline text-red-600" onClick={async () => {
-                          if (!confirm('Delete this vertical?')) return; const token = await getAccessToken(); if (!token) return;
-                          await fetch(`/api/admin/verticals/${v.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
-                          const vres = await fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-                          const vj = await vres.json().catch(() => null); if (vj && vj.ok) setVerticals(vj.data.verticals || []);
-                        }}>Delete</button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button aria-label="Rename" title="Rename" className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10" onClick={async () => {
+                            const val = prompt('Rename vertical', v.name) || ''; if (!val.trim()) return;
+                            const token = await getAccessToken(); if (!token) return;
+                            await fetch(`/api/admin/verticals/${v.id}`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ name: val.trim() }) });
+                            const vres = await fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                            const vj = await vres.json().catch(() => null); if (vj && vj.ok) setVerticals(vj.data.verticals || []);
+                          }}>
+                            <IconPencil size={16} />
+                          </button>
+                          <button aria-label="Delete" title="Delete" className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-red-600" onClick={async () => {
+                            if (!confirm('Delete this vertical?')) return; const token = await getAccessToken(); if (!token) return;
+                            await fetch(`/api/admin/verticals/${v.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+                            const vres = await fetch('/api/admin/verticals', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                            const vj = await vres.json().catch(() => null); if (vj && vj.ok) setVerticals(vj.data.verticals || []);
+                          }}>
+                            <IconTrash size={16} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -920,20 +991,39 @@ export default function AgentPage() {
                       <td className="px-6 py-3">{c.name}</td>
                       <td className="px-3 py-3">{verticals.find(v => v.id === c.vertical_id)?.name || '—'}</td>
                       <td className="px-3 py-3 text-right">
-                        <button className="underline mr-2" onClick={async () => {
-                          const nm = prompt('Rename campaign', c.name) || ''; if (!nm.trim()) return;
-                          const token = await getAccessToken(); if (!token) return;
-                          await fetch(`/api/admin/campaigns/${c.id}`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ name: nm.trim() }) });
-                          const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-                          const cj = await cres.json().catch(() => null); if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
-                        }}>Rename</button>
-                        <button className="underline mr-2" onClick={() => { setSetVerticalOpenForCampaignId(c.id); setSetVerticalSelect(c.vertical_id ? String(c.vertical_id) : ''); setSetVerticalNewName(''); setSetVerticalError(null); }}>Set Vertical</button>
-                        <button className="underline text-red-600" onClick={async () => {
-                          if (!confirm('Delete this campaign?')) return; const token = await getAccessToken(); if (!token) return;
-                          await fetch(`/api/admin/campaigns/${c.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
-                          const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-                          const cj = await cres.json().catch(() => null); if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
-                        }}>Delete</button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button aria-label="Make Default" title="Make Default" className={`p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 ${defaultCampaignId===c.id ? 'text-amber-500' : 'text-gray-400'}`} onClick={async () => {
+                            try {
+                              const token = await getAccessToken(); if (!token) return;
+                              const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ defaultCampaignId: c.id }) });
+                              const j = await res.json().catch(()=>null);
+                              if (!j || !j.ok) return;
+                              setDefaultCampaignId(c.id);
+                            } catch {}
+                          }}>
+                            {defaultCampaignId===c.id ? <IconStarFilled size={16} /> : <IconStar size={16} />}
+                          </button>
+                          <button aria-label="Rename" title="Rename" className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10" onClick={async () => {
+                            const nm = prompt('Rename campaign', c.name) || ''; if (!nm.trim()) return;
+                            const token = await getAccessToken(); if (!token) return;
+                            await fetch(`/api/admin/campaigns/${c.id}`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ name: nm.trim() }) });
+                            const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                            const cj = await cres.json().catch(() => null); if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
+                          }}>
+                            <IconPencil size={16} />
+                          </button>
+                          <button aria-label="Set Vertical" title="Set Vertical" className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10" onClick={() => { setSetVerticalOpenForCampaignId(c.id); setSetVerticalSelect(c.vertical_id ? String(c.vertical_id) : ''); setSetVerticalNewName(''); setSetVerticalError(null); }}>
+                            <IconCategory2 size={16} />
+                          </button>
+                          <button aria-label="Delete" title="Delete" className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-red-600" onClick={async () => {
+                            if (!confirm('Delete this campaign?')) return; const token = await getAccessToken(); if (!token) return;
+                            await fetch(`/api/admin/campaigns/${c.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+                            const cres = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+                            const cj = await cres.json().catch(() => null); if (cj && cj.ok) setCampaigns(cj.data.campaigns || []);
+                          }}>
+                            <IconTrash size={16} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

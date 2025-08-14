@@ -8,7 +8,7 @@ export default function CaseDetail({ caseId, embedded = false }: { caseId: numbe
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string|null>(null);
   const [title, setTitle] = useState('');
-  const [stage, setStage] = useState<'new'|'in-progress'|'won'|'lost'|'closed'>('new');
+  const [stage, setStage] = useState<'new'|'in-progress'|'closed'>('new');
   const [saving, setSaving] = useState<'idle'|'saving'>('idle');
   const [campaignId, setCampaignId] = useState<string>('');
   const [campaigns, setCampaigns] = useState<Array<{ id:number; name:string }>>([]);
@@ -43,22 +43,44 @@ export default function CaseDetail({ caseId, embedded = false }: { caseId: numbe
     setCompose((c)=>({ ...c, to: j.data.customer?.email || '' }));
   }
 
-  useEffect(() => { (async () => {
-    const token = await getAccessToken(); if (!token) return;
-    const res = await fetch(`/api/crm/cases/${caseId}`, { headers: { authorization: `Bearer ${token}` } });
-    const j = await res.json().catch(()=>null);
-    if (!j || !j.ok) { setError('Not authorized or not found'); return; }
-    setData(j.data);
-    setTitle(j.data.info?.case_number || '');
-    setStage(j.data.info?.stage || 'new');
-    setCampaignId(j.data.info?.campaign_id ? String(j.data.info.campaign_id) : '');
-    try {
-      const token2 = await getAccessToken(); if (!token2) return;
-      const rc = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token2}` } });
-      const jc = await rc.json().catch(()=>null); if (jc && jc.ok) setCampaigns((jc.data.campaigns || []).map((c:any)=>({ id:c.id, name:c.name })));
-    } catch {}
-    setCompose((c)=>({ ...c, to: j.data.customer?.email || '' }));
-  })(); }, [caseId]);
+  useEffect(() => {
+    let cancelled = false;
+    let attempts = 0;
+    const load = async () => {
+      if (cancelled) return;
+      attempts += 1;
+      const token = await getAccessToken();
+      if (!token) {
+        if (attempts < 5) { setTimeout(load, 250); }
+        else { if (!cancelled) setError('Not authorized'); }
+        return;
+      }
+      try {
+        const res = await fetch(`/api/crm/cases/${caseId}`, { headers: { authorization: `Bearer ${token}` } });
+        const j = await res.json().catch(()=>null);
+        if (!j || !j.ok) {
+          if (!cancelled && attempts < 3) { setTimeout(load, 250); }
+          else if (!cancelled) { setError('Not authorized or not found'); }
+          return;
+        }
+        if (cancelled) return;
+        setData(j.data);
+        setTitle(j.data.info?.case_number || '');
+        setStage(j.data.info?.stage || 'new');
+        setCampaignId(j.data.info?.campaign_id ? String(j.data.info.campaign_id) : '');
+        try {
+          const token2 = await getAccessToken(); if (!token2) return;
+          const rc = await fetch('/api/admin/campaigns', { headers: { authorization: `Bearer ${token2}` } });
+          const jc = await rc.json().catch(()=>null); if (jc && jc.ok) setCampaigns((jc.data.campaigns || []).map((c:any)=>({ id:c.id, name:c.name })));
+        } catch {}
+        setCompose((c)=>({ ...c, to: j.data.customer?.email || '' }));
+      } catch {
+        if (!cancelled && attempts < 3) { setTimeout(load, 250); }
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [caseId]);
 
   if (!data) return <div className="py-6">{error || 'Loading…'}</div>;
 
@@ -83,8 +105,8 @@ export default function CaseDetail({ caseId, embedded = false }: { caseId: numbe
 
       {/* Stage path */}
       <div className="mb-4 flex items-center gap-2 text-xs">
-        {(['new','in-progress','won','lost','closed'] as const).map((st, idx) => {
-          const activeIdx = ['new','in-progress','won','lost','closed'].indexOf(data.info.stage);
+        {(['new','in-progress','closed'] as const).map((st, idx) => {
+          const activeIdx = ['new','in-progress','closed'].indexOf(data.info.stage);
           const isDone = idx < activeIdx;
           const isActive = idx === activeIdx;
           return (
@@ -231,8 +253,6 @@ export default function CaseDetail({ caseId, embedded = false }: { caseId: numbe
                       <select className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 w-full" value={stage} onChange={(e)=>setStage(e.target.value as any)}>
                         <option value="new">New</option>
                         <option value="in-progress">In Progress</option>
-                        <option value="won">Won</option>
-                        <option value="lost">Lost</option>
                         <option value="closed">Closed</option>
                       </select>
                     </div>
@@ -356,7 +376,7 @@ function CaseCustomerEdit({ customer, caseId, onSaved }: { customer: any; caseId
   );
 }
 
-function CaseEmailPane({ emails, customerId, onReply }: { emails: Array<any>; customerId: number; onReply: (subject: string, body: string) => void }) {
+function CaseEmailPane({ emails, customerId, onReply, highlightIds }: { emails: Array<any>; customerId: number; onReply: (subject: string, body: string) => void; highlightIds?: number[] }) {
   const [items, setItems] = useState<Array<any>>(emails || []);
   const [selected, setSelected] = useState<any | null>((emails || [])[0] || null);
   useEffect(() => {
@@ -377,9 +397,15 @@ function CaseEmailPane({ emails, customerId, onReply }: { emails: Array<any>; cu
         ) : (
           <ul className="divide-y divide-black/5 dark:divide-white/10">
             {items.map((m) => (
-              <li key={m.id} className={`px-3 py-2 cursor-pointer ${selected && selected.id === m.id ? 'bg-black/5 dark:bg-white/5' : ''}`} onClick={() => setSelected(m)}>
+              <li key={m.id} className={`px-3 py-2 cursor-pointer ${selected && selected.id === m.id ? 'bg-black/5 dark:bg-white/5' : ''}`}
+                  onClick={() => setSelected(m)}>
                 <div className="flex items-center justify-between gap-2">
-                  <div className="truncate font-medium">{m.subject || '(no subject)'}</div>
+                  <div className="truncate font-medium">
+                    {m.subject || '(no subject)'}
+                    {Array.isArray(highlightIds) && highlightIds.includes(m.id) && (
+                      <span className="ml-2 inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">This case</span>
+                    )}
+                  </div>
                   <div className="opacity-60 text-xs">{new Date(m.created_at).toLocaleString()}</div>
                 </div>
                 <div className="truncate opacity-70">{(m.body || '').slice(0, 120)}</div>
@@ -424,7 +450,7 @@ function MailTabs({ emails, customerEmail, onReply }: { emails: Array<any>; cust
         <button className={`px-2 py-1 rounded border ${tab==='in'?'bg-black text-white dark:bg-white dark:text-black':''} border-black/10 dark:border-white/10`} onClick={()=>setTab('in')}>Inbox</button>
         <button className={`px-2 py-1 rounded border ${tab==='out'?'bg-black text-white dark:bg-white dark:text-black':''} border-black/10 dark:border-white/10`} onClick={()=>setTab('out')}>Sent</button>
       </div>
-      <CaseEmailPane emails={tab==='in'? inbox : sent} customerId={0} onReply={onReply} />
+      <CaseEmailPane emails={tab==='in'? inbox : sent} customerId={0} onReply={onReply} highlightIds={(emails as any)?.emailsForCase || []} />
     </div>
   );
 }

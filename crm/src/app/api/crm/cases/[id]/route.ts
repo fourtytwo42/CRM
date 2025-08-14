@@ -29,8 +29,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   `).all(cs.customer_id);
   const notes = db.prepare(`SELECT n.id, n.body, n.created_at, u.username AS createdBy FROM notes n JOIN users u ON u.id = n.created_by_user_id WHERE n.customer_id = ? ORDER BY n.created_at DESC`).all(cs.customer_id);
   const caseNotes = db.prepare(`SELECT n.id, n.body, n.created_at, u.username AS createdBy FROM notes n JOIN users u ON u.id = n.created_by_user_id WHERE n.case_id = ? ORDER BY n.created_at DESC`).all(id);
+  // Derive emails related to this specific case (thread-level): those with c.case_id = current
+  const emailsForCase = db.prepare(`
+    SELECT c.id FROM communications c WHERE c.type = 'email' AND c.case_id = ? ORDER BY c.created_at ASC
+  `).all(id);
   const emails = db.prepare(`
-    SELECT c.id, c.direction, c.subject, c.body, c.agent_user_id, u.username AS agent_username, c.created_at
+    SELECT c.id, c.direction, c.subject, c.body, c.agent_user_id, u.username AS agent_username, c.case_id, c.created_at
     FROM communications c
     LEFT JOIN users u ON u.id = c.agent_user_id
     WHERE c.customer_id = ? AND c.type = 'email'
@@ -62,7 +66,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       ORDER BY v.version_no DESC
     `).all(id) as any[]).map((r) => ({ version_no: r.version_no, created_at: r.created_at, createdBy: r.createdBy || null, data: safeJson(r.data) }));
   } catch {}
-  return jsonOk({ info: cs, customer, notes, caseNotes, emails, communications: commsAll, tasks, versions, otherCases });
+  return jsonOk({ info: cs, customer, notes, caseNotes, emails, emailsForCase: (emailsForCase || []).map((r:any)=>r.id), communications: commsAll, tasks, versions, otherCases });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
@@ -77,7 +81,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   // Only title/stage editable here; campaign_id/customer_id controlled elsewhere
   // Title is internal; keep as case_number mirror
   const title = cs.case_number as string;
-  const stage = ['new','in-progress','won','lost','closed'].includes(body?.stage) ? body.stage : cs.stage;
+  const stage = ['new','in-progress','closed'].includes(body?.stage) ? body.stage : cs.stage;
   const campaignId = (body?.campaign_id != null && Number.isFinite(Number(body.campaign_id))) ? Number(body.campaign_id) : cs.campaign_id;
   db.prepare(`UPDATE cases SET title = ?, stage = ?, campaign_id = ?, updated_at = ? WHERE id = ?`).run(title, stage, campaignId, now, id);
   // Version snapshot
