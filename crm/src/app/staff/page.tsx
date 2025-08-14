@@ -462,13 +462,11 @@ export default function AgentPage() {
           });
         }
       } catch {}
-      // Load cases for Cases tab
+      // Load cases for Cases tab (reuse token)
       try {
-        const token3 = await getAccessToken(); if (token3) {
-          const qs = new URLSearchParams(); if (casesQ) qs.set('q', casesQ); if (casesVertical) qs.set('vertical', casesVertical); if (casesCampaign) qs.set('campaign', casesCampaign);
-          const rcases = await fetch(`/api/crm/cases?${qs.toString()}`, { headers: { authorization: `Bearer ${token3}` }, cache: 'no-store' });
-          const jc = await rcases.json().catch(()=>null); if (jc && jc.ok) setCasesRows(jc.data.cases || []);
-        }
+        const qs = new URLSearchParams(); if (casesQ) qs.set('q', casesQ); if (casesVertical) qs.set('vertical', casesVertical); if (casesCampaign) qs.set('campaign', casesCampaign);
+        const rcases = await fetch(`/api/crm/cases?${qs.toString()}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+        const jc = await rcases.json().catch(()=>null); if (jc && jc.ok) setCasesRows(jc.data.cases || []);
       } catch {}
     })();
   }, [agentSort, agentQ, casesQ, casesVertical, casesCampaign]);
