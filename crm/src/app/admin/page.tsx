@@ -882,112 +882,116 @@ function AdminEmailClient() {
   })(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [box, page, pageSize]);
 
-  // Fetch current poller status from server and keep a live ticking countdown
+    // Fetch current poller status from server and establish SSE stream for server-driven countdown
   useEffect(() => {
     let cancelled = false;
-    let tickId: any = null;
-    let syncId: any = null;
     let es: EventSource | null = null;
+    
+    console.log('[AdminEmailClient] Setting up email polling countdown...');
+    
+    // Initial status fetch
     (async () => {
       try {
         const token = await getAccessToken();
-        if (!token) return;
-        // Ask server for current poller status (interval + remaining)
+        if (!token) {
+          console.log('[AdminEmailClient] No access token available');
+          return;
+        }
+        
+        console.log('[AdminEmailClient] Fetching initial poller status...');
         const res = await fetch('/api/crm/inbound/email/poll', { method: 'GET', headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
         const j = await res.json().catch(() => null);
+        
         if (!cancelled && j && j.ok !== false && j.poller) {
+          console.log('[AdminEmailClient] Initial status received:', j.poller);
           setPollIntervalSec(Number(j.poller.intervalSec || 60));
           setPollRemaining(Number(j.poller.remainingSec || j.poller.intervalSec || 60));
-        } else if (!cancelled) {
-          // Fallback: fetch settings to get interval and initialize countdown
+        } else {
+          console.log('[AdminEmailClient] No initial status, fetching from settings...');
+          // Fallback: fetch settings to get interval
           try {
             const res2 = await fetch('/api/admin/settings/email', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
             const j2 = await res2.json().catch(() => null);
             if (j2 && j2.ok) {
               const sec = Number(j2.data?.imap_poll_seconds || 60);
+              console.log('[AdminEmailClient] Using interval from settings:', sec);
               setPollIntervalSec(sec);
-              setPollRemaining((prev) => (typeof prev === 'number' ? prev : sec));
+              setPollRemaining(sec);
             }
-          } catch {}
+          } catch (error) {
+            console.log('[AdminEmailClient] Error fetching settings:', error);
+          }
         }
-      } catch {}
-    })();
-    // Establish SSE stream for precise server-driven countdown, with local fallback and periodic resync
-    const loadStatus = async () => {
-      try {
-        const token = await getAccessToken();
-        if (!token) return;
-        const res = await fetch('/api/crm/inbound/email/poll', { method: 'GET', headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-        const j = await res.json().catch(() => null);
-        if (!cancelled && j && j.ok !== false && j.poller) {
-          setPollIntervalSec(Number(j.poller.intervalSec || 60));
-          // Only update remaining if our local has drifted too far or is null
-          setPollRemaining((prev) => {
-            const serverRem = Number(j.poller.remainingSec || j.poller.intervalSec || 60);
-            if (prev === null) return serverRem;
-            if (Math.abs(serverRem - prev) >= 3) return serverRem;
-            return prev;
-          });
-        }
-      } catch {}
-      // Ask the poll endpoint for status without running a poll by issuing a GET, which returns 405 today. We'll ignore and let local timer tick.
-    };
-    loadStatus();
-
-    // Try SSE first for authoritative countdown from server
-    (async () => {
-      try {
-        const token = await getAccessToken();
-        if (token && !cancelled) {
-          es = new EventSource(`/api/crm/inbound/email/poll/stream?token=${encodeURIComponent(token)}`);
-                  es.onopen = () => {
-          setSseActive(true);
-          sseActiveRef.current = true;
-          console.log('SSE connected successfully');
-        };
-          es.onmessage = (ev) => {
-            try {
-              const data = JSON.parse(ev.data || '{}');
-              if (data && data.ok !== false && data.poller) {
-                setPollIntervalSec(Number(data.poller.intervalSec || 60));
-                setPollRemaining(Number(data.poller.remainingSec ?? data.poller.intervalSec ?? 60));
-              }
-            } catch {}
-          };
-                  es.onerror = (event) => {
-          console.log('SSE error, falling back to local tick:', event);
-          setSseActive(false);
-          sseActiveRef.current = false;
-          try { es && es.close(); } catch {}
-          es = null;
-        };
-        }
-      } catch {
-        // ignore; fallback to local tick below
+      } catch (error) {
+        console.log('[AdminEmailClient] Error in initial status fetch:', error);
       }
     })();
 
-    // Local countdown tick - always run to ensure timer moves
-    tickId = setInterval(() => {
-      setPollRemaining((prev) => {
-        // If SSE is active, don't modify the countdown locally
-        if (sseActiveRef.current) return prev;
+    // Establish SSE stream for server-driven countdown
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) {
+          console.log('[AdminEmailClient] No token for SSE connection');
+          return;
+        }
         
-        if (typeof prev === 'number' && prev > 0) {
-          return prev - 1;
-        }
-        if (typeof pollIntervalSec === 'number') {
-          return pollIntervalSec;
-        }
-        return 60; // fallback
-      });
-    }, 1000);
-    syncId = setInterval(() => { loadStatus(); }, 15000);
+        if (cancelled) return;
+        
+        const sseUrl = `/api/crm/inbound/email/poll/stream?token=${encodeURIComponent(token)}`;
+        console.log('[AdminEmailClient] Connecting to SSE:', sseUrl);
+        
+        es = new EventSource(sseUrl);
+        
+        es.onopen = () => {
+          console.log('[AdminEmailClient] SSE connection opened successfully');
+          setSseActive(true);
+          sseActiveRef.current = true;
+        };
+        
+        es.onmessage = (ev) => {
+          try {
+            console.log('[AdminEmailClient] SSE message received:', ev.data);
+            const data = JSON.parse(ev.data || '{}');
+            if (data && data.ok !== false && data.poller) {
+              console.log('[AdminEmailClient] Updating countdown from SSE:', data.poller);
+              setPollIntervalSec(Number(data.poller.intervalSec || 60));
+              setPollRemaining(Number(data.poller.remainingSec ?? data.poller.intervalSec ?? 60));
+            }
+          } catch (error) {
+            console.log('[AdminEmailClient] Error parsing SSE message:', error);
+          }
+        };
+        
+        es.onerror = (event) => {
+          console.log('[AdminEmailClient] SSE connection error:', event);
+          setSseActive(false);
+          sseActiveRef.current = false;
+          try { 
+            if (es) {
+              es.close();
+              es = null;
+            }
+          } catch (error) {
+            console.log('[AdminEmailClient] Error closing SSE:', error);
+          }
+        };
+        
+      } catch (error) {
+        console.log('[AdminEmailClient] Error setting up SSE:', error);
+      }
+    })();
+
     return () => {
+      console.log('[AdminEmailClient] Cleaning up email polling countdown...');
       cancelled = true;
-      if (tickId) clearInterval(tickId);
-      if (syncId) clearInterval(syncId);
-      try { es && es.close(); } catch {}
+      if (es) {
+        try {
+          es.close();
+        } catch (error) {
+          console.log('[AdminEmailClient] Error closing SSE on cleanup:', error);
+        }
+      }
       setSseActive(false);
       sseActiveRef.current = false;
     };
@@ -1014,7 +1018,11 @@ function AdminEmailClient() {
             setCheckedIds([]);
           }}>Delete selected</Button>
         )}
-        {sseActive && <span className="text-xs text-green-600">🟢 Live</span>}
+                 {sseActive ? (
+           <span className="text-xs text-green-600">🟢 Live</span>
+         ) : (
+           <span className="text-xs text-red-600">🔴 Offline</span>
+         )}
         <Button variant="secondary" onClick={async () => {
           setBusy('loading');
           try {
