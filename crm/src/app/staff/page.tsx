@@ -1094,8 +1094,9 @@ export default function AgentPage() {
                   const j = await res.json().catch(()=>null);
                   if (!j || !j.ok) { alert(j?.error?.message || 'Failed to create case'); return; }
                   setActiveTab('Cases');
-                  setOpenCaseTabs(prev => prev.some((t:any)=>t.id===j.data.id) ? prev : [...prev, { id: j.data.id, case_number: j.data.case_number }]);
-                  setActiveCaseTabId(j.data.id);
+                  const nextTabs = (openCaseTabs.some((t:any)=>t.id===j.data.id) ? openCaseTabs : [...openCaseTabs, { id: j.data.id, case_number: j.data.case_number }]);
+                  setOpenCaseTabsImmediate(nextTabs);
+                  setActiveCaseTabIdImmediate(j.data.id);
                 } catch { alert('Failed to create case'); }
               }}
             />
