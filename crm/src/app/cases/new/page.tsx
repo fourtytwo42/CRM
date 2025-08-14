@@ -1,11 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 
-export default function NewCasePage() {
+function NewCaseInner() {
   const params = useSearchParams();
   const router = useRouter();
   const customerId = Number(params.get('customer') || '0') || 0;
@@ -74,6 +74,14 @@ export default function NewCasePage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function NewCasePage() {
+  return (
+    <Suspense fallback={<main className="container-hero py-8">Loading…</main>}>
+      <NewCaseInner />
+    </Suspense>
   );
 }
 

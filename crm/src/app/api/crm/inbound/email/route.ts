@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   if (!customer) {
     const now = new Date().toISOString();
     const fullName = fromEmail.includes('@') ? fromEmail.split('@')[0] : fromEmail;
-    const info = db.prepare(`INSERT INTO customers (first_name, last_name, full_name, email, status, preferred_contact, created_at, updated_at) VALUES (?, ?, ?, ?, 'lead', 'email', ?, ?)`).run(null, null, fullName, fromEmail, now, now);
+    const info = db.prepare(`INSERT INTO customers (first_name, last_name, full_name, email, phone, street1, street2, city, state, zip, status, preferred_contact, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'lead', 'email', ?, ?)`).run(null, null, fullName, fromEmail, null, null, null, null, null, null, now, now);
     customer = { id: Number(info.lastInsertRowid) };
   }
   db.prepare(`INSERT INTO communications (type, direction, subject, body, customer_id, agent_user_id, campaign_id, message_id, in_reply_to, references_header, created_at) VALUES ('email','in',?,?,?,?,?,?,?, ?, ?)`)

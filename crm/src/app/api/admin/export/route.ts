@@ -12,7 +12,9 @@ export async function GET(req: NextRequest) {
   switch (type) {
     case 'customers': {
       const rows = db.prepare(`
-        SELECT c.full_name, c.email, c.phone, c.company, c.title, c.status,
+        SELECT c.first_name, c.last_name, c.full_name, c.email, c.phone,
+               c.street1, c.street2, c.city, c.state, c.zip,
+               c.company, c.title, c.status,
           COALESCE(
             (
               SELECT GROUP_CONCAT(name, ';') FROM (
@@ -37,7 +39,7 @@ export async function GET(req: NextRequest) {
         FROM customers c
         ORDER BY c.id ASC
       `).all();
-      const csv = toCsv(['full_name','email','phone','company','title','status','vertical','campaign'], rows);
+      const csv = toCsv(['first_name','last_name','full_name','email','phone','street1','street2','city','state','zip','company','title','status','vertical','campaign'], rows);
       return new Response(csv, { headers: { 'content-type': 'text/csv' } });
     }
     case 'agents': {

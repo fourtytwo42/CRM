@@ -14,20 +14,25 @@ export async function GET(req: NextRequest) {
   }
   const url = new URL(req.url);
   const q = (url.searchParams.get('q') || '').trim().toLowerCase();
+  const vertical = (url.searchParams.get('vertical') || '').trim();
+  const campaign = (url.searchParams.get('campaign') || '').trim();
   const rows = db.prepare(`
     SELECT cs.id, cs.case_number, cs.title, cs.stage, cs.created_at,
            c.full_name AS customer_name, c.email AS customer_email, c.phone AS customer_phone,
-           camp.name AS campaign_name
+           camp.name AS campaign_name, v.name AS vertical_name
     FROM cases cs
     JOIN customers c ON c.id = cs.customer_id
     LEFT JOIN campaigns camp ON camp.id = cs.campaign_id
+    LEFT JOIN verticals v ON v.id = camp.vertical_id
     WHERE
       (? = '' OR LOWER(cs.case_number) LIKE ?
         OR LOWER(c.full_name) LIKE ? OR LOWER(COALESCE(c.email,'')) LIKE ? OR LOWER(COALESCE(c.phone,'')) LIKE ?
         OR LOWER(COALESCE(camp.name,'')) LIKE ?)
+      AND (? = '' OR COALESCE(v.name,'') = ?)
+      AND (? = '' OR COALESCE(camp.name,'') = ?)
     ORDER BY cs.created_at DESC
     LIMIT 500
-  `).all(q, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+  `).all(q, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, vertical, vertical, campaign, campaign);
   return jsonOk({ cases: rows });
 }
 
@@ -40,14 +45,15 @@ export async function POST(req: NextRequest) {
     try { db.exec(`ALTER TABLE cases ADD COLUMN case_number TEXT`); } catch {}
     try { db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cases_case_number ON cases(case_number)`); } catch {}
   }
-  const body = await req.json().catch(()=>null) as { customer_id: number; title?: string; campaign_id?: number|null } | null;
+  const body = await req.json().catch(()=>null) as { customer_id: number; campaign_id?: number|null } | null;
   if (!body || !body.customer_id) return jsonError('VALIDATION', { status: 400 });
   const now = new Date().toISOString();
   const gen = () => 'CS-' + Math.random().toString(36).slice(2, 8).toUpperCase();
   let code = gen();
   while (db.prepare(`SELECT 1 FROM cases WHERE case_number = ?`).get(code)) code = gen();
+  // Title is not user-facing; store case_number as title to satisfy NOT NULL constraint
   const info = db.prepare(`INSERT INTO cases (case_number, title, stage, customer_id, campaign_id, agent_user_id, created_at, updated_at) VALUES (?, ?, 'new', ?, ?, ?, ?, ?)`)
-    .run(code, body.title || 'New Case', body.customer_id, body.campaign_id || null, me.id, now, now);
+    .run(code, code, body.customer_id, body.campaign_id || null, me.id, now, now);
   const id = Number(info.lastInsertRowid);
   // Ensure case_versions table exists
   try { db.prepare(`SELECT 1 FROM case_versions LIMIT 1`).get(); } catch {
@@ -69,7 +75,7 @@ export async function POST(req: NextRequest) {
     } catch {}
   }
   db.prepare(`INSERT OR IGNORE INTO case_versions (case_id, version_no, data, created_at, created_by_user_id) VALUES (?, 1, ?, ?, ?)`)
-    .run(id, JSON.stringify({ title: body.title || 'New Case', stage: 'new' }), now, me.id);
+    .run(id, JSON.stringify({ title: code, stage: 'new' }), now, me.id);
   return jsonOk({ id, case_number: code });
 }
 

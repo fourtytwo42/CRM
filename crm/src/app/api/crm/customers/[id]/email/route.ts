@@ -11,7 +11,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (me.status !== 'active') return jsonError('FORBIDDEN', { status: 403 });
   const body = await req.json().catch(() => null) as { to?: string; subject?: string; body?: string; in_reply_to?: string | null; references?: string[] | null };
   const to = String(body?.to || '').trim();
-  const subject = String(body?.subject || '').trim();
+  let subject = String(body?.subject || '').trim();
   const text = String(body?.body || '').trim();
   const inReplyTo = body?.in_reply_to ? String(body.in_reply_to) : undefined;
   const references = Array.isArray(body?.references) ? body!.references!.map(String) : undefined;
@@ -27,6 +27,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (references && references.length) headers['References'] = references.join(' ');
 
   try {
+    // If a case exists for this customer and in-reply context is not provided, tag with latest case number
+    try {
+      const db = getDb();
+      const row = db.prepare(`SELECT case_number FROM cases WHERE customer_id = ? ORDER BY created_at DESC LIMIT 1`).get(Number(params.id)) as any;
+      if (row && row.case_number) {
+        const tag = `[${row.case_number}]`;
+        if (!subject.includes(tag)) subject = `${subject} ${tag}`.trim();
+        if (!subject || /^re:\s*$/i.test(subject)) subject = `${tag}`;
+      }
+    } catch {}
     const info = await transporter.sendMail({
       from: cfg.from_name ? `${cfg.from_name} <${cfg.from_email}>` : cfg.from_email,
       to,

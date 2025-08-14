@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     LEFT JOIN campaigns camp ON camp.id = cs.campaign_id
     LEFT JOIN verticals v ON v.id = camp.vertical_id
     WHERE cs.id = ?
-  `).get(id);
+  `).get(id) as any;
   if (!cs) return jsonError('NOT_FOUND', { status: 404 });
   const customer = db.prepare(`SELECT id, full_name, email, phone, company, title FROM customers WHERE id = ?`).get(cs.customer_id);
   const otherCases = db.prepare(`
@@ -27,13 +27,28 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     WHERE customer_id = ?
     ORDER BY created_at DESC
   `).all(cs.customer_id);
-  const notes = db.prepare(`SELECT n.id, n.body, n.created_at, u.username AS createdBy FROM notes n JOIN users u ON u.id = n.created_by_user_id WHERE n.case_id = ? ORDER BY n.created_at DESC`).all(id);
+  const notes = db.prepare(`SELECT n.id, n.body, n.created_at, u.username AS createdBy FROM notes n JOIN users u ON u.id = n.created_by_user_id WHERE n.customer_id = ? ORDER BY n.created_at DESC`).all(cs.customer_id);
   const emails = db.prepare(`
     SELECT c.id, c.direction, c.subject, c.body, c.agent_user_id, u.username AS agent_username, c.created_at
     FROM communications c
     LEFT JOIN users u ON u.id = c.agent_user_id
     WHERE c.customer_id = ? AND c.type = 'email'
     ORDER BY c.created_at DESC
+  `).all(cs.customer_id);
+  // All communications for related tab
+  const commsAll = db.prepare(`
+    SELECT c.id, c.type, c.direction, c.subject, c.body, c.agent_user_id, u.username AS agent_username, c.created_at
+    FROM communications c
+    LEFT JOIN users u ON u.id = c.agent_user_id
+    WHERE c.customer_id = ?
+    ORDER BY c.created_at DESC
+  `).all(cs.customer_id);
+  // Tasks related to this customer (no explicit case linkage in schema)
+  const tasks = db.prepare(`
+    SELECT id, title, description, status, priority, due_date, assigned_to_user_id
+    FROM tasks
+    WHERE customer_id = ?
+    ORDER BY COALESCE(due_date, created_at) ASC
   `).all(cs.customer_id);
   // Versions
   let versions: Array<{ version_no: number; created_at: string; createdBy?: string|null } & { data: any }> = [];
@@ -46,7 +61,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       ORDER BY v.version_no DESC
     `).all(id) as any[]).map((r) => ({ version_no: r.version_no, created_at: r.created_at, createdBy: r.createdBy || null, data: safeJson(r.data) }));
   } catch {}
-  return jsonOk({ info: cs, customer, notes, emails, versions, otherCases });
+  return jsonOk({ info: cs, customer, notes, emails, communications: commsAll, tasks, versions, otherCases });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
@@ -59,7 +74,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const cs = db.prepare(`SELECT * FROM cases WHERE id = ?`).get(id) as any;
   if (!cs) return jsonError('NOT_FOUND', { status: 404 });
   // Only title/stage editable here; campaign_id/customer_id controlled elsewhere
-  const title = typeof body?.title === 'string' ? body.title : cs.title;
+  // Title is internal; keep as case_number mirror
+  const title = cs.case_number as string;
   const stage = ['new','in-progress','won','lost','closed'].includes(body?.stage) ? body.stage : cs.stage;
   const campaignId = (body?.campaign_id != null && Number.isFinite(Number(body.campaign_id))) ? Number(body.campaign_id) : cs.campaign_id;
   db.prepare(`UPDATE cases SET title = ?, stage = ?, campaign_id = ?, updated_at = ? WHERE id = ?`).run(title, stage, campaignId, now, id);

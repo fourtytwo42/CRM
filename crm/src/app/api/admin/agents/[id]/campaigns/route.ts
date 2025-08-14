@@ -10,7 +10,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (!body || !Array.isArray(body.campaign_ids)) return jsonError('VALIDATION', { status: 400, message: 'campaign_ids required' });
   const db = getDb();
   const agentId = Number(params.id);
-  const ids = [...new Set(body.campaign_ids.map((n: any) => Number(n)).filter((n: any) => Number.isFinite(n)))];
+  const arr = body.campaign_ids.map((n: any) => Number(n)).filter((n: any) => Number.isFinite(n));
+  const ids: number[] = [];
+  for (const n of arr) { if (!ids.includes(n)) ids.push(n); }
   const now = new Date().toISOString();
   const tx = db.transaction(() => {
     db.prepare(`DELETE FROM agent_campaigns WHERE agent_user_id = ?`).run(agentId);

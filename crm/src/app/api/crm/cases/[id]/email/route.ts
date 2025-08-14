@@ -17,6 +17,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!cs) return jsonError('NOT_FOUND', { status: 404 });
   const tag = `[${cs.case_number}]`;
   if (!subject.includes(tag)) subject = `${subject} ${tag}`.trim();
+  // Prefix subject with case number if subject is empty or generic
+  if (!subject || /^re:\s*$/i.test(subject)) subject = `${tag}`;
   const cfg = getEmailSettings(); if (!cfg) return jsonError('MISSING', { status: 400, message: 'SMTP not configured' });
   const transporter = createTransporterFromSettings(cfg);
   const info = await transporter.sendMail({ from: cfg.from_name ? `${cfg.from_name} <${cfg.from_email}>` : cfg.from_email, to, bcc: cfg.from_email, subject, text });

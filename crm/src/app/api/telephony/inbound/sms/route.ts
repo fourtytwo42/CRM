@@ -37,8 +37,8 @@ export async function POST(req: NextRequest) {
   // Find or create customer by phone
   let customer = db.prepare('SELECT id FROM customers WHERE phone = ?').get(from) as { id: number } | undefined;
   if (!customer) {
-    const stmt = db.prepare(`INSERT INTO customers (first_name, last_name, full_name, email, phone, company, title, notes, status, preferred_contact, created_at, updated_at)
-      VALUES (NULL, NULL, ?, NULL, ?, NULL, NULL, 'Inbound auto-created', 'lead', 'phone', ?, ?)`);
+    const stmt = db.prepare(`INSERT INTO customers (first_name, last_name, full_name, email, phone, street1, street2, city, state, zip, company, title, notes, status, preferred_contact, created_at, updated_at)
+      VALUES (NULL, NULL, ?, NULL, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Inbound auto-created', 'lead', 'phone', ?, ?)`);
     const info = stmt.run(from, from, nowIso, nowIso);
     customer = { id: Number(info.lastInsertRowid) };
   }

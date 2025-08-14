@@ -87,14 +87,7 @@ export default function CustomerDetailPage() {
           <Card>
             <CardHeader title="Details" />
             <CardBody>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="opacity-70">Company</div>
-                <div>{data.info.company || '—'}</div>
-                <div className="opacity-70">Title</div>
-                <div>{data.info.title || '—'}</div>
-                <div className="opacity-70">Status</div>
-                <div>{data.info.status}</div>
-              </div>
+              <CustomerEditForm data={data} setData={setData} id={id} />
             </CardBody>
           </Card>
 
@@ -178,6 +171,77 @@ export default function CustomerDetailPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+function CustomerEditForm({ data, setData, id }: { data: any; setData: (d:any)=>void; id: number }) {
+  const [form, setForm] = useState<any>({
+    first_name: data.info.first_name || '',
+    last_name: data.info.last_name || '',
+    email: data.info.email || '',
+    phone: data.info.phone || '',
+    street1: data.info.street1 || '',
+    street2: data.info.street2 || '',
+    city: data.info.city || '',
+    state: data.info.state || '',
+    zip: data.info.zip || '',
+    company: data.info.company || '',
+    title: data.info.title || '',
+    notes: data.info.notes || '',
+    status: data.info.status || 'active',
+  });
+  const [busy, setBusy] = useState<'idle'|'saving'>('idle');
+  return (
+    <div className="space-y-3 text-sm">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <Input placeholder="First name" value={form.first_name} onChange={(e)=>setForm({ ...form, first_name: e.target.value })} />
+        <Input placeholder="Last name" value={form.last_name} onChange={(e)=>setForm({ ...form, last_name: e.target.value })} />
+        <Input placeholder="Email" value={form.email} onChange={(e)=>setForm({ ...form, email: e.target.value })} />
+        <Input placeholder="Phone" value={form.phone} onChange={(e)=>setForm({ ...form, phone: e.target.value })} />
+        <Input placeholder="Street (line 1)" value={form.street1} onChange={(e)=>setForm({ ...form, street1: e.target.value })} />
+        <Input placeholder="Street (line 2)" value={form.street2} onChange={(e)=>setForm({ ...form, street2: e.target.value })} />
+        <Input placeholder="City" value={form.city} onChange={(e)=>setForm({ ...form, city: e.target.value })} />
+        <Input placeholder="State" value={form.state} onChange={(e)=>setForm({ ...form, state: e.target.value })} />
+        <Input placeholder="ZIP" value={form.zip} onChange={(e)=>setForm({ ...form, zip: e.target.value })} />
+        <Input placeholder="Company" value={form.company} onChange={(e)=>setForm({ ...form, company: e.target.value })} />
+        <Input placeholder="Title" value={form.title} onChange={(e)=>setForm({ ...form, title: e.target.value })} />
+        <select className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10" value={form.status} onChange={(e)=>setForm({ ...form, status: e.target.value })}>
+          <option value="lead">Lead</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="archived">Archived</option>
+        </select>
+      </div>
+      <textarea className="w-full min-h-24 rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10" placeholder="Notes" value={form.notes} onChange={(e)=>setForm({ ...form, notes: e.target.value })} />
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={() => setForm({
+          first_name: data.info.first_name || '',
+          last_name: data.info.last_name || '',
+          email: data.info.email || '',
+          phone: data.info.phone || '',
+          street1: data.info.street1 || '',
+          street2: data.info.street2 || '',
+          city: data.info.city || '',
+          state: data.info.state || '',
+          zip: data.info.zip || '',
+          company: data.info.company || '',
+          title: data.info.title || '',
+          notes: data.info.notes || '',
+          status: data.info.status || 'active',
+        })} disabled={busy!=='idle'}>Reset</Button>
+        <Button disabled={busy!=='idle'} onClick={async ()=>{
+          if (!form.email && !form.phone) { alert('Email or phone is required'); return; }
+          setBusy('saving');
+          try {
+            const token = await getAccessToken(); if (!token) return;
+            const res = await fetch(`/api/crm/customers/${id}`, { method: 'PUT', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(form) });
+            const j = await res.json().catch(()=>null);
+            if (!j || !j.ok) { alert(j?.error?.message || 'Failed to save'); return; }
+            setData(j.data);
+          } finally { setBusy('idle'); }
+        }}>{busy==='saving' ? 'Saving…' : 'Save'}</Button>
+      </div>
+    </div>
   );
 }
 
@@ -284,7 +348,7 @@ function EmailComposer({ customerId, email, composer, setComposer, onSent }: { c
             const res = await fetch('/api/crm/ai/email-draft', { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ customerId, to: composer.to }) });
             const j = await res.json().catch(()=>null);
             if (!j || !j.ok) { setAiError(j?.error?.message || 'Failed to generate'); }
-            else { setComposer((c)=>({ ...c, subject: j.data.subject || c.subject, body: j.data.body || c.body })); }
+            else { setComposer({ ...composer, subject: j.data.subject || composer.subject, body: j.data.body || composer.body }); }
           } catch (e: any) {
             setAiError(e?.message || 'Failed');
           } finally { setAiBusy('idle'); }

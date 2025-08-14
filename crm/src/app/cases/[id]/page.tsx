@@ -19,6 +19,7 @@ export default function CaseDetailPage() {
   const [compose, setCompose] = useState<{ to: string; subject: string; body: string; in_reply_to: string | null; references: string[] }>({ to: '', subject: '', body: '', in_reply_to: null, references: [] });
   const [aiBusy, setAiBusy] = useState<'idle'|'generating'>('idle');
   const [aiError, setAiError] = useState<string | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
 
   useEffect(() => { (async () => {
     const token = await getAccessToken(); if (!token) return;
@@ -26,7 +27,7 @@ export default function CaseDetailPage() {
     const j = await res.json().catch(()=>null);
     if (!j || !j.ok) { setError('Not authorized or not found'); return; }
     setData(j.data);
-    setTitle(j.data.info?.title || '');
+    setTitle(j.data.info?.case_number || '');
     setStage(j.data.info?.stage || 'new');
     setCampaignId(j.data.info?.campaign_id ? String(j.data.info.campaign_id) : '');
     // load campaigns for dropdown
@@ -38,30 +39,164 @@ export default function CaseDetailPage() {
     setCompose((c)=>({ ...c, to: j.data.customer?.email || '' }));
   })(); }, [caseId]);
 
+  // Ensure hooks are called on every render (even before data loads)
+  const [viewTab, setViewTab] = useState<'Activity'|'Details'|'Related'>('Activity');
+
   if (!data) return <main className="container-hero py-8">{error || 'Loading…'}</main>;
 
   return (
-    <main className="container-hero py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
+    <main className="container-hero py-6">
+      {/* Header with highlights */}
+      <div className="mb-4 flex items-center justify-between">
+        <div className="min-w-0">
           <div className="text-xs opacity-70">Case</div>
-          <h1 className="text-2xl font-bold">{data.info.case_number}</h1>
+          <div className="flex items-center gap-3 min-w-0">
+            <h1 className="text-2xl font-bold truncate">{data.info.case_number}</h1>
+            <span className="inline-block text-xs px-2 py-0.5 rounded-full border border-black/10 dark:border-white/10 whitespace-nowrap">{data.info.stage}</span>
+          </div>
+          <div className="opacity-70 text-xs mt-1 truncate">{data.customer.full_name} · {data.info.campaign_name || 'No campaign'} · {data.info.vertical_name || 'No vertical'}</div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={()=>router.back()}>Back</Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        {/* Left: case + compose */}
-        <div className="xl:col-span-3 space-y-6">
-          {/* Case header card */}
+      {/* Stage path */}
+      <div className="mb-4 flex items-center gap-2 text-xs">
+        {(['new','in-progress','won','lost','closed'] as const).map((st, idx) => {
+          const activeIdx = ['new','in-progress','won','lost','closed'].indexOf(data.info.stage);
+          const isDone = idx < activeIdx;
+          const isActive = idx === activeIdx;
+          return (
+            <div key={st} className={`flex items-center gap-2 ${idx>0?'pl-2':''}`}>
+              {idx>0 && <div className="w-4 h-[1px] bg-black/10 dark:bg-white/20" />}
+              <div className={`px-2 py-1 rounded-full border ${isActive ? 'bg-black text-white dark:bg-white dark:text-black' : (isDone ? 'bg-black/5 dark:bg-white/10 text-black dark:text-white' : 'bg-transparent text-black dark:text-white')} border-black/10 dark:border-white/10`}>{st}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 text-sm">
+        <div className="p-3 rounded-lg border border-black/10 dark:border-white/10">
+          <div className="opacity-60 text-xs">Customer</div>
+          <div className="font-medium truncate">{data.customer.full_name}</div>
+          <div className="opacity-70 truncate text-xs">{data.customer.email || data.customer.phone || '—'}</div>
+        </div>
+        <div className="p-3 rounded-lg border border-black/10 dark:border-white/10">
+          <div className="opacity-60 text-xs">Campaign</div>
+          <div className="font-medium truncate">{data.info.campaign_name || '—'}</div>
+        </div>
+        <div className="p-3 rounded-lg border border-black/10 dark:border-white/10">
+          <div className="opacity-60 text-xs">Vertical</div>
+          <div className="font-medium truncate">{data.info.vertical_name || '—'}</div>
+        </div>
+        <div className="p-3 rounded-lg border border-black/10 dark:border-white/10">
+          <div className="opacity-60 text-xs">Created</div>
+          <div className="font-medium">{new Date(data.info.created_at).toLocaleString()}</div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="mb-3 flex items-center gap-2 text-sm">
+        {(['Activity','Details','Related'] as const).map(t => (
+          <button key={t} className={`px-3 py-1.5 rounded-lg border ${viewTab===t ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-transparent'} border-black/10 dark:border-white/10`} onClick={()=>setViewTab(t)}>{t}</button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Left content area */}
+        <div className="xl:col-span-2 space-y-6">
+          {viewTab === 'Activity' && (
+            <>
+              <Card>
+                <CardHeader title="Email" actions={<Button onClick={() => setComposerOpen(true)}>New Email</Button>} />
+                <CardBody>
+                  <MailTabs emails={data.emails || []} customerEmail={data.customer.email || ''} onReply={(subj, body)=>{
+                    setCompose({ to: data.customer.email || '', subject: subj, body, in_reply_to: null, references: [] }); setComposerOpen(true);
+                  }} />
+                </CardBody>
+              </Card>
+
+              <Card>
+                <CardHeader title="Notes" />
+                <CardBody>
+                  <div className="space-y-3 text-sm">
+                    {(data.notes || []).map((n:any) => (
+                      <div key={n.id} className="p-3 rounded-lg border border-black/10 dark:border-white/10">
+                        <div className="opacity-70 text-xs">by {n.createdBy} · {new Date(n.created_at).toLocaleString()}</div>
+                        <div>{n.body}</div>
+                      </div>
+                    ))}
+                    <div className="grid grid-cols-1 gap-2 mt-2">
+                      <textarea id="new-note" placeholder="Add note" className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 min-h-[120px]" />
+                      <div className="flex items-center justify-end">
+                        <Button onClick={async ()=>{
+                          const el = document.getElementById('new-note') as HTMLTextAreaElement | null; if (!el || !el.value.trim()) return;
+                          const token = await getAccessToken(); if (!token) return;
+                          const res = await fetch(`/api/crm/cases/${caseId}/notes`, { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ body: el.value }) });
+                          const j = await res.json().catch(()=>null); if (!j || !j.ok) return;
+                          el.value = '';
+                          const r = await fetch(`/api/crm/cases/${caseId}`, { headers: { authorization: `Bearer ${token}` } }); const jj = await r.json().catch(()=>null); if (jj && jj.ok) setData(jj.data);
+                        }}>Add</Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+
+              {/* Email composer dialog */}
+              {composerOpen && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+                  <div className="w-full max-w-2xl rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-lg font-semibold">New Email</div>
+                      <button onClick={()=>setComposerOpen(false)}>✕</button>
+                    </div>
+                    <div className="space-y-2">
+                      <Input placeholder="To" value={compose.to} onChange={(e)=>setCompose({ ...compose, to: e.target.value })} />
+                      <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+                        <Input placeholder="Subject" value={compose.subject} onChange={(e)=>setCompose({ ...compose, subject: e.target.value })} />
+                        <Button variant="secondary" onClick={async () => {
+                          setAiError(null); setAiBusy('generating');
+                          try {
+                            const token = await getAccessToken(); if (!token) { setAiBusy('idle'); return; }
+                            const res = await fetch('/api/crm/ai/email-draft', { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ customerId: data.customer.id, to: compose.to || data.customer.email }) });
+                            const j = await res.json().catch(()=>null);
+                            if (!j || !j.ok) { setAiError(j?.error?.message || 'Failed to generate'); }
+                            else { setCompose((c)=>({ ...c, subject: j.data.subject || c.subject, body: j.data.body || c.body })); }
+                          } catch (e: any) { setAiError(e?.message || 'Failed'); } finally { setAiBusy('idle'); }
+                        }}>{aiBusy==='generating' ? 'AI…' : 'AI Draft'}</Button>
+                      </div>
+                      {aiError && <div className="text-xs text-red-600">{aiError}</div>}
+                      <textarea className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 min-h-[200px]" value={compose.body} onChange={(e)=>setCompose({ ...compose, body: e.target.value })} />
+                      <div className="flex justify-end gap-2">
+                        <Button variant="secondary" onClick={()=>setComposerOpen(false)}>Cancel</Button>
+                        <Button onClick={async ()=>{
+                          const token = await getAccessToken(); if (!token) return;
+                          const res = await fetch(`/api/crm/cases/${caseId}/email`, { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ to: compose.to || data.customer.email, subject: compose.subject, body: compose.body }) });
+                          const j = await res.json().catch(()=>null);
+                          setComposerOpen(false);
+                          if (!j || !j.ok) { alert(j?.error?.message || 'Failed to send'); return; }
+                          const r = await fetch(`/api/crm/cases/${caseId}`, { headers: { authorization: `Bearer ${token}` } });
+                          const jj = await r.json().catch(()=>null); if (jj && jj.ok) setData(jj.data);
+                        }}>Send</Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {viewTab === 'Details' && (
+            <>
           <Card>
+                <CardHeader title="Case Details" />
             <CardBody>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                 <div className="md:col-span-2">
-                  <div className="text-xs opacity-70">Title</div>
-                  <Input value={title} onChange={(e)=>setTitle(e.target.value)} />
+                      <div className="text-xs opacity-70">Case Number</div>
+                      <Input value={title} disabled />
                 </div>
                 <div>
                   <div className="text-xs opacity-70">Stage</div>
@@ -80,7 +215,7 @@ export default function CaseDetailPage() {
                     {campaigns.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
                   </select>
                 </div>
-                <div className="text-right">
+                    <div className="text-right md:col-span-4">
                   <Button disabled={saving!=='idle'} onClick={async ()=>{
                     setSaving('saving');
                     try {
@@ -90,83 +225,18 @@ export default function CaseDetailPage() {
                       if (!j || !j.ok) { alert(j?.error?.message || 'Failed'); return; }
                     } finally { setSaving('idle'); }
                   }}>{saving==='saving' ? 'Saving…' : 'Save'}</Button>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4 text-sm">
-                <div>
-                  <div className="text-xs opacity-70">Customer</div>
-                  <div className="font-medium">{data.customer.full_name}</div>
-                  <div className="opacity-70">{data.customer.email || '—'}</div>
-                </div>
-                <div>
-                  <div className="text-xs opacity-70">Vertical</div>
-                  <div className="font-medium">{data.info.vertical_name || '—'}</div>
-                </div>
-                <div>
-                  <div className="text-xs opacity-70">Campaign</div>
-                  <div className="font-medium">{data.info.campaign_name || '—'}</div>
-                </div>
-                <div>
-                  <div className="text-xs opacity-70">Created</div>
-                  <div className="font-medium">{new Date(data.info.created_at).toLocaleString()}</div>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-
-          {/* Compose + Emails */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="lg:col-span-2">
-              <CardHeader title="Send Email" />
-              <CardBody>
-                <div className="space-y-2">
-                  <div className="text-xs opacity-70">To</div>
-                  <div className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 text-sm">{data.customer.email || '—'}</div>
-                  <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
-                    <Input placeholder="Subject" value={compose.subject} onChange={(e)=>setCompose({ ...compose, subject: e.target.value })} />
-                    <Button variant="secondary" onClick={async () => {
-                      setAiError(null); setAiBusy('generating');
-                      try {
-                        const token = await getAccessToken(); if (!token) { setAiBusy('idle'); return; }
-                        const res = await fetch('/api/crm/ai/email-draft', { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ customerId: data.customer.id, to: data.customer.email }) });
-                        const j = await res.json().catch(()=>null);
-                        if (!j || !j.ok) { setAiError(j?.error?.message || 'Failed to generate'); }
-                        else { setCompose((c)=>({ ...c, subject: j.data.subject || c.subject, body: j.data.body || c.body })); }
-                      } catch (e: any) { setAiError(e?.message || 'Failed'); } finally { setAiBusy('idle'); }
-                    }}>{aiBusy==='generating' ? 'AI…' : 'AI Draft'}</Button>
-                  </div>
-                  {aiError && <div className="text-xs text-red-600">{aiError}</div>}
-                  <textarea className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 min-h-[240px]" value={compose.body} onChange={(e)=>setCompose({ ...compose, body: e.target.value })} />
-                  <div className="flex justify-end">
-                    <Button onClick={async ()=>{
-                      const token = await getAccessToken(); if (!token) return;
-                      const res = await fetch(`/api/crm/cases/${caseId}/email`, { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ to: data.customer.email, subject: compose.subject, body: compose.body }) });
-                      const j = await res.json().catch(()=>null);
-                      if (!j || !j.ok) { alert(j?.error?.message || 'Failed to send'); return; }
-                      const r = await fetch(`/api/crm/cases/${caseId}`, { headers: { authorization: `Bearer ${token}` } });
-                      const jj = await r.json().catch(()=>null); if (jj && jj.ok) setData(jj.data);
-                    }}>Send</Button>
                   </div>
                 </div>
               </CardBody>
             </Card>
 
-            <Card className="lg:col-span-2">
-              <CardHeader title="Emails" />
-              <CardBody>
-                <CaseEmailPane emails={data.emails || []} customerId={data.customer.id} onReply={(subj, body) => setCompose({ to: data.customer.email || '', subject: subj, body, in_reply_to: null, references: [] })} />
-              </CardBody>
-            </Card>
-          </div>
-
-          {/* Versions */}
           {Array.isArray(data.versions) && data.versions.length > 0 && (
             <Card>
               <CardHeader title="Version History" />
               <CardBody>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                   {data.versions.map((v:any) => (
-                    <div key={v.version_no} className="p-3 rounded-lg border border-black/5 dark:border-white/10">
+                        <div key={v.version_no} className="p-3 rounded-lg border border-black/10 dark:border-white/10">
                       <div className="font-medium">Version {v.version_no}</div>
                       <div className="opacity-70 text-xs">{new Date(v.created_at).toLocaleString()} {v.createdBy ? `· by ${v.createdBy}` : ''}</div>
                       <div className="opacity-80 mt-1">{v.data?.title ? `Title: ${v.data.title}` : ''} {v.data?.stage ? `· Stage: ${v.data.stage}` : ''}</div>
@@ -176,38 +246,12 @@ export default function CaseDetailPage() {
               </CardBody>
             </Card>
           )}
-        </div>
+            </>
+          )}
 
-        {/* Right: notes and customer */}
-        <div className="xl:col-span-1 space-y-6">
+          {viewTab === 'Related' && (
           <Card>
-            <CardHeader title="Notes" />
-            <CardBody>
-              <div className="space-y-3 text-sm">
-                {(data.notes || []).map((n:any) => (
-                  <div key={n.id} className="p-3 rounded-lg border border-black/5 dark:border-white/10">
-                    <div className="opacity-70 text-xs">by {n.createdBy} · {new Date(n.created_at).toLocaleString()}</div>
-                    <div>{n.body}</div>
-                  </div>
-                ))}
-                <div className="grid grid-cols-1 gap-2 mt-2">
-                  <textarea id="new-note" placeholder="Add note" className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 min-h-[140px]" />
-                  <div className="flex items-center justify-end">
-                    <Button onClick={async ()=>{
-                      const el = document.getElementById('new-note') as HTMLTextAreaElement | null; if (!el || !el.value.trim()) return;
-                      const token = await getAccessToken(); if (!token) return;
-                      const res = await fetch(`/api/crm/cases/${caseId}/notes`, { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ body: el.value }) });
-                      const j = await res.json().catch(()=>null); if (!j || !j.ok) return;
-                      el.value = '';
-                      const r = await fetch(`/api/crm/cases/${caseId}`, { headers: { authorization: `Bearer ${token}` } }); const jj = await r.json().catch(()=>null); if (jj && jj.ok) setData(jj.data);
-                    }}>Add</Button>
-                  </div>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-          <Card>
-            <CardHeader title="All Cases for Customer" />
+              <CardHeader title="Other Cases for Customer" />
             <CardBody>
               <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[360px] overflow-auto">
                 {(!data.otherCases || data.otherCases.length === 0) ? (
@@ -228,20 +272,168 @@ export default function CaseDetailPage() {
               </div>
             </CardBody>
           </Card>
+          )}
+        </div>
 
+        {/* Right: customer panel */}
+        <div className="xl:col-span-1 space-y-6">
           <Card>
             <CardHeader title="Customer" />
             <CardBody>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="opacity-70">Name</div><div>{data.customer.full_name}</div>
-                <div className="opacity-70">Email</div><div>{data.customer.email || '—'}</div>
-                <div className="opacity-70">Phone</div><div>{data.customer.phone || '—'}</div>
-              </div>
+              <CaseCustomerEdit customer={data.customer} caseId={caseId} onSaved={async ()=>{
+                const token = await getAccessToken(); if (!token) return;
+                const r = await fetch(`/api/crm/cases/${caseId}`, { headers: { authorization: `Bearer ${token}` } });
+                const jj = await r.json().catch(()=>null); if (jj && jj.ok) setData(jj.data);
+              }} />
             </CardBody>
           </Card>
         </div>
       </div>
     </main>
+  );
+}
+
+function CaseCustomerEdit({ customer, caseId, onSaved }: { customer: any; caseId: number; onSaved: () => void }) {
+  const [form, setForm] = useState<any>({
+    first_name: customer.first_name || '',
+    last_name: customer.last_name || '',
+    email: customer.email || '',
+    phone: customer.phone || '',
+    street1: customer.street1 || '',
+    street2: customer.street2 || '',
+    city: customer.city || '',
+    state: customer.state || '',
+    zip: customer.zip || '',
+    company: customer.company || '',
+    title: customer.title || '',
+    notes: customer.notes || '',
+    status: customer.status || 'active',
+  });
+  const [busy, setBusy] = useState<'idle'|'saving'>('idle');
+  return (
+    <div className="space-y-3 text-sm">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <Input placeholder="First name" value={form.first_name} onChange={(e)=>setForm({ ...form, first_name: e.target.value })} />
+        <Input placeholder="Last name" value={form.last_name} onChange={(e)=>setForm({ ...form, last_name: e.target.value })} />
+        <Input placeholder="Email" value={form.email} onChange={(e)=>setForm({ ...form, email: e.target.value })} />
+        <Input placeholder="Phone" value={form.phone} onChange={(e)=>setForm({ ...form, phone: e.target.value })} />
+        <Input placeholder="Street (line 1)" value={form.street1} onChange={(e)=>setForm({ ...form, street1: e.target.value })} />
+        <Input placeholder="Street (line 2)" value={form.street2} onChange={(e)=>setForm({ ...form, street2: e.target.value })} />
+        <Input placeholder="City" value={form.city} onChange={(e)=>setForm({ ...form, city: e.target.value })} />
+        <Input placeholder="State" value={form.state} onChange={(e)=>setForm({ ...form, state: e.target.value })} />
+        <Input placeholder="ZIP" value={form.zip} onChange={(e)=>setForm({ ...form, zip: e.target.value })} />
+        <Input placeholder="Company" value={form.company} onChange={(e)=>setForm({ ...form, company: e.target.value })} />
+        <Input placeholder="Title" value={form.title} onChange={(e)=>setForm({ ...form, title: e.target.value })} />
+        <select className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10" value={form.status} onChange={(e)=>setForm({ ...form, status: e.target.value })}>
+          <option value="lead">Lead</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="archived">Archived</option>
+        </select>
+      </div>
+      <textarea className="w-full min-h-24 rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10" placeholder="Notes" value={form.notes} onChange={(e)=>setForm({ ...form, notes: e.target.value })} />
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={() => setForm({
+          first_name: customer.first_name || '',
+          last_name: customer.last_name || '',
+          email: customer.email || '',
+          phone: customer.phone || '',
+          street1: customer.street1 || '',
+          street2: customer.street2 || '',
+          city: customer.city || '',
+          state: customer.state || '',
+          zip: customer.zip || '',
+          company: customer.company || '',
+          title: customer.title || '',
+          notes: customer.notes || '',
+          status: customer.status || 'active',
+        })} disabled={busy!=='idle'}>Reset</Button>
+        <Button disabled={busy!=='idle'} onClick={async ()=>{
+          if (!form.email && !form.phone) { alert('Email or phone is required'); return; }
+          setBusy('saving');
+          try {
+            const token = await getAccessToken(); if (!token) return;
+            const res = await fetch(`/api/crm/customers/${customer.id}`, { method: 'PUT', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(form) });
+            const j = await res.json().catch(()=>null);
+            if (!j || !j.ok) { alert(j?.error?.message || 'Failed to save'); return; }
+            onSaved();
+          } finally { setBusy('idle'); }
+        }}>{busy==='saving' ? 'Saving…' : 'Save'}</Button>
+      </div>
+    </div>
+  );
+}
+
+function CaseEmailPane({ emails, customerId, onReply }: { emails: Array<any>; customerId: number; onReply: (subject: string, body: string) => void }) {
+  const [items, setItems] = useState<Array<any>>(emails || []);
+  const [selected, setSelected] = useState<any | null>((emails || [])[0] || null);
+  useEffect(() => {
+    setItems(emails || []);
+    if (emails && emails.length > 0) {
+      if (!selected || !emails.find((x: any) => x.id === selected.id)) {
+        setSelected(emails[0]);
+      }
+    } else {
+      setSelected(null);
+    }
+  }, [emails, selected?.id]);
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+      <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[520px] overflow-auto">
+        {items.length === 0 ? (
+          <div className="p-4 opacity-70">No emails.</div>
+        ) : (
+          <ul className="divide-y divide-black/5 dark:divide-white/10">
+            {items.map((m) => (
+              <li key={m.id} className={`px-3 py-2 cursor-pointer ${selected && selected.id === m.id ? 'bg-black/5 dark:bg-white/5' : ''}`} onClick={() => setSelected(m)}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="truncate font-medium">{m.subject || '(no subject)'}</div>
+                  <div className="opacity-60 text-xs">{new Date(m.created_at).toLocaleString()}</div>
+                </div>
+                <div className="truncate opacity-70">{(m.body || '').slice(0, 120)}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="rounded-xl border border-black/10 dark:border-white/10 min-h-[520px]">
+        {!selected ? (
+          <div className="p-4 opacity-70">Select an email to preview.</div>
+        ) : (
+          <div className="p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-medium">{selected.subject || '(no subject)'}</div>
+                <div className="opacity-60 text-xs">{new Date(selected.created_at).toLocaleString()}</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="secondary" onClick={() => {
+                  const quoted = `\n\nOn ${new Date(selected.created_at).toLocaleString()}, they wrote:\n> ` + String(selected.body || '').split('\n').map((l: string) => l ? `> ${l}` : '>').join('\n');
+                  const subj = selected.subject?.startsWith('Re:') ? selected.subject : `Re: ${selected.subject || ''}`;
+                  onReply(subj, quoted);
+                }}>Reply</Button>
+              </div>
+            </div>
+            <div className="whitespace-pre-wrap border-t pt-3 border-black/10 dark:border-white/10">{selected.body || ''}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MailTabs({ emails, customerEmail, onReply }: { emails: Array<any>; customerEmail: string; onReply: (subject: string, body: string) => void }) {
+  const inbox = (emails || []).filter((m:any)=>m.direction==='in');
+  const sent = (emails || []).filter((m:any)=>m.direction==='out');
+  const [tab, setTab] = useState<'in'|'out'>('in');
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-xs">
+        <button className={`px-2 py-1 rounded border ${tab==='in'?'bg-black text-white dark:bg-white dark:text-black':''} border-black/10 dark:border-white/10`} onClick={()=>setTab('in')}>Inbox</button>
+        <button className={`px-2 py-1 rounded border ${tab==='out'?'bg-black text-white dark:bg-white dark:text-black':''} border-black/10 dark:border-white/10`} onClick={()=>setTab('out')}>Sent</button>
+      </div>
+      <CaseEmailPane emails={tab==='in'? inbox : sent} customerId={0} onReply={onReply} />
+    </div>
   );
 }
 

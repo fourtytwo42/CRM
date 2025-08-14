@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   if (from) {
     let customer = db.prepare('SELECT id FROM customers WHERE phone = ?').get(from) as { id: number } | undefined;
     if (!customer) {
-      const info = db.prepare(`INSERT INTO customers (first_name, last_name, full_name, email, phone, company, title, notes, status, preferred_contact, created_at, updated_at) VALUES (NULL, NULL, ?, NULL, ?, NULL, NULL, 'Inbound call', 'lead', 'phone', ?, ?)`)
+      const info = db.prepare(`INSERT INTO customers (first_name, last_name, full_name, email, phone, street1, street2, city, state, zip, company, title, notes, status, preferred_contact, created_at, updated_at) VALUES (NULL, NULL, ?, NULL, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Inbound call', 'lead', 'phone', ?, ?)`)
         .run(from, from, nowIso, nowIso);
       customer = { id: Number(info.lastInsertRowid) };
     }

@@ -94,7 +94,7 @@ async function runOnce(): Promise<number> {
         if (!cust && fromLower) {
           const now = new Date().toISOString();
           const name = fromLower.split('@')[0];
-          const info = db.prepare(`INSERT INTO customers (first_name, last_name, full_name, email, status, preferred_contact, created_at, updated_at) VALUES (?, ?, ?, ?, 'lead', 'email', ?, ?)`).run(null, null, name, fromLower, now, now);
+          const info = db.prepare(`INSERT INTO customers (first_name, last_name, full_name, email, phone, street1, street2, city, state, zip, status, preferred_contact, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'lead', 'email', ?, ?)`).run(null, null, name, fromLower, null, null, null, null, null, null, now, now);
           cust = { id: Number(info.lastInsertRowid) };
         }
         if (cust && cust.id) {
@@ -125,7 +125,7 @@ async function runOnce(): Promise<number> {
       if (!cust && fromLower) {
         const now = new Date().toISOString();
         const name = fromLower.split('@')[0];
-        const info = db.prepare(`INSERT INTO customers (first_name, last_name, full_name, email, status, preferred_contact, created_at, updated_at) VALUES (?, ?, ?, ?, 'lead', 'email', ?, ?)`).run(null, null, name, fromLower, now, now);
+        const info = db.prepare(`INSERT INTO customers (first_name, last_name, full_name, email, phone, street1, street2, city, state, zip, status, preferred_contact, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'lead', 'email', ?, ?)`).run(null, null, name, fromLower, null, null, null, null, null, null, now, now);
         cust = { id: Number(info.lastInsertRowid) };
       }
       if (cust && cust.id) {

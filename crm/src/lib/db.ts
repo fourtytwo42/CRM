@@ -9,7 +9,7 @@ const g = globalThis as any;
 let dbInstance: Database.Database | null = g.__dbInstance || null;
 let migratedOnce = g.__dbMigratedOnce || false;
 
-const SCHEMA_VERSION = 14; // bump when schema/backfills change
+const SCHEMA_VERSION = 15; // bump when schema/backfills change
 
 function ensureDirectoryExists(directoryPath: string): void {
   if (!fs.existsSync(directoryPath)) {
@@ -279,6 +279,11 @@ function migrate(db: Database.Database): void {
       full_name TEXT,
       email TEXT,
       phone TEXT,
+      street1 TEXT,
+      street2 TEXT,
+      city TEXT,
+      state TEXT,
+      zip TEXT,
       company TEXT,
       title TEXT,
       notes TEXT,
@@ -775,6 +780,11 @@ function migrate(db: Database.Database): void {
       ensure('full_name', `ALTER TABLE customers ADD COLUMN full_name TEXT`);
       ensure('email', `ALTER TABLE customers ADD COLUMN email TEXT`);
       ensure('phone', `ALTER TABLE customers ADD COLUMN phone TEXT`);
+      ensure('street1', `ALTER TABLE customers ADD COLUMN street1 TEXT`);
+      ensure('street2', `ALTER TABLE customers ADD COLUMN street2 TEXT`);
+      ensure('city', `ALTER TABLE customers ADD COLUMN city TEXT`);
+      ensure('state', `ALTER TABLE customers ADD COLUMN state TEXT`);
+      ensure('zip', `ALTER TABLE customers ADD COLUMN zip TEXT`);
       ensure('company', `ALTER TABLE customers ADD COLUMN company TEXT`);
       ensure('title', `ALTER TABLE customers ADD COLUMN title TEXT`);
       ensure('notes', `ALTER TABLE customers ADD COLUMN notes TEXT`);
@@ -827,15 +837,23 @@ function seed(db: Database.Database): void {
   try {
     const nowIso = new Date().toISOString();
     const insertCustomer = db.prepare(`
-      INSERT OR IGNORE INTO customers (first_name, last_name, full_name, email, phone, company, title, notes, status, preferred_contact, created_at, updated_at)
-      VALUES (@first_name, @last_name, @full_name, @email, @phone, @company, @title, @notes, @status, @preferred_contact, @created_at, @updated_at)
+      INSERT OR IGNORE INTO customers (
+        first_name, last_name, full_name, email, phone,
+        street1, street2, city, state, zip,
+        company, title, notes, status, preferred_contact, created_at, updated_at
+      )
+      VALUES (
+        @first_name, @last_name, @full_name, @email, @phone,
+        @street1, @street2, @city, @state, @zip,
+        @company, @title, @notes, @status, @preferred_contact, @created_at, @updated_at
+      )
     `);
     const demoCustomers = [
-      { first_name: 'Jane', last_name: 'Doe', email: 'jane.doe@example.com', phone: '+1 (415) 555-0199', company: 'Globex', title: 'VP Marketing', status: 'active' },
-      { first_name: 'John', last_name: 'Smith', email: 'john.smith@example.com', phone: '+1 (212) 555-0134', company: 'Initech', title: 'CTO', status: 'lead' },
-      { first_name: 'Ava', last_name: 'Patel', email: 'ava.patel@example.com', phone: '+44 20 7946 0958', company: 'Hooli', title: 'Head of Ops', status: 'active' },
-      { first_name: 'Carlos', last_name: 'Ruiz', email: 'carlos.ruiz@example.com', phone: '+34 91 123 4567', company: 'Vandelay Industries', title: 'Procurement', status: 'inactive' },
-      { first_name: 'Mia', last_name: 'Chen', email: 'mia.chen@example.com', phone: '+86 10 5555 8888', company: 'Pied Piper', title: 'Product Lead', status: 'lead' }
+      { first_name: 'Jane', last_name: 'Doe', email: 'jane.doe@example.com', phone: '+1 (415) 555-0199', street1: '123 Market St', street2: 'Apt 4B', city: 'San Francisco', state: 'CA', zip: '94105', company: 'Globex', title: 'VP Marketing', status: 'active' },
+      { first_name: 'John', last_name: 'Smith', email: 'john.smith@example.com', phone: '+1 (212) 555-0134', street1: '456 7th Ave', street2: null, city: 'New York', state: 'NY', zip: '10018', company: 'Initech', title: 'CTO', status: 'lead' },
+      { first_name: 'Ava', last_name: 'Patel', email: 'ava.patel@example.com', phone: '+44 20 7946 0958', street1: '12 High St', street2: null, city: 'London', state: null, zip: 'SW1A 1AA', company: 'Hooli', title: 'Head of Ops', status: 'active' },
+      { first_name: 'Carlos', last_name: 'Ruiz', email: 'carlos.ruiz@example.com', phone: '+34 91 123 4567', street1: 'Calle de Alcalá 50', street2: null, city: 'Madrid', state: null, zip: '28014', company: 'Vandelay Industries', title: 'Procurement', status: 'inactive' },
+      { first_name: 'Mia', last_name: 'Chen', email: 'mia.chen@example.com', phone: '+86 10 5555 8888', street1: '88 Chang’an Ave', street2: 'Suite 20', city: 'Beijing', state: null, zip: '100000', company: 'Pied Piper', title: 'Product Lead', status: 'lead' }
     ];
     for (const c of demoCustomers) {
       insertCustomer.run({
@@ -844,6 +862,11 @@ function seed(db: Database.Database): void {
         full_name: `${c.first_name} ${c.last_name}`,
         email: c.email,
         phone: c.phone,
+        street1: c.street1 || null,
+        street2: c.street2 || null,
+        city: c.city || null,
+        state: c.state || null,
+        zip: c.zip || null,
         company: c.company,
         title: c.title,
         notes: 'VIP prospect. Imported for demo.',

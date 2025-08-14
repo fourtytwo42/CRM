@@ -204,9 +204,15 @@ function CustomersPane({
       {/* Add Customer Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen} title="Add Customer">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <Input placeholder="Full name" value={addForm.full_name} onChange={(e) => setAddForm({ ...addForm, full_name: e.target.value })} />
+          <Input placeholder="First name" value={addForm.first_name} onChange={(e) => setAddForm({ ...addForm, first_name: e.target.value })} />
+          <Input placeholder="Last name" value={addForm.last_name} onChange={(e) => setAddForm({ ...addForm, last_name: e.target.value })} />
           <Input placeholder="Email" type="email" value={addForm.email} onChange={(e) => setAddForm({ ...addForm, email: e.target.value })} />
           <Input placeholder="Phone" value={addForm.phone} onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })} />
+          <Input placeholder="Street address (line 1)" value={addForm.street1} onChange={(e) => setAddForm({ ...addForm, street1: e.target.value })} />
+          <Input placeholder="Street address (line 2)" value={addForm.street2} onChange={(e) => setAddForm({ ...addForm, street2: e.target.value })} />
+          <Input placeholder="City" value={addForm.city} onChange={(e) => setAddForm({ ...addForm, city: e.target.value })} />
+          <Input placeholder="State" value={addForm.state} onChange={(e) => setAddForm({ ...addForm, state: e.target.value })} />
+          <Input placeholder="ZIP" value={addForm.zip} onChange={(e) => setAddForm({ ...addForm, zip: e.target.value })} />
           <Input placeholder="Company" value={addForm.company} onChange={(e) => setAddForm({ ...addForm, company: e.target.value })} />
           <Input placeholder="Title" value={addForm.title} onChange={(e) => setAddForm({ ...addForm, title: e.target.value })} />
           <Select value={addForm.campaign_id} onChange={(e) => setAddForm({ ...addForm, campaign_id: e.target.value })}>
@@ -216,13 +222,14 @@ function CustomersPane({
             ))}
           </Select>
           <textarea className="md:col-span-2 w-full min-h-24 rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10" placeholder="Notes" value={addForm.notes} onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })} />
+          <div className="md:col-span-2 text-xs opacity-70">At least one contact method is required (email or phone).</div>
         </div>
         <DialogActions>
           <Button variant="secondary" onClick={() => setAddOpen(false)}>Cancel</Button>
           <Button onClick={async () => {
             const token = await getAccessToken();
             if (!token) { setAddOpen(false); return; }
-            if (!addForm.full_name.trim()) { alert('Full name is required'); return; }
+            if (!String(addForm.email||'').trim() && !String(addForm.phone||'').trim()) { alert('Email or phone is required'); return; }
             if (!addForm.campaign_id) { alert('Please select a campaign'); return; }
             // resolve campaign name -> id via overview campaigns list call
             const resCamps = await fetch('/api/crm/overview', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
@@ -283,7 +290,7 @@ export default function AgentPage() {
 
   const [counts, setCounts] = useState({ usersByCampaign: [] as Array<{ name: string; count: number }>, activeCasesByAgent: [] as Array<{ name: string; count: number }>, tasks: { overdue: 0, completed: 0 } });
   const [addOpen, setAddOpen] = useState(false);
-  const [addForm, setAddForm] = useState({ full_name: '', email: '', phone: '', company: '', title: '', notes: '', campaign_id: '' });
+  const [addForm, setAddForm] = useState({ first_name: '', last_name: '', email: '', phone: '', street1: '', street2: '', city: '', state: '', zip: '', company: '', title: '', notes: '', campaign_id: '' });
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>([]);
   const [customerBulkVerticalId, setCustomerBulkVerticalId] = useState<string>('');
   const [customerBulkCampaignId, setCustomerBulkCampaignId] = useState<string>('');
@@ -299,6 +306,11 @@ export default function AgentPage() {
   const [verticals, setVerticals] = useState<Array<{ id:number; name:string }>>([]);
   const [campaigns, setCampaigns] = useState<Array<{ id:number; name:string; vertical_id: number|null; status: string }>>([]);
   const [graph, setGraph] = useState<any>(null);
+  // Cases tab state
+  const [casesRows, setCasesRows] = useState<Array<{ id:number; case_number:string; title:string; stage:string; created_at:string; customer_name:string; customer_email?:string|null; customer_phone?:string|null; campaign_name?:string|null; vertical_name?:string|null }>>([]);
+  const [casesQ, setCasesQ] = useState('');
+  const [casesVertical, setCasesVertical] = useState('');
+  const [casesCampaign, setCasesCampaign] = useState('');
   // Dialogs for adding verticals/campaigns
   const [addVerticalOpen, setAddVerticalOpen] = useState(false);
   const [addVerticalName, setAddVerticalName] = useState('');
@@ -365,8 +377,16 @@ export default function AgentPage() {
           });
         }
       } catch {}
+      // Load cases for Cases tab
+      try {
+        const token3 = await getAccessToken(); if (token3) {
+          const qs = new URLSearchParams(); if (casesQ) qs.set('q', casesQ); if (casesVertical) qs.set('vertical', casesVertical); if (casesCampaign) qs.set('campaign', casesCampaign);
+          const rcases = await fetch(`/api/crm/cases?${qs.toString()}`, { headers: { authorization: `Bearer ${token3}` }, cache: 'no-store' });
+          const jc = await rcases.json().catch(()=>null); if (jc && jc.ok) setCasesRows(jc.data.cases || []);
+        }
+      } catch {}
     })();
-  }, [agentSort, agentQ]);
+  }, [agentSort, agentQ, casesQ, casesVertical, casesCampaign]);
 
   return (
     <main className="container-hero py-8">
@@ -563,6 +583,65 @@ export default function AgentPage() {
                           >
                             Delete
                           </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Cases */}
+        {activeTab === 'Cases' && (
+          <Card>
+            <CardHeader title="Cases" subtitle="Search and filter by vertical or campaign" />
+            <CardBody>
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-4">
+                <div className="md:col-span-4"><Input placeholder="Search by case #, customer, contact, or campaign" value={casesQ} onChange={(e)=>setCasesQ(e.target.value)} /></div>
+                <div className="md:col-span-3">
+                  <Select value={casesVertical} onChange={(e)=>setCasesVertical(e.target.value)}>
+                    <option value="">All Verticals</option>
+                    {uniqueVerticals.map(v => <option key={v} value={v}>{v}</option>)}
+                  </Select>
+                </div>
+                <div className="md:col-span-3">
+                  <Select value={casesCampaign} onChange={(e)=>setCasesCampaign(e.target.value)}>
+                    <option value="">All Campaigns</option>
+                    {uniqueCampaigns.map(v => <option key={v} value={v}>{v}</option>)}
+                  </Select>
+                </div>
+              </div>
+              <div className="overflow-auto -mx-6">
+                <table className="min-w-full table-auto text-sm">
+                  <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
+                    <tr className="text-left">
+                      <th className="px-6 py-3 font-medium">Case #</th>
+                      <th className="px-3 py-3 font-medium">Title</th>
+                      <th className="px-3 py-3 font-medium">Customer</th>
+                      <th className="px-3 py-3 font-medium">Campaign</th>
+                      <th className="px-3 py-3 font-medium">Vertical</th>
+                      <th className="px-3 py-3 font-medium">Stage</th>
+                      <th className="px-3 py-3 font-medium">Created</th>
+                      <th className="px-3 py-3 font-medium text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {casesRows.map(cs => (
+                      <tr key={cs.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
+                        <td className="px-6 py-3"><a className="underline" href={`/cases/${cs.id}`}>{cs.case_number}</a></td>
+                        <td className="px-3 py-3 truncate max-w-[280px]" title={cs.title}>{cs.title}</td>
+                        <td className="px-3 py-3">
+                          <div className="font-medium truncate max-w-[240px]" title={cs.customer_name}>{cs.customer_name}</div>
+                          <div className="opacity-60 text-xs truncate max-w-[240px]" title={cs.customer_email || cs.customer_phone || ''}>{cs.customer_email || cs.customer_phone || '—'}</div>
+                        </td>
+                        <td className="px-3 py-3">{cs.campaign_name || '—'}</td>
+                        <td className="px-3 py-3">{cs.vertical_name || '—'}</td>
+                        <td className="px-3 py-3">{cs.stage}</td>
+                        <td className="px-3 py-3">{new Date(cs.created_at).toLocaleString()}</td>
+                        <td className="px-3 py-3 text-right">
+                          <a className="underline" href={`/cases/${cs.id}`}>Open</a>
                         </td>
                       </tr>
                     ))}

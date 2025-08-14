@@ -83,32 +83,107 @@ export async function POST(req: NextRequest) {
   switch (type) {
     case 'customers': {
       const idx: any = Object.fromEntries(headers.map((h, i) => [h, i]));
-      const insNew = db.prepare(`INSERT INTO customers (full_name, email, phone, company, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
-      const updByEmail = db.prepare(`UPDATE customers SET full_name=?, phone=?, company=?, title=?, status=?, updated_at=? WHERE email = ?`);
+      const insNew = db.prepare(`
+        INSERT INTO customers (
+          first_name, last_name, full_name,
+          email, phone,
+          street1, street2, city, state, zip,
+          company, title, status, created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const updByEmail = db.prepare(`
+        UPDATE customers
+        SET first_name=?, last_name=?, full_name=?, phone=?,
+            street1=?, street2=?, city=?, state=?, zip=?,
+            company=?, title=?, status=?, updated_at=?
+        WHERE email = ?
+      `);
       const findByEmail = db.prepare(`SELECT id FROM customers WHERE email = ?`);
       const insCc = db.prepare(`INSERT OR IGNORE INTO customer_campaigns (customer_id, campaign_id, assigned_at) VALUES (?, ?, ?)`);
       const clearCc = db.prepare(`DELETE FROM customer_campaigns WHERE customer_id = ?`);
       const ensureCamp = db.prepare(`INSERT OR IGNORE INTO campaigns (vertical_id, name, status, created_at, updated_at) VALUES (NULL, ?, 'active', ?, ?)`);
       const findCampByName = db.prepare(`SELECT id FROM campaigns WHERE name = ? ORDER BY id LIMIT 1`);
       rows.forEach((r) => {
-        const full_name = r[idx.full_name];
+        const first_name = (idx.first_name !== undefined ? r[idx.first_name] : '') || '';
+        const last_name = (idx.last_name !== undefined ? r[idx.last_name] : '') || '';
+        let full_name = (idx.full_name !== undefined ? r[idx.full_name] : '') || '';
         const email = (r[idx.email] || '').trim() || null;
-        const phone = r[idx.phone] || null;
+        const phone = (r[idx.phone] || '').trim() || null;
+        const street1 = (idx.street1 !== undefined ? r[idx.street1] : '') || '';
+        const street2 = (idx.street2 !== undefined ? r[idx.street2] : '') || '';
+        const city = (idx.city !== undefined ? r[idx.city] : '') || '';
+        const state = (idx.state !== undefined ? r[idx.state] : '') || '';
+        const zip = (idx.zip !== undefined ? r[idx.zip] : '') || '';
         const company = r[idx.company] || null;
         const title = r[idx.title] || null;
         const status = r[idx.status] || 'active';
+        // Compute full_name if not provided
+        if (!full_name) {
+          const parts = [first_name, last_name].filter(Boolean).join(' ').trim();
+          if (parts) full_name = parts;
+          else if (email) full_name = email.split('@')[0];
+          else if (phone) full_name = phone;
+        }
         let customerId: number | null = null;
         if (email) {
           const ex = findByEmail.get(email) as any;
           if (ex && ex.id) {
-            updByEmail.run(full_name, phone, company, title, status, now, email);
+            updByEmail.run(
+              first_name || null,
+              last_name || null,
+              full_name || null,
+              phone || null,
+              street1 || null,
+              street2 || null,
+              city || null,
+              state || null,
+              zip || null,
+              company,
+              title,
+              status,
+              now,
+              email
+            );
             customerId = ex.id as number;
           } else {
-            insNew.run(full_name, email, phone, company, title, status, now, now);
+            insNew.run(
+              first_name || null,
+              last_name || null,
+              full_name || null,
+              email,
+              phone || null,
+              street1 || null,
+              street2 || null,
+              city || null,
+              state || null,
+              zip || null,
+              company,
+              title,
+              status,
+              now,
+              now
+            );
             const nx = findByEmail.get(email) as any; customerId = nx?.id || null;
           }
         } else {
-          insNew.run(full_name, null, phone, company, title, status, now, now);
+          insNew.run(
+            first_name || null,
+            last_name || null,
+            full_name || null,
+            null,
+            phone || null,
+            street1 || null,
+            street2 || null,
+            city || null,
+            state || null,
+            zip || null,
+            company,
+            title,
+            status,
+            now,
+            now
+          );
           const nx = db.prepare(`SELECT id FROM customers ORDER BY id DESC LIMIT 1`).get() as any; customerId = nx?.id || null;
         }
         if (!customerId) return;
