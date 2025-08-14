@@ -101,19 +101,7 @@ export default function CaseDetailPage() {
         })}
       </div>
 
-      {/* Campaign quick edit */}
-      <div className="mb-4 max-w-sm">
-        <div className="text-xs opacity-70 mb-1">Campaign</div>
-        <select className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 w-full" value={campaignId} onChange={async (e)=>{
-          const val = e.target.value;
-          setCampaignId(val);
-          await saveCase({ campaign_id: val ? Number(val) : null });
-          await reloadCase();
-        }}>
-          <option value="">(none)</option>
-          {campaigns.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
-        </select>
-      </div>
+      
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 text-sm">
         <div className="p-3 rounded-lg border border-black/10 dark:border-white/10">
@@ -122,8 +110,16 @@ export default function CaseDetailPage() {
           <div className="opacity-70 truncate text-xs">{data.customer.email || data.customer.phone || '—'}</div>
         </div>
         <div className="p-3 rounded-lg border border-black/10 dark:border-white/10">
-          <div className="opacity-60 text-xs">Campaign</div>
-          <div className="font-medium truncate">{data.info.campaign_name || '—'}</div>
+          <div className="opacity-60 text-xs mb-1">Campaign</div>
+          <select className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 w-full" value={campaignId} onChange={async (e)=>{
+            const val = e.target.value;
+            setCampaignId(val);
+            await saveCase({ campaign_id: val ? Number(val) : null });
+            await reloadCase();
+          }}>
+            <option value="">(none)</option>
+            {campaigns.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+          </select>
         </div>
         <div className="p-3 rounded-lg border border-black/10 dark:border-white/10">
           <div className="opacity-60 text-xs">Vertical</div>
