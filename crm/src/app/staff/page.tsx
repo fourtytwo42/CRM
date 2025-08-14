@@ -79,6 +79,7 @@ interface CustomersPaneProps {
   setUniqueVerticals: (verticals: string[]) => void;
   setUniqueCampaigns: (campaigns: string[]) => void;
   getAccessToken: () => Promise<string>;
+  openCaseForCustomer: (customerId: number) => Promise<void>;
 }
 
 // CustomersPane component moved outside to avoid JSX nesting issues
@@ -86,7 +87,7 @@ function CustomersPane({
   query, setQuery, vertical, setVertical, campaign, setCampaign,
   uniqueVerticals, uniqueCampaigns, filtered, agents, verticals, campaigns,
   addOpen, setAddOpen, addForm, setAddForm, setCounts, setRows,
-  setUniqueVerticals, setUniqueCampaigns, getAccessToken
+  setUniqueVerticals, setUniqueCampaigns, getAccessToken, openCaseForCustomer
 }: CustomersPaneProps) {
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>([]);
   const [customerBulkVerticalId, setCustomerBulkVerticalId] = useState<string>('');
@@ -212,7 +213,7 @@ function CustomersPane({
                       <a className="ml-2" title="View" href={`/customers/${c.id}`}>🔍</a>
                       <button className="ml-2" title="Open Case" onClick={async (e) => {
                         e.preventDefault();
-                        window.location.href = `/cases/new?customer=${c.id}`;
+                        await openCaseForCustomer(c.id);
                       }}>📁</button>
                       <button className="ml-2" title="Delete" onClick={async (e) => {
                         e.preventDefault();
@@ -373,6 +374,21 @@ export default function AgentPage() {
   const [openCaseTabs, setOpenCaseTabs] = useState<Array<{ id:number; case_number:string }>>([]);
   const [activeCaseTabId, setActiveCaseTabId] = useState<number | null>(null);
   const tabsScrollRef = useRef<HTMLDivElement|null>(null);
+  useEffect(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('staff.openCaseTabs') : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.every((t:any)=> typeof t.id==='number' && typeof t.case_number==='string')) {
+          setOpenCaseTabs(parsed);
+          setActiveCaseTabId(parsed[0]?.id ?? null);
+        }
+      }
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try { if (typeof window !== 'undefined') localStorage.setItem('staff.openCaseTabs', JSON.stringify(openCaseTabs)); } catch {}
+  }, [openCaseTabs]);
   // Dialogs for adding verticals/campaigns
   const [addVerticalOpen, setAddVerticalOpen] = useState(false);
   const [addVerticalName, setAddVerticalName] = useState('');
@@ -1055,6 +1071,17 @@ export default function AgentPage() {
               setUniqueVerticals={setUniqueVerticals}
               setUniqueCampaigns={setUniqueCampaigns}
               getAccessToken={getAccessToken}
+              openCaseForCustomer={async (customerId: number) => {
+                const token = await getAccessToken(); if (!token) return;
+                try {
+                  const res = await fetch('/api/crm/cases', { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ customer_id: customerId }) });
+                  const j = await res.json().catch(()=>null);
+                  if (!j || !j.ok) { alert(j?.error?.message || 'Failed to create case'); return; }
+                  setActiveTab('Cases');
+                  setOpenCaseTabs(prev => prev.some((t:any)=>t.id===j.data.id) ? prev : [...prev, { id: j.data.id, case_number: j.data.case_number }]);
+                  setActiveCaseTabId(j.data.id);
+                } catch { alert('Failed to create case'); }
+              }}
             />
         )}
 
