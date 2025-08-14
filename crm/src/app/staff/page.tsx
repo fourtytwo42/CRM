@@ -90,12 +90,34 @@ function CustomersPane({
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>([]);
   const [customerBulkVerticalId, setCustomerBulkVerticalId] = useState<string>('');
   const [customerBulkCampaignId, setCustomerBulkCampaignId] = useState<string>('');
+  const [customerSort, setCustomerSort] = useState<{ col: 'name'|'contact'|'vertical'|'campaign'; dir: 'asc'|'desc' }>({ col: 'name', dir: 'asc' });
 	const [customersPage, setCustomersPage] = useState(1);
 	const customersPageSize = 25;
-	const displayCustomers = useMemo(() => {
-		const start = (customersPage - 1) * customersPageSize;
-		return filtered.slice(start, start + customersPageSize);
-	}, [filtered, customersPage]);
+  const sortedCustomers = useMemo(() => {
+    const arr = [...filtered];
+    const dir = customerSort.dir === 'asc' ? 1 : -1;
+    arr.sort((a, b) => {
+      const val = ((): number => {
+        switch (customerSort.col) {
+          case 'name': return (a.name||'').localeCompare(b.name||'');
+          case 'contact': {
+            const av = (a.email || a.phone || '').toLowerCase();
+            const bv = (b.email || b.phone || '').toLowerCase();
+            return av.localeCompare(bv);
+          }
+          case 'vertical': return (a.vertical||'').localeCompare(b.vertical||'');
+          case 'campaign': return (a.campaign||'').localeCompare(b.campaign||'');
+          default: return 0;
+        }
+      })();
+      return val * dir;
+    });
+    return arr;
+  }, [filtered, customerSort]);
+  const displayCustomers = useMemo(() => {
+    const start = (customersPage - 1) * customersPageSize;
+    return sortedCustomers.slice(start, start + customersPageSize);
+  }, [sortedCustomers, customersPage]);
 	useEffect(() => { setCustomersPage(1); }, [query, vertical, campaign, filtered.length]);
   return (
     <>
@@ -167,10 +189,10 @@ function CustomersPane({
               <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
                 <tr className="text-left">
 								<th className="px-3 py-3"><input type="checkbox" checked={displayCustomers.length > 0 && displayCustomers.every(r => selectedCustomerIds.includes(r.id))} onChange={(e) => setSelectedCustomerIds(e.target.checked ? Array.from(new Set([...selectedCustomerIds, ...displayCustomers.map(x => x.id)])) : selectedCustomerIds.filter(id => !displayCustomers.some(x => x.id === id)))} /></th>
-                  <th className="px-6 py-3 font-medium">Name</th>
-                  <th className="px-3 py-3 font-medium">Contact</th>
-                  <th className="px-3 py-3 font-medium">Vertical</th>
-                  <th className="px-3 py-3 font-medium">Campaign</th>
+                  <th className="px-6 py-3 font-medium cursor-pointer" onClick={() => setCustomerSort(s => ({ col: 'name', dir: s.col==='name' && s.dir==='asc' ? 'desc' : 'asc' }))}>Name</th>
+                  <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCustomerSort(s => ({ col: 'contact', dir: s.col==='contact' && s.dir==='asc' ? 'desc' : 'asc' }))}>Contact</th>
+                  <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCustomerSort(s => ({ col: 'vertical', dir: s.col==='vertical' && s.dir==='asc' ? 'desc' : 'asc' }))}>Vertical</th>
+                  <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCustomerSort(s => ({ col: 'campaign', dir: s.col==='campaign' && s.dir==='asc' ? 'desc' : 'asc' }))}>Campaign</th>
                   <th className="px-3 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
@@ -336,6 +358,8 @@ export default function AgentPage() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [verticals, setVerticals] = useState<Array<{ id:number; name:string }>>([]);
   const [campaigns, setCampaigns] = useState<Array<{ id:number; name:string; vertical_id: number|null; status: string }>>([]);
+  const [verticalSort, setVerticalSort] = useState<{ col: 'name'; dir: 'asc'|'desc' }>({ col: 'name', dir: 'asc' });
+  const [campaignSort, setCampaignSort] = useState<{ col: 'name'|'vertical'; dir: 'asc'|'desc' }>({ col: 'name', dir: 'asc' });
   const [graph, setGraph] = useState<any>(null);
   // Cases tab state
   const [casesRows, setCasesRows] = useState<Array<{ id:number; case_number:string; title:string; stage:string; created_at:string; customer_name:string; customer_email?:string|null; customer_phone?:string|null; campaign_name?:string|null; vertical_name?:string|null }>>([]);
@@ -344,6 +368,7 @@ export default function AgentPage() {
   const [casesCampaign, setCasesCampaign] = useState('');
   const [casesPage, setCasesPage] = useState(1);
   const casesPageSize = 25;
+  const [casesSort, setCasesSort] = useState<{ col: 'case_number'|'title'|'customer_name'|'campaign_name'|'vertical_name'|'stage'|'created_at'; dir: 'asc'|'desc' }>({ col: 'created_at', dir: 'desc' });
   // Dialogs for adding verticals/campaigns
   const [addVerticalOpen, setAddVerticalOpen] = useState(false);
   const [addVerticalName, setAddVerticalName] = useState('');
@@ -421,9 +446,19 @@ export default function AgentPage() {
     })();
   }, [agentSort, agentQ, casesQ, casesVertical, casesCampaign]);
 
+  const casesSorted = useMemo(() => {
+    const arr = [...casesRows]; const dir = casesSort.dir === 'asc' ? 1 : -1;
+    arr.sort((a,b) => {
+      const av = (a[casesSort.col] || '').toString().toLowerCase();
+      const bv = (b[casesSort.col] || '').toString().toLowerCase();
+      if (casesSort.col === 'created_at') return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
+      return av.localeCompare(bv) * dir;
+    });
+    return arr;
+  }, [casesRows, casesSort]);
   const casesDisplay = useMemo(() => {
-    const start = (casesPage - 1) * casesPageSize; return casesRows.slice(start, start + casesPageSize);
-  }, [casesRows, casesPage]);
+    const start = (casesPage - 1) * casesPageSize; return casesSorted.slice(start, start + casesPageSize);
+  }, [casesSorted, casesPage]);
   useEffect(() => { setCasesPage(1); }, [casesQ, casesVertical, casesCampaign, casesRows.length]);
 
   return (
@@ -664,13 +699,13 @@ export default function AgentPage() {
                 <table className="min-w-full table-auto text-sm">
                   <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
                     <tr className="text-left">
-                      <th className="px-6 py-3 font-medium">Case #</th>
-                      <th className="px-3 py-3 font-medium">Title</th>
-                      <th className="px-3 py-3 font-medium">Customer</th>
-                      <th className="px-3 py-3 font-medium">Campaign</th>
-                      <th className="px-3 py-3 font-medium">Vertical</th>
-                      <th className="px-3 py-3 font-medium">Stage</th>
-                      <th className="px-3 py-3 font-medium">Created</th>
+                      <th className="px-6 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'case_number', dir: s.col==='case_number' && s.dir==='asc' ? 'desc' : 'asc' }))}>Case #</th>
+                      <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'title', dir: s.col==='title' && s.dir==='asc' ? 'desc' : 'asc' }))}>Title</th>
+                      <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'customer_name', dir: s.col==='customer_name' && s.dir==='asc' ? 'desc' : 'asc' }))}>Customer</th>
+                      <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'campaign_name', dir: s.col==='campaign_name' && s.dir==='asc' ? 'desc' : 'asc' }))}>Campaign</th>
+                      <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'vertical_name', dir: s.col==='vertical_name' && s.dir==='asc' ? 'desc' : 'asc' }))}>Vertical</th>
+                      <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'stage', dir: s.col==='stage' && s.dir==='asc' ? 'desc' : 'asc' }))}>Stage</th>
+                      <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'created_at', dir: s.col==='created_at' && s.dir==='asc' ? 'desc' : 'asc' }))}>Created</th>
                       <th className="px-3 py-3 font-medium text-right">Actions</th>
                     </tr>
                   </thead>
@@ -749,9 +784,14 @@ export default function AgentPage() {
             <CardBody>
               <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[420px] overflow-auto">
               <table className="min-w-full table-auto text-sm">
-                <thead><tr className="text-left"><th className="px-6 py-3">Name</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
+                <thead>
+                  <tr className="text-left">
+                    <th className="px-6 py-3 font-medium cursor-pointer" onClick={() => setVerticalSort(s => ({ col: 'name', dir: s.dir==='asc' ? 'desc' : 'asc' }))}>Name</th>
+                    <th className="px-3 py-3 text-right font-medium">Actions</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {verticals.slice(0, 1000).map(v => (
+                  {([...verticals].sort((a,b)=> (a.name||'').localeCompare(b.name||'') * (verticalSort.dir==='asc'?1:-1))).slice(0, 1000).map(v => (
                     <tr key={v.id} className="border-t border-black/5 dark:border-white/5">
                       <td className="px-6 py-3">{v.name}</td>
                       <td className="px-3 py-3 text-right">
@@ -789,9 +829,20 @@ export default function AgentPage() {
             <CardBody>
               <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[420px] overflow-auto">
               <table className="min-w-full table-auto text-sm">
-                <thead><tr className="text-left"><th className="px-6 py-3">Name</th><th className="px-3 py-3">Vertical</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
+                <thead>
+                  <tr className="text-left">
+                    <th className="px-6 py-3 font-medium cursor-pointer" onClick={() => setCampaignSort(s => ({ col: 'name', dir: s.col==='name' && s.dir==='asc' ? 'desc' : 'asc' }))}>Name</th>
+                    <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCampaignSort(s => ({ col: 'vertical', dir: s.col==='vertical' && s.dir==='asc' ? 'desc' : 'asc' }))}>Vertical</th>
+                    <th className="px-3 py-3 text-right font-medium">Actions</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {campaigns.slice(0, 1000).map(c => (
+                  {([...campaigns].sort((a,b)=>{
+                      if (campaignSort.col==='name') return (a.name||'').localeCompare(b.name||'') * (campaignSort.dir==='asc'?1:-1);
+                      const av = (verticals.find(v=>v.id===a.vertical_id)?.name || '').toLowerCase();
+                      const bv = (verticals.find(v=>v.id===b.vertical_id)?.name || '').toLowerCase();
+                      return av.localeCompare(bv) * (campaignSort.dir==='asc'?1:-1);
+                    })).slice(0, 1000).map(c => (
                     <tr key={c.id} className="border-t border-black/5 dark:border-white/5">
                       <td className="px-6 py-3">{c.name}</td>
                       <td className="px-3 py-3">{verticals.find(v => v.id === c.vertical_id)?.name || '—'}</td>
