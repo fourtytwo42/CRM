@@ -885,6 +885,7 @@ function AdminEmailClient() {
     let cancelled = false;
     let tickId: any = null;
     let syncId: any = null;
+    let es: EventSource | null = null;
     (async () => {
       try {
         const token = await getAccessToken();
@@ -909,7 +910,7 @@ function AdminEmailClient() {
         }
       } catch {}
     })();
-    // Instead of relying on a dedicated status endpoint, recompute countdown locally and refresh from server periodically
+    // Establish SSE stream for precise server-driven countdown, with local fallback and periodic resync
     const loadStatus = async () => {
       try {
         const token = await getAccessToken();
@@ -930,6 +931,28 @@ function AdminEmailClient() {
       // Ask the poll endpoint for status without running a poll by issuing a GET, which returns 405 today. We'll ignore and let local timer tick.
     };
     loadStatus();
+
+    // Try SSE first for authoritative countdown from server
+    try {
+      // Use absolute path to avoid Next.js base issues in some deployments
+      es = new EventSource('/api/crm/inbound/email/poll/stream');
+      es.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data || '{}');
+          if (data && data.ok !== false && data.poller) {
+            setPollIntervalSec(Number(data.poller.intervalSec || 60));
+            setPollRemaining(Number(data.poller.remainingSec ?? data.poller.intervalSec ?? 60));
+          }
+        } catch {}
+      };
+      es.onerror = () => {
+        try { es && es.close(); } catch {}
+        es = null;
+      };
+    } catch {
+      // ignore; fallback to local tick below
+    }
+
     tickId = setInterval(() => {
       setPollRemaining((prev) => {
         if (typeof prev === 'number') return Math.max(0, prev - 1);
@@ -938,7 +961,12 @@ function AdminEmailClient() {
       });
     }, 1000);
     syncId = setInterval(() => { loadStatus(); }, 15000);
-    return () => { cancelled = true; if (tickId) clearInterval(tickId); if (syncId) clearInterval(syncId); };
+    return () => {
+      cancelled = true;
+      if (tickId) clearInterval(tickId);
+      if (syncId) clearInterval(syncId);
+      try { es && es.close(); } catch {}
+    };
   }, []);
 
   return (
