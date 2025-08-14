@@ -294,14 +294,7 @@ function CustomersPane({
 }
 
 export default function AgentPage() {
-  const initialSavedTabs: Array<{ id:number; case_number:string }> = (typeof window !== 'undefined') ? (() => {
-    try {
-      const raw = localStorage.getItem('staff.openCaseTabs');
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed.filter((t:any) => t && typeof t.id === 'number' && typeof t.case_number === 'string') : [];
-    } catch { return []; }
-  })() : [];
-  const [activeTab, setActiveTab] = useState<'Verticals'|'Campaigns'|'Agents'|'Customers'|'Cases'>(initialSavedTabs.length > 0 ? 'Cases' : 'Customers');
+  const [activeTab, setActiveTab] = useState<'Verticals'|'Campaigns'|'Agents'|'Customers'|'Cases'>('Customers');
   const [query, setQuery] = useState("");
   const [vertical, setVertical] = useState("");
   const [campaign, setCampaign] = useState("");
@@ -378,17 +371,26 @@ export default function AgentPage() {
   const [casesPage, setCasesPage] = useState(1);
   const casesPageSize = 25;
   const [casesSort, setCasesSort] = useState<{ col: 'case_number'|'title'|'customer_name'|'campaign_name'|'vertical_name'|'stage'|'created_at'; dir: 'asc'|'desc' }>({ col: 'created_at', dir: 'desc' });
-  const [openCaseTabs, setOpenCaseTabs] = useState<Array<{ id:number; case_number:string }>>(initialSavedTabs);
-  const [activeCaseTabId, setActiveCaseTabId] = useState<number | null>(() => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const rawActive = localStorage.getItem('staff.activeCaseTabId');
-      const stored = rawActive ? Number(rawActive) : NaN;
-      const found = initialSavedTabs.find(t => t.id === stored);
-      return found ? found.id : (initialSavedTabs[0]?.id ?? null);
-    } catch { return null; }
-  });
+  const [openCaseTabs, setOpenCaseTabs] = useState<Array<{ id:number; case_number:string }>>([]);
+  const [activeCaseTabId, setActiveCaseTabId] = useState<number | null>(null);
   const tabsScrollRef = useRef<HTMLDivElement|null>(null);
+  // Restore tabs after mount to avoid hydration mismatch
+  useEffect(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('staff.openCaseTabs') : null;
+      const rawActive = typeof window !== 'undefined' ? localStorage.getItem('staff.activeCaseTabId') : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.every((t:any)=> typeof t.id==='number' && typeof t.case_number==='string')) {
+          setOpenCaseTabs(parsed);
+          const storedActive = rawActive ? Number(rawActive) : NaN;
+          const found = parsed.find((t:any)=> t.id === storedActive);
+          setActiveCaseTabId(found ? found.id : (parsed[0]?.id ?? null));
+          if (parsed.length > 0) setActiveTab('Cases');
+        }
+      }
+    } catch {}
+  }, []);
   // Persist tabs and active tab id
   useEffect(() => {
     try { if (typeof window !== 'undefined') localStorage.setItem('staff.openCaseTabs', JSON.stringify(openCaseTabs)); } catch {}
