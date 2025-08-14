@@ -90,6 +90,13 @@ function CustomersPane({
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>([]);
   const [customerBulkVerticalId, setCustomerBulkVerticalId] = useState<string>('');
   const [customerBulkCampaignId, setCustomerBulkCampaignId] = useState<string>('');
+	const [customersPage, setCustomersPage] = useState(1);
+	const customersPageSize = 25;
+	const displayCustomers = useMemo(() => {
+		const start = (customersPage - 1) * customersPageSize;
+		return filtered.slice(start, start + customersPageSize);
+	}, [filtered, customersPage]);
+	useEffect(() => { setCustomersPage(1); }, [query, vertical, campaign, filtered.length]);
   return (
     <>
       <Card>
@@ -121,7 +128,7 @@ function CustomersPane({
             </div>
           </div>
 
-          <div className="overflow-auto -mx-6">
+				<div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[420px] overflow-auto -mx-6">
             {selectedCustomerIds.length > 0 && (
               <div className="px-6 py-3 flex items-center gap-3 text-sm">
                 <span>{selectedCustomerIds.length} selected</span>
@@ -156,10 +163,10 @@ function CustomersPane({
                 }}>Set Campaign</Button>
               </div>
             )}
-            <table className="min-w-full table-auto text-sm">
+					<table className="min-w-full table-auto text-sm">
               <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
                 <tr className="text-left">
-                  <th className="px-3 py-3"><input type="checkbox" checked={selectedCustomerIds.length > 0 && selectedCustomerIds.length === filtered.length} onChange={(e) => setSelectedCustomerIds(e.target.checked ? filtered.map(x => x.id) : [])} /></th>
+								<th className="px-3 py-3"><input type="checkbox" checked={displayCustomers.length > 0 && displayCustomers.every(r => selectedCustomerIds.includes(r.id))} onChange={(e) => setSelectedCustomerIds(e.target.checked ? Array.from(new Set([...selectedCustomerIds, ...displayCustomers.map(x => x.id)])) : selectedCustomerIds.filter(id => !displayCustomers.some(x => x.id === id)))} /></th>
                   <th className="px-6 py-3 font-medium">Name</th>
                   <th className="px-3 py-3 font-medium">Contact</th>
                   <th className="px-3 py-3 font-medium">Vertical</th>
@@ -168,7 +175,7 @@ function CustomersPane({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((c) => (
+							{displayCustomers.map((c) => (
                   <tr key={c.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
                     <td className="px-3 py-3"><input type="checkbox" checked={selectedCustomerIds.includes(c.id)} onChange={(e) => setSelectedCustomerIds(e.target.checked ? Array.from(new Set([...selectedCustomerIds, c.id])) : selectedCustomerIds.filter(id => id !== c.id))} /></td>
                     <td className="px-6 py-3"><a className="underline" href={`/customers/${c.id}`}>{c.name}</a></td>
@@ -196,8 +203,15 @@ function CustomersPane({
                   </tr>
                 ))}
               </tbody>
-            </table>
+					</table>
           </div>
+				<div className="mt-2 flex items-center justify-between text-xs">
+					<div>Showing {Math.min((customersPage - 1) * customersPageSize + 1, filtered.length)}–{Math.min(customersPage * customersPageSize, filtered.length)} of {filtered.length}</div>
+					<div className="flex items-center gap-2">
+						<Button variant="secondary" onClick={() => setCustomersPage(p => Math.max(1, p - 1))} disabled={customersPage === 1}>Prev</Button>
+						<Button variant="secondary" onClick={() => setCustomersPage(p => (p * customersPageSize < filtered.length ? p + 1 : p))} disabled={customersPage * customersPageSize >= filtered.length}>Next</Button>
+					</div>
+				</div>
         </CardBody>
       </Card>
 
@@ -270,6 +284,8 @@ export default function AgentPage() {
   const [roleFilter, setRoleFilter] = useState<'all'|'manager'|'lead'|'agent'>('all');
   const [agentSort, setAgentSort] = useState<{ col: 'username'|'email'|'status'; dir: 'asc'|'desc' }>({ col: 'username', dir: 'asc' });
   const [selectedAgentIds, setSelectedAgentIds] = useState<number[]>([]);
+  const [agentsPage, setAgentsPage] = useState(1);
+  const agentsPageSize = 25;
   const [bulkRole, setBulkRole] = useState<'agent'|'lead'|'manager'>('agent');
   const [agentBulkOpen, setAgentBulkOpen] = useState(false);
   const [agentBulkVerticalId, setAgentBulkVerticalId] = useState<string>('');
@@ -287,6 +303,21 @@ export default function AgentPage() {
       return byQ && byV && byC && byA;
     });
   }, [rows, query, vertical, campaign, agent]);
+
+  // Agents pagination/sorting
+  const agentsFiltered = useMemo(() => agents.filter(a => roleFilter === 'all' ? true : a.role === roleFilter), [agents, roleFilter]);
+  const agentsSorted = useMemo(() => {
+    const arr = [...agentsFiltered];
+    const dir = agentSort.dir === 'asc' ? 1 : -1;
+    if (agentSort.col === 'username') arr.sort((a,b)=> (a.username||'').localeCompare(b.username||'') * dir);
+    if (agentSort.col === 'email') arr.sort((a,b)=> (a.email||'').localeCompare(b.email||'') * dir);
+    if (agentSort.col === 'status') arr.sort((a,b)=> (a.status||'').localeCompare(b.status||'') * dir);
+    return arr;
+  }, [agentsFiltered, agentSort]);
+  const agentsDisplay = useMemo(() => {
+    const start = (agentsPage - 1) * agentsPageSize; return agentsSorted.slice(start, start + agentsPageSize);
+  }, [agentsSorted, agentsPage]);
+  useEffect(() => { setAgentsPage(1); }, [roleFilter, agentQ, agents.length]);
 
   const [counts, setCounts] = useState({ usersByCampaign: [] as Array<{ name: string; count: number }>, activeCasesByAgent: [] as Array<{ name: string; count: number }>, tasks: { overdue: 0, completed: 0 } });
   const [addOpen, setAddOpen] = useState(false);
@@ -311,6 +342,8 @@ export default function AgentPage() {
   const [casesQ, setCasesQ] = useState('');
   const [casesVertical, setCasesVertical] = useState('');
   const [casesCampaign, setCasesCampaign] = useState('');
+  const [casesPage, setCasesPage] = useState(1);
+  const casesPageSize = 25;
   // Dialogs for adding verticals/campaigns
   const [addVerticalOpen, setAddVerticalOpen] = useState(false);
   const [addVerticalName, setAddVerticalName] = useState('');
@@ -388,6 +421,11 @@ export default function AgentPage() {
     })();
   }, [agentSort, agentQ, casesQ, casesVertical, casesCampaign]);
 
+  const casesDisplay = useMemo(() => {
+    const start = (casesPage - 1) * casesPageSize; return casesRows.slice(start, start + casesPageSize);
+  }, [casesRows, casesPage]);
+  useEffect(() => { setCasesPage(1); }, [casesQ, casesVertical, casesCampaign, casesRows.length]);
+
   return (
     <main className="container-hero py-8">
       <div className="flex items-center justify-between mb-6">
@@ -460,7 +498,7 @@ export default function AgentPage() {
                   </Select>
                 </div>
               </div>
-              <div className="overflow-auto -mx-6">
+              <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[420px] overflow-auto -mx-6">
                 {selectedAgentIds.length > 0 && (
                   <div className="px-6 py-3 flex items-center gap-3 text-sm">
                     <span>{selectedAgentIds.length} selected</span>
@@ -502,10 +540,12 @@ export default function AgentPage() {
                   <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
                     <tr className="text-left">
                       <th className="px-3 py-3">
-                        <input type="checkbox" checked={selectedAgentIds.length > 0 && selectedAgentIds.length === agents.filter(a => roleFilter==='all'? true : a.role===roleFilter).length} onChange={(e) => {
+                        <input type="checkbox" checked={agentsDisplay.length > 0 && agentsDisplay.every(a => selectedAgentIds.includes(a.id))} onChange={(e) => {
                           if (e.target.checked) {
-                            setSelectedAgentIds(agents.filter(a => roleFilter==='all'? true : a.role===roleFilter).map(a => a.id));
-                          } else setSelectedAgentIds([]);
+                            setSelectedAgentIds(prev => Array.from(new Set([...prev, ...agentsDisplay.map(a=>a.id)])));
+                          } else {
+                            setSelectedAgentIds(prev => prev.filter(id => !agentsDisplay.some(a => a.id === id)));
+                          }
                         }} />
                       </th>
                       <th className="px-6 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'username', dir: s.col==='username' && s.dir==='asc' ? 'desc' : 'asc' }))}>Username</th>
@@ -517,7 +557,7 @@ export default function AgentPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {agents.filter(a => roleFilter==='all' ? true : a.role === roleFilter).map((a) => (
+                    {agentsDisplay.map((a) => (
                       <tr key={a.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
                         <td className="px-3 py-3"><input type="checkbox" checked={selectedAgentIds.includes(a.id)} onChange={(e) => {
                           setSelectedAgentIds(prev => e.target.checked ? Array.from(new Set([...prev, a.id])) : prev.filter(id => id !== a.id));
@@ -589,6 +629,13 @@ export default function AgentPage() {
                   </tbody>
                 </table>
               </div>
+              <div className="mt-2 flex items-center justify-between text-xs">
+                <div>Showing {Math.min((agentsPage - 1) * agentsPageSize + 1, agentsSorted.length)}–{Math.min(agentsPage * agentsPageSize, agentsSorted.length)} of {agentsSorted.length}</div>
+                <div className="flex items-center gap-2">
+                  <Button variant="secondary" onClick={() => setAgentsPage(p => Math.max(1, p - 1))} disabled={agentsPage === 1}>Prev</Button>
+                  <Button variant="secondary" onClick={() => setAgentsPage(p => (p * agentsPageSize < agentsSorted.length ? p + 1 : p))} disabled={agentsPage * agentsPageSize >= agentsSorted.length}>Next</Button>
+                </div>
+              </div>
             </CardBody>
           </Card>
         )}
@@ -613,7 +660,7 @@ export default function AgentPage() {
                   </Select>
                 </div>
               </div>
-              <div className="overflow-auto -mx-6">
+              <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[420px] overflow-auto -mx-6">
                 <table className="min-w-full table-auto text-sm">
                   <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
                     <tr className="text-left">
@@ -628,7 +675,7 @@ export default function AgentPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {casesRows.map(cs => (
+                    {casesDisplay.map(cs => (
                       <tr key={cs.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
                         <td className="px-6 py-3"><a className="underline" href={`/cases/${cs.id}`}>{cs.case_number}</a></td>
                         <td className="px-3 py-3 truncate max-w-[280px]" title={cs.title}>{cs.title}</td>
@@ -647,6 +694,13 @@ export default function AgentPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-xs">
+                <div>Showing {Math.min((casesPage - 1) * casesPageSize + 1, casesRows.length)}–{Math.min(casesPage * casesPageSize, casesRows.length)} of {casesRows.length}</div>
+                <div className="flex items-center gap-2">
+                  <Button variant="secondary" onClick={() => setCasesPage(p => Math.max(1, p - 1))} disabled={casesPage === 1}>Prev</Button>
+                  <Button variant="secondary" onClick={() => setCasesPage(p => (p * casesPageSize < casesRows.length ? p + 1 : p))} disabled={casesPage * casesPageSize >= casesRows.length}>Next</Button>
+                </div>
               </div>
             </CardBody>
           </Card>
@@ -693,10 +747,11 @@ export default function AgentPage() {
               </div>
             } />
             <CardBody>
+              <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[420px] overflow-auto">
               <table className="min-w-full table-auto text-sm">
                 <thead><tr className="text-left"><th className="px-6 py-3">Name</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
                 <tbody>
-                  {verticals.map(v => (
+                  {verticals.slice(0, 1000).map(v => (
                     <tr key={v.id} className="border-t border-black/5 dark:border-white/5">
                       <td className="px-6 py-3">{v.name}</td>
                       <td className="px-3 py-3 text-right">
@@ -718,6 +773,7 @@ export default function AgentPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </CardBody>
           </Card>
         )}
@@ -731,10 +787,11 @@ export default function AgentPage() {
               </div>
             } />
             <CardBody>
+              <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[420px] overflow-auto">
               <table className="min-w-full table-auto text-sm">
                 <thead><tr className="text-left"><th className="px-6 py-3">Name</th><th className="px-3 py-3">Vertical</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
                 <tbody>
-                  {campaigns.map(c => (
+                  {campaigns.slice(0, 1000).map(c => (
                     <tr key={c.id} className="border-t border-black/5 dark:border-white/5">
                       <td className="px-6 py-3">{c.name}</td>
                       <td className="px-3 py-3">{verticals.find(v => v.id === c.vertical_id)?.name || '—'}</td>
@@ -758,6 +815,7 @@ export default function AgentPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </CardBody>
           </Card>
         )}
