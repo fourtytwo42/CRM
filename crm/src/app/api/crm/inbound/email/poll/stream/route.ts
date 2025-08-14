@@ -59,6 +59,15 @@ export async function GET(req: NextRequest) {
     console.log('[SSE] Error ensuring IMAP poller:', error);
   }
 
+  // Test the getImapPollerStatus function
+  try {
+    console.log('[SSE] Testing getImapPollerStatus...');
+    const testStatus = getImapPollerStatus();
+    console.log('[SSE] Test status result:', testStatus);
+  } catch (error) {
+    console.log('[SSE] Error testing getImapPollerStatus:', error);
+  }
+
   console.log('[SSE] Creating ReadableStream...');
   const stream = new ReadableStream({
     start(controller) {
