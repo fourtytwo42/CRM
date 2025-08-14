@@ -273,30 +273,18 @@ export default function CaseDetailPage() {
           )}
 
           {viewTab === 'Related' && (
-            <>
-          <Card>
-                <CardHeader title="Other Cases for Customer" />
-            <CardBody>
-              <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[360px] overflow-auto">
-                {(!data.otherCases || data.otherCases.length === 0) ? (
-                  <div className="p-3 text-sm opacity-70">No other cases.</div>
-                ) : (
-                  <ul className="divide-y divide-black/5 dark:divide-white/10 text-sm">
-                    {data.otherCases.map((c:any) => (
-                      <li key={c.id} className="px-3 py-2 flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">{c.case_number}</div>
-                          <div className="opacity-70 text-xs">{c.title} · {c.stage} · {new Date(c.created_at).toLocaleString()}</div>
-                        </div>
-                        <a className="underline" href={`/cases/${c.id}`}>Open</a>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </CardBody>
-          </Card>
-            </>
+            <RelatedCasesList
+              cases={data.otherCases || []}
+              fetchCaseNotes={async (caseId: number) => {
+                // fetch this case to get its caseNotes
+                try {
+                  const token = await getAccessToken(); if (!token) return [] as any[];
+                  const res = await fetch(`/api/crm/cases/${caseId}`, { headers: { authorization: `Bearer ${token}` } });
+                  const j = await res.json().catch(()=>null);
+                  return (j && j.ok) ? (j.data.caseNotes || []) : [];
+                } catch { return []; }
+              }}
+            />
           )}
         </div>
 
@@ -457,6 +445,61 @@ function MailTabs({ emails, customerEmail, onReply }: { emails: Array<any>; cust
       </div>
       <CaseEmailPane emails={tab==='in'? inbox : sent} customerId={0} onReply={onReply} />
     </div>
+  );
+}
+
+function RelatedCasesList({ cases, fetchCaseNotes }: { cases: Array<any>; fetchCaseNotes: (caseId: number) => Promise<Array<{ id:number; body:string; created_at:string; createdBy?: string }>> }) {
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [notesByCase, setNotesByCase] = useState<Record<number, Array<any>>>({});
+  return (
+    <Card>
+      <CardHeader title="Other Cases for Customer" />
+      <CardBody>
+        <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[420px] overflow-auto">
+          {(!cases || cases.length === 0) ? (
+            <div className="p-3 text-sm opacity-70">No other cases.</div>
+          ) : (
+            <ul className="divide-y divide-black/5 dark:divide-white/10 text-sm">
+              {cases.map((c:any) => (
+                <li key={c.id} className="px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium">{c.case_number}</div>
+                      <div className="opacity-70 text-xs">{c.title} · {c.stage} · {new Date(c.created_at).toLocaleString()}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button className="underline" onClick={async ()=>{
+                        if (openId === c.id) { setOpenId(null); return; }
+                        setOpenId(c.id);
+                        if (!notesByCase[c.id]) {
+                          const arr = await fetchCaseNotes(c.id);
+                          setNotesByCase(prev => ({ ...prev, [c.id]: arr }));
+                        }
+                      }}>{openId===c.id ? 'Hide' : 'Notes'}</button>
+                      <a className="underline" href={`/cases/${c.id}`}>Open</a>
+                    </div>
+                  </div>
+                  {openId === c.id && (
+                    <div className="mt-2 rounded-lg border border-black/10 dark:border-white/10 max-h-48 overflow-auto p-2 space-y-2">
+                      {(notesByCase[c.id] || []).length === 0 ? (
+                        <div className="opacity-70 text-xs">No notes for this case.</div>
+                      ) : (
+                        (notesByCase[c.id] || []).map((n:any) => (
+                          <div key={n.id} className="p-2 rounded-md border border-black/5 dark:border-white/10">
+                            <div className="opacity-60 text-[10px]">{n.createdBy ? `${n.createdBy} · ` : ''}{new Date(n.created_at).toLocaleString()}</div>
+                            <div className="text-xs">{n.body}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </CardBody>
+    </Card>
   );
 }
 

@@ -28,6 +28,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     ORDER BY created_at DESC
   `).all(cs.customer_id);
   const notes = db.prepare(`SELECT n.id, n.body, n.created_at, u.username AS createdBy FROM notes n JOIN users u ON u.id = n.created_by_user_id WHERE n.customer_id = ? ORDER BY n.created_at DESC`).all(cs.customer_id);
+  const caseNotes = db.prepare(`SELECT n.id, n.body, n.created_at, u.username AS createdBy FROM notes n JOIN users u ON u.id = n.created_by_user_id WHERE n.case_id = ? ORDER BY n.created_at DESC`).all(id);
   const emails = db.prepare(`
     SELECT c.id, c.direction, c.subject, c.body, c.agent_user_id, u.username AS agent_username, c.created_at
     FROM communications c
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       ORDER BY v.version_no DESC
     `).all(id) as any[]).map((r) => ({ version_no: r.version_no, created_at: r.created_at, createdBy: r.createdBy || null, data: safeJson(r.data) }));
   } catch {}
-  return jsonOk({ info: cs, customer, notes, emails, communications: commsAll, tasks, versions, otherCases });
+  return jsonOk({ info: cs, customer, notes, caseNotes, emails, communications: commsAll, tasks, versions, otherCases });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
