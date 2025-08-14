@@ -6,11 +6,13 @@ import { chatWithFailover, type AiProviderConfig } from '@/lib/ai';
 type PollerState = {
   timer: NodeJS.Timeout | null;
   running: boolean;
+  intervalSec: number;
+  nextRunAtMs: number | null;
 };
 
 const g = globalThis as any;
 if (!g.__imapPoller) {
-  g.__imapPoller = { timer: null, running: false } as PollerState;
+  g.__imapPoller = { timer: null, running: false, intervalSec: 60, nextRunAtMs: null } as PollerState;
 }
 const state: PollerState = g.__imapPoller;
 
@@ -23,13 +25,24 @@ export function ensureImapPollerRunning(): void {
     if (!enabled) {
       if (state.timer) { clearInterval(state.timer); state.timer = null; }
       state.running = false;
+      state.intervalSec = intervalSec;
+      state.nextRunAtMs = null;
       return;
     }
     if (state.timer) return; // already scheduled
-    state.timer = setInterval(() => { runOnce().catch(() => {}); }, intervalSec * 1000);
+    state.intervalSec = intervalSec;
+    state.timer = setInterval(() => {
+      // Schedule next run after this one completes
+      runOnce().catch(() => {}).finally(() => {
+        state.nextRunAtMs = Date.now() + state.intervalSec * 1000;
+      });
+    }, intervalSec * 1000);
     state.running = true;
     // Kick immediate
-    runOnce().catch(() => {});
+    state.nextRunAtMs = Date.now() + state.intervalSec * 1000;
+    runOnce().catch(() => {}).finally(() => {
+      state.nextRunAtMs = Date.now() + state.intervalSec * 1000;
+    });
   } catch {
     // ignore
   }
@@ -37,6 +50,25 @@ export function ensureImapPollerRunning(): void {
 
 export async function runImapPollOnce(): Promise<number> {
   return runOnce();
+}
+
+export function getImapPollerStatus(): { enabled: boolean; intervalSec: number; nextRunAtMs: number | null; remainingSec: number } {
+  try {
+    const db = getDb();
+    const row = db.prepare(`SELECT imap_enabled, imap_poll_seconds FROM email_settings WHERE id = 1`).get() as any;
+    const enabled = !!(row && row.imap_enabled);
+    const intervalSec = Math.max(15, Math.min(3600, Number(row?.imap_poll_seconds || state.intervalSec || 60)));
+    const nextMs = state.nextRunAtMs;
+    const remainingSec = nextMs ? Math.max(0, Math.ceil((nextMs - Date.now()) / 1000)) : intervalSec;
+    return { enabled, intervalSec, nextRunAtMs: nextMs, remainingSec };
+  } catch {
+    return { enabled: false, intervalSec: state.intervalSec || 60, nextRunAtMs: null, remainingSec: state.intervalSec || 60 };
+  }
+}
+
+export function resetImapPollCountdown(): void {
+  // After a manual run, reset countdown from now based on current interval
+  state.nextRunAtMs = Date.now() + (state.intervalSec || 60) * 1000;
 }
 
 async function runOnce(): Promise<number> {
@@ -195,6 +227,8 @@ async function runOnce(): Promise<number> {
     }
     // eslint-disable-next-line no-console
     console.log('[imap] processed', { processed, lastUid: (uids.length ? uids[uids.length - 1] : lastUid) });
+    // If poller is running, ensure countdown reflects next run
+    if (state.running) state.nextRunAtMs = Date.now() + state.intervalSec * 1000;
     return processed;
   } catch (e: any) {
     // eslint-disable-next-line no-console

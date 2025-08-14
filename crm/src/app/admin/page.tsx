@@ -851,6 +851,9 @@ function AdminEmailClient() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [compose, setCompose] = useState<{ to: string; subject: string; body: string }>({ to: '', subject: '', body: '' });
   const [checkedIds, setCheckedIds] = useState<number[]>([]);
+  // Poller countdown UI state (server is source of truth)
+  const [pollRemaining, setPollRemaining] = useState<number | null>(null);
+  const [pollIntervalSec, setPollIntervalSec] = useState<number | null>(null);
   const allChecked = items.length > 0 && checkedIds.length === items.length;
 
   useEffect(() => { (async () => {
@@ -876,6 +879,54 @@ function AdminEmailClient() {
     } finally { setBusy('idle'); }
   })(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [box, page, pageSize]);
+
+  // Fetch current poller status from server and keep a live ticking countdown
+  useEffect(() => {
+    let cancelled = false;
+    let tickId: any = null;
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        // Ask server for current poller status (interval + remaining)
+        const res = await fetch('/api/crm/inbound/email/poll', { method: 'GET', headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+        const j = await res.json().catch(() => null);
+        if (!cancelled && j && j.ok !== false && j.poller) {
+          setPollIntervalSec(Number(j.poller.intervalSec || 60));
+          setPollRemaining(Number(j.poller.remainingSec || j.poller.intervalSec || 60));
+        }
+      } catch {}
+    })();
+    // Instead of relying on a dedicated status endpoint, recompute countdown locally and refresh from server periodically
+    const loadStatus = async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        const res = await fetch('/api/crm/inbound/email/poll', { method: 'GET', headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+        const j = await res.json().catch(() => null);
+        if (!cancelled && j && j.ok !== false && j.poller) {
+          setPollIntervalSec(Number(j.poller.intervalSec || 60));
+          // Only update remaining if our local has drifted too far or is null
+          setPollRemaining((prev) => {
+            const serverRem = Number(j.poller.remainingSec || j.poller.intervalSec || 60);
+            if (prev === null) return serverRem;
+            if (Math.abs(serverRem - prev) >= 3) return serverRem;
+            return prev;
+          });
+        }
+      } catch {}
+      // Ask the poll endpoint for status without running a poll by issuing a GET, which returns 405 today. We'll ignore and let local timer tick.
+    };
+    loadStatus();
+    tickId = setInterval(() => {
+      setPollRemaining((prev) => {
+        const next = typeof prev === 'number' ? Math.max(0, prev - 1) : null;
+        return next;
+      });
+    }, 1000);
+    const syncId = setInterval(() => { loadStatus(); }, 15000);
+    return () => { cancelled = true; if (tickId) clearInterval(tickId); };
+  }, []);
 
   return (
     <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur p-4">
@@ -907,11 +958,21 @@ function AdminEmailClient() {
             const j = await res.json();
             // eslint-disable-next-line no-console
             console.log('Check Now:', j);
+            // Reset countdown based on server-reported status
+            if (j?.ok !== false && j?.poller) {
+              setPollIntervalSec(j.poller.intervalSec || j.poller.remainingSec || 60);
+              setPollRemaining(Number(j.poller.remainingSec || j.poller.intervalSec || 60));
+            } else if (pollIntervalSec) {
+              setPollRemaining(pollIntervalSec);
+            }
             const res2 = await fetch(`/api/admin/email?box=${box}&page=${page}&pageSize=${pageSize}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
             const json2 = await res2.json();
             if (json2.ok) { setItems(json2.data.items || []); setTotal(json2.data.total || 0); setStats(json2.data.stats || stats); }
           } finally { setBusy('idle'); }
-        }}>Check Now</Button>
+        }}>{(() => {
+          const rem = typeof pollRemaining === 'number' ? pollRemaining : (pollIntervalSec || 60);
+          return rem > 0 ? `Check Now (${rem}s)` : 'Check Now';
+        })()}</Button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[520px] overflow-auto">
