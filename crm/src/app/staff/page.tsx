@@ -374,6 +374,14 @@ export default function AgentPage() {
   const [openCaseTabs, setOpenCaseTabs] = useState<Array<{ id:number; case_number:string }>>([]);
   const [activeCaseTabId, setActiveCaseTabId] = useState<number | null>(null);
   const tabsScrollRef = useRef<HTMLDivElement|null>(null);
+  const setOpenCaseTabsImmediate = (next: Array<{ id:number; case_number:string }>) => {
+    setOpenCaseTabs(next);
+    try { if (typeof window !== 'undefined') localStorage.setItem('staff.openCaseTabs', JSON.stringify(next)); } catch {}
+  };
+  const setActiveCaseTabIdImmediate = (next: number | null) => {
+    setActiveCaseTabId(next);
+    try { if (typeof window !== 'undefined') localStorage.setItem('staff.activeCaseTabId', next != null ? String(next) : ''); } catch {}
+  };
   // Restore tabs after mount to avoid hydration mismatch
   useEffect(() => {
     try {
@@ -740,7 +748,7 @@ export default function AgentPage() {
                     {casesDisplay.map(cs => (
                       <tr key={cs.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
                         <td className="px-6 py-3">
-                          <a className="underline cursor-pointer" href={`/cases/${cs.id}`} onClick={(e)=>{ e.preventDefault(); setActiveTab('Cases'); setOpenCaseTabs(prev => prev.some(t=>t.id===cs.id) ? prev : [...prev, { id: cs.id, case_number: cs.case_number }]); setActiveCaseTabId(cs.id); }}>
+                          <a className="underline cursor-pointer" href={`/cases/${cs.id}`} onClick={(e)=>{ e.preventDefault(); setActiveTab('Cases'); const nextTabs = (openCaseTabs.some(t=>t.id===cs.id) ? openCaseTabs : [...openCaseTabs, { id: cs.id, case_number: cs.case_number }]); setOpenCaseTabsImmediate(nextTabs); setActiveCaseTabIdImmediate(cs.id); }}>
                             {cs.case_number}
                           </a>
                         </td>
@@ -754,7 +762,7 @@ export default function AgentPage() {
                         <td className="px-3 py-3">{cs.stage}</td>
                         <td className="px-3 py-3">{new Date(cs.created_at).toLocaleString()}</td>
                         <td className="px-3 py-3 text-right">
-                          <button className="underline" onClick={(e)=>{ e.preventDefault(); setActiveTab('Cases'); setOpenCaseTabs(prev => prev.some(t=>t.id===cs.id) ? prev : [...prev, { id: cs.id, case_number: cs.case_number }]); setActiveCaseTabId(cs.id); }}>Open</button>
+                          <button className="underline" onClick={(e)=>{ e.preventDefault(); setActiveTab('Cases'); const nextTabs = (openCaseTabs.some(t=>t.id===cs.id) ? openCaseTabs : [...openCaseTabs, { id: cs.id, case_number: cs.case_number }]); setOpenCaseTabsImmediate(nextTabs); setActiveCaseTabIdImmediate(cs.id); }}>Open</button>
                         </td>
                       </tr>
                     ))}
@@ -779,10 +787,11 @@ export default function AgentPage() {
                       <div className="flex items-center gap-2 min-w-max">
                         {openCaseTabs.map(tab => (
                           <div key={tab.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${activeCaseTabId===tab.id ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-transparent'} border-black/10 dark:border-white/10`}> 
-                            <button onClick={()=> setActiveCaseTabId(tab.id)} className="font-medium whitespace-nowrap">{tab.case_number}</button>
+                            <button onClick={()=> setActiveCaseTabIdImmediate(tab.id)} className="font-medium whitespace-nowrap">{tab.case_number}</button>
                             <button aria-label="Close" onClick={()=>{
-                              setOpenCaseTabs(prev => prev.filter(t => t.id !== tab.id));
-                              setActiveCaseTabId(prev => (prev===tab.id ? (openCaseTabs.filter(t=>t.id!==tab.id)[0]?.id ?? null) : prev));
+                              const remaining = openCaseTabs.filter(t => t.id !== tab.id);
+                              setOpenCaseTabsImmediate(remaining);
+                              setActiveCaseTabIdImmediate(activeCaseTabId===tab.id ? (remaining[0]?.id ?? null) : activeCaseTabId);
                             }}>✕</button>
                           </div>
                         ))}
