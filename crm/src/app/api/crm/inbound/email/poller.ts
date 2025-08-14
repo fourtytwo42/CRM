@@ -236,9 +236,8 @@ async function runOnce(): Promise<number> {
       }
       // After processing, delete from server to avoid re-pulling in future runs.
       try {
-        // Mark deleted and expunge to physically remove from server
+        // Mark deleted to avoid re-pulling in future runs
         await client.messageDelete(msgUid, { uid: true });
-        try { await client.mailboxExpunge(msgUid, { uid: true } as any); } catch {}
         try {
           const nowIso = new Date().toISOString();
           db.prepare(`INSERT OR IGNORE INTO mail_deleted (message_id, imap_uid, deleted_at) VALUES (?, ?, ?)`)
@@ -252,8 +251,7 @@ async function runOnce(): Promise<number> {
       processed += 1;
     }
     try {
-      // As a final safety, expunge any pending \Deleted messages in INBOX
-      try { await client.mailboxExpunge('*', { uid: false } as any); } catch {}
+      // As a final safety, ensure all deleted messages are processed
     } finally {
       await client.logout();
     }

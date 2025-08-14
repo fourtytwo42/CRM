@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
       console.log('[SSE] Authentication successful, user is admin');
     } catch (error) {
       console.log('[SSE] Auth error:', error);
-      console.log('[SSE] Auth error details:', error.message, error.stack);
+      console.log('[SSE] Auth error details:', (error as any)?.message, (error as any)?.stack);
       return new Response('auth failed', { status: 403 });
     }
   } catch (error) {

@@ -856,7 +856,70 @@ function AdminEmailClient() {
   const [pollIntervalSec, setPollIntervalSec] = useState<number | null>(null);
   const [sseActive, setSseActive] = useState(false);
   const sseActiveRef = useRef(false);
+  const [authRetryCount, setAuthRetryCount] = useState(0);
   const allChecked = items.length > 0 && checkedIds.length === items.length;
+
+  // Client-side countdown timer that updates every second
+  useEffect(() => {
+    if (typeof pollRemaining !== 'number' || pollRemaining <= 0) return;
+    
+    const timer = setInterval(() => {
+      setPollRemaining(prev => {
+        if (typeof prev !== 'number' || prev <= 0) return prev;
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [pollRemaining]);
+
+  // Fallback timer to ensure countdown continues even if SSE fails
+  useEffect(() => {
+    if (!sseActive && typeof pollIntervalSec === 'number' && typeof pollRemaining === 'number') {
+      const fallbackTimer = setInterval(() => {
+        setPollRemaining(prev => {
+          if (typeof prev !== 'number' || prev <= 0) {
+            // Reset to full interval when countdown reaches 0
+            return pollIntervalSec;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      return () => clearInterval(fallbackTimer);
+    }
+  }, [sseActive, pollIntervalSec, pollRemaining]);
+
+  // Periodic status refresh as backup to SSE (every 30 seconds)
+  useEffect(() => {
+    const refreshInterval = setInterval(async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        
+        const res = await fetch('/api/crm/inbound/email/poll', { 
+          method: 'GET', 
+          headers: { authorization: `Bearer ${token}` }, 
+          cache: 'no-store' 
+        });
+        
+        if (!res.ok) return;
+        
+        const j = await res.json().catch(() => null);
+        
+        if (j && j.ok !== false && j.poller) {
+          const interval = Number(j.poller.intervalSec || 60);
+          const remaining = Number(j.poller.remainingSec || interval);
+          setPollIntervalSec(interval);
+          setPollRemaining(remaining);
+        }
+      } catch (error) {
+        console.error('[AdminEmailClient] Periodic status refresh failed:', error);
+      }
+    }, 30000);
+    
+    return () => clearInterval(refreshInterval);
+  }, []);
 
   useEffect(() => { (async () => {
     setBusy('loading');
@@ -887,117 +950,215 @@ function AdminEmailClient() {
     let cancelled = false;
     let es: EventSource | null = null;
     
-    console.log('[AdminEmailClient] Setting up email polling countdown...');
-    
-    // Initial status fetch
+    // Initial status fetch with retry logic
     (async () => {
-      try {
-        const token = await getAccessToken();
-        if (!token) {
-          console.log('[AdminEmailClient] No access token available');
-          return;
-        }
-        
-        console.log('[AdminEmailClient] Fetching initial poller status...');
-        const res = await fetch('/api/crm/inbound/email/poll', { method: 'GET', headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-        const j = await res.json().catch(() => null);
-        
-        if (!cancelled && j && j.ok !== false && j.poller) {
-          console.log('[AdminEmailClient] Initial status received:', j.poller);
-          setPollIntervalSec(Number(j.poller.intervalSec || 60));
-          setPollRemaining(Number(j.poller.remainingSec || j.poller.intervalSec || 60));
-        } else {
-          console.log('[AdminEmailClient] No initial status, fetching from settings...');
-          // Fallback: fetch settings to get interval
-          try {
-            const res2 = await fetch('/api/admin/settings/email', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-            const j2 = await res2.json().catch(() => null);
-            if (j2 && j2.ok) {
-              const sec = Number(j2.data?.imap_poll_seconds || 60);
-              console.log('[AdminEmailClient] Using interval from settings:', sec);
-              setPollIntervalSec(sec);
-              setPollRemaining(sec);
+      let statusAttempts = 0;
+      const maxStatusAttempts = 3;
+      
+      const tryInitialStatus = async () => {
+        try {
+          statusAttempts++;
+          
+          // Try to get token with retry
+          let token = null;
+          for (let tokenRetry = 0; tokenRetry < 3; tokenRetry++) {
+            token = await getAccessToken();
+            if (token) break;
+            if (tokenRetry < 2) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
             }
-          } catch (error) {
-            console.log('[AdminEmailClient] Error fetching settings:', error);
+          }
+          
+          if (!token) {
+            if (statusAttempts < maxStatusAttempts) {
+              setTimeout(tryInitialStatus, 2000);
+            } else {
+              setPollIntervalSec(60);
+              setPollRemaining(60);
+            }
+            return;
+          }
+          
+          const res = await fetch('/api/crm/inbound/email/poll', { 
+            method: 'GET', 
+            headers: { authorization: `Bearer ${token}` }, 
+            cache: 'no-store' 
+          });
+          
+          if (!res.ok) {
+            throw new Error(`Status fetch failed: ${res.status}`);
+          }
+          
+          const j = await res.json().catch(() => null);
+          
+          if (!cancelled && j && j.ok !== false && j.poller) {
+            const interval = Number(j.poller.intervalSec || 60);
+            const remaining = Number(j.poller.remainingSec || interval);
+            setPollIntervalSec(interval);
+            setPollRemaining(remaining);
+          } else {
+            // Fallback: fetch settings to get interval
+            try {
+              const res2 = await fetch('/api/admin/settings/email', { 
+                headers: { authorization: `Bearer ${token}` }, 
+                cache: 'no-store' 
+              });
+              const j2 = await res2.json().catch(() => null);
+              if (j2 && j2.ok) {
+                const sec = Number(j2.data?.imap_poll_seconds || 60);
+                setPollIntervalSec(sec);
+                setPollRemaining(sec);
+              } else {
+                throw new Error('Settings fetch failed');
+              }
+            } catch (error) {
+              throw error;
+            }
+          }
+        } catch (error) {
+          if (statusAttempts < maxStatusAttempts) {
+            setTimeout(tryInitialStatus, 2000);
+          } else {
+            // Final fallback: use default values
+            setPollIntervalSec(60);
+            setPollRemaining(60);
           }
         }
-      } catch (error) {
-        console.log('[AdminEmailClient] Error in initial status fetch:', error);
-      }
+      };
+      
+      tryInitialStatus();
     })();
 
-    // Establish SSE stream for server-driven countdown
+    // Establish SSE stream for server-driven countdown with retry logic
     (async () => {
-      try {
-        const token = await getAccessToken();
-        console.log('[AdminEmailClient] Token for SSE connection:', token ? 'present' : 'missing');
-        if (!token) {
-          console.log('[AdminEmailClient] No token for SSE connection');
-          return;
-        }
-        
-        if (cancelled) return;
-        
-        const sseUrl = `/api/crm/inbound/email/poll/stream?token=${encodeURIComponent(token)}`;
-        console.log('[AdminEmailClient] Connecting to SSE:', sseUrl);
-        
+      let retryAttempts = 0;
+      const maxRetries = 3;
+      const retryDelay = 2000; // 2 seconds
+      
+      const trySSEConnection = async () => {
         try {
-          console.log('[AdminEmailClient] Creating EventSource...');
-          es = new EventSource(sseUrl);
-          console.log('[AdminEmailClient] EventSource created, waiting for events...');
-        } catch (error) {
-          console.log('[AdminEmailClient] Error creating EventSource:', error);
-          return;
-        }
-        
-        es.onopen = () => {
-          console.log('[AdminEmailClient] SSE connection opened successfully');
-          setSseActive(true);
-          sseActiveRef.current = true;
-        };
-        
-        es.onmessage = (ev) => {
-          try {
-            console.log('[AdminEmailClient] SSE message received:', ev.data);
-            const data = JSON.parse(ev.data || '{}');
-            if (data && data.ok !== false && data.poller) {
-              console.log('[AdminEmailClient] Updating countdown from SSE:', data.poller);
-              setPollIntervalSec(Number(data.poller.intervalSec || 60));
-              setPollRemaining(Number(data.poller.remainingSec ?? data.poller.intervalSec ?? 60));
+          // More robust token retrieval with retry
+          let token = null;
+          for (let tokenRetry = 0; tokenRetry < 3; tokenRetry++) {
+            token = await getAccessToken();
+            if (token) break;
+            if (tokenRetry < 2) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
             }
-          } catch (error) {
-            console.log('[AdminEmailClient] Error parsing SSE message:', error);
           }
-        };
-        
-        es.onerror = (event) => {
-          console.log('[AdminEmailClient] SSE connection error:', event);
+          
+          if (!token) {
+            setAuthRetryCount(prev => prev + 1);
+            if (retryAttempts < maxRetries) {
+              retryAttempts++;
+              setTimeout(trySSEConnection, retryDelay);
+            } else {
+              setSseActive(false);
+              sseActiveRef.current = false;
+            }
+            return;
+          }
+          
+          if (cancelled) return;
+          
+          const sseUrl = `/api/crm/inbound/email/poll/stream?token=${encodeURIComponent(token)}`;
+          
+          try {
+            es = new EventSource(sseUrl);
+          } catch (error) {
+            console.error('[AdminEmailClient] Error creating EventSource:', error);
+            setSseActive(false);
+            sseActiveRef.current = false;
+            return;
+          }
+          
+          es.onmessage = (ev) => {
+            try {
+              const data = JSON.parse(ev.data || '{}');
+              if (data && data.ok !== false && data.poller) {
+                setPollIntervalSec(Number(data.poller.intervalSec || 60));
+                setPollRemaining(Number(data.poller.remainingSec ?? data.poller.intervalSec ?? 60));
+              }
+            } catch (error) {
+              console.error('[AdminEmailClient] Error parsing SSE message:', error);
+            }
+          };
+          
+          es.onerror = (event) => {
+            setSseActive(false);
+            sseActiveRef.current = false;
+            
+            // Retry on error if we haven't reached max retries
+            if (retryAttempts < maxRetries) {
+              retryAttempts++;
+              setTimeout(() => {
+                if (!cancelled) trySSEConnection();
+              }, retryDelay);
+            }
+            
+            try { 
+              if (es) {
+                es.close();
+                es = null;
+              }
+            } catch (error) {
+              console.error('[AdminEmailClient] Error closing SSE:', error);
+            }
+          };
+          
+          // Add timeout to detect if connection never opens
+          const connectionTimeout = setTimeout(() => {
+            if (!sseActiveRef.current) {
+              setSseActive(false);
+              if (es) {
+                try { es.close(); } catch (error) {}
+                es = null;
+              }
+              
+              // Retry on timeout if we haven't reached max retries
+              if (retryAttempts < maxRetries) {
+                retryAttempts++;
+                setTimeout(() => {
+                  if (!cancelled) trySSEConnection();
+                }, retryDelay);
+              }
+            }
+          }, 8000); // Increased timeout to 8 seconds
+          
+          // Clean up timeout when connection opens
+          es.onopen = () => {
+            clearTimeout(connectionTimeout);
+            setSseActive(true);
+            sseActiveRef.current = true;
+            retryAttempts = 0; // Reset retry count on successful connection
+          };
+          
+        } catch (error) {
+          console.error('[AdminEmailClient] Error setting up SSE:', error);
           setSseActive(false);
           sseActiveRef.current = false;
-          try { 
-            if (es) {
-              es.close();
-              es = null;
-            }
-          } catch (error) {
-            console.log('[AdminEmailClient] Error closing SSE:', error);
+          
+          // Retry on exception if we haven't reached max retries
+          if (retryAttempts < maxRetries) {
+            retryAttempts++;
+            setTimeout(() => {
+              if (!cancelled) trySSEConnection();
+            }, retryDelay);
           }
-        };
-        
-      } catch (error) {
-        console.log('[AdminEmailClient] Error setting up SSE:', error);
-      }
+        }
+      };
+      
+      // Start the connection attempt
+      trySSEConnection();
     })();
 
     return () => {
-      console.log('[AdminEmailClient] Cleaning up email polling countdown...');
       cancelled = true;
       if (es) {
         try {
           es.close();
         } catch (error) {
-          console.log('[AdminEmailClient] Error closing SSE on cleanup:', error);
+          console.error('[AdminEmailClient] Error closing SSE on cleanup:', error);
         }
       }
       setSseActive(false);
@@ -1026,38 +1187,70 @@ function AdminEmailClient() {
             setCheckedIds([]);
           }}>Delete selected</Button>
         )}
-                 {sseActive ? (
-           <span className="text-xs text-green-600">🟢 Live</span>
-         ) : (
-           <span className="text-xs text-red-600">🔴 Offline</span>
-         )}
-        <Button variant="secondary" onClick={async () => {
-          setBusy('loading');
-          try {
-            const token = await getAccessToken();
-            if (!token) return;
-            const res = await fetch('/api/crm/inbound/email/poll', { method: 'POST', headers: { authorization: `Bearer ${token}` } });
-            const j = await res.json();
-            // eslint-disable-next-line no-console
-            console.log('Check Now:', j);
-            // Reset countdown based on server-reported status
-            if (j?.ok !== false && j?.poller) {
-              const nextInterval = Number(j.poller.intervalSec || 60);
-              const nextRemaining = Number(j.poller.remainingSec ?? nextInterval);
-              setPollIntervalSec(nextInterval);
-              // If server reports 0/1s (race), show full interval immediately after manual check
-              setPollRemaining(nextRemaining <= 1 ? nextInterval : nextRemaining);
-            } else if (pollIntervalSec) {
-              setPollRemaining(pollIntervalSec);
-            }
-            const res2 = await fetch(`/api/admin/email?box=${box}&page=${page}&pageSize=${pageSize}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-            const json2 = await res2.json();
-            if (json2.ok) { setItems(json2.data.items || []); setTotal(json2.data.total || 0); setStats(json2.data.stats || stats); }
-          } finally { setBusy('idle'); }
-        }}>{(() => {
-          const rem = typeof pollRemaining === 'number' ? pollRemaining : (pollIntervalSec || 60);
-          return rem > 0 ? `Check Now (${rem}s)` : 'Check Now';
-        })()}</Button>
+        <div className="flex items-center gap-2">
+          {sseActive ? (
+            <span className="text-xs text-green-600 flex items-center gap-1">
+              🟢 <span>Live</span>
+            </span>
+          ) : (
+            <span className="text-xs text-red-600 flex items-center gap-1">
+              🔴 <span>Offline{authRetryCount > 0 ? ` (retries: ${authRetryCount})` : ''}</span>
+            </span>
+          )}
+        </div>
+                 <Button variant="secondary" onClick={async () => {
+           setBusy('loading');
+           try {
+             const token = await getAccessToken();
+             if (!token) return;
+             
+             const res = await fetch('/api/crm/inbound/email/poll', { 
+               method: 'POST', 
+               headers: { authorization: `Bearer ${token}` } 
+             });
+             
+             if (!res.ok) {
+               console.error('[AdminEmailClient] Check Now failed:', res.status, res.statusText);
+             } else {
+               const j = await res.json();
+               
+               // Reset countdown based on server-reported status
+               if (j?.ok !== false && j?.poller) {
+                 const nextInterval = Number(j.poller.intervalSec || 60);
+                 const nextRemaining = Number(j.poller.remainingSec ?? nextInterval);
+                 setPollIntervalSec(nextInterval);
+                 // If server reports 0/1s (race condition), show full interval immediately after manual check
+                 setPollRemaining(nextRemaining <= 1 ? nextInterval : nextRemaining);
+               } else if (pollIntervalSec) {
+                 setPollRemaining(pollIntervalSec);
+               } else {
+                 setPollRemaining(60);
+               }
+             }
+             
+             // Refresh email list
+             const res2 = await fetch(`/api/admin/email?box=${box}&page=${page}&pageSize=${pageSize}`, { 
+               headers: { authorization: `Bearer ${token}` }, 
+               cache: 'no-store' 
+             });
+             const json2 = await res2.json();
+             if (json2.ok) { 
+               setItems(json2.data.items || []); 
+               setTotal(json2.data.total || 0); 
+               setStats(json2.data.stats || stats);
+             } else {
+               console.error('[AdminEmailClient] Failed to refresh email list:', json2);
+             }
+           } finally { 
+             setBusy('idle'); 
+           }
+         }} disabled={busy === 'loading'}>
+          {(() => {
+            if (busy === 'loading') return 'Checking...';
+            const rem = typeof pollRemaining === 'number' ? pollRemaining : (pollIntervalSec || 60);
+            return rem > 0 ? `Check Now (${rem}s)` : 'Check Now';
+          })()}
+        </Button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[520px] overflow-auto">
