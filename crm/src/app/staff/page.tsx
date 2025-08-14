@@ -377,11 +377,15 @@ export default function AgentPage() {
   useEffect(() => {
     try {
       const raw = typeof window !== 'undefined' ? localStorage.getItem('staff.openCaseTabs') : null;
+      const rawActive = typeof window !== 'undefined' ? localStorage.getItem('staff.activeCaseTabId') : null;
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.every((t:any)=> typeof t.id==='number' && typeof t.case_number==='string')) {
           setOpenCaseTabs(parsed);
-          setActiveCaseTabId(parsed[0]?.id ?? null);
+          const storedActive = rawActive ? Number(rawActive) : NaN;
+          const found = parsed.find((t:any)=> t.id === storedActive);
+          setActiveCaseTabId(found ? found.id : (parsed[0]?.id ?? null));
+          if (parsed.length > 0) setActiveTab('Cases');
         }
       }
     } catch {}
@@ -389,6 +393,9 @@ export default function AgentPage() {
   useEffect(() => {
     try { if (typeof window !== 'undefined') localStorage.setItem('staff.openCaseTabs', JSON.stringify(openCaseTabs)); } catch {}
   }, [openCaseTabs]);
+  useEffect(() => {
+    try { if (typeof window !== 'undefined') localStorage.setItem('staff.activeCaseTabId', activeCaseTabId != null ? String(activeCaseTabId) : ''); } catch {}
+  }, [activeCaseTabId]);
   // Dialogs for adding verticals/campaigns
   const [addVerticalOpen, setAddVerticalOpen] = useState(false);
   const [addVerticalName, setAddVerticalName] = useState('');
@@ -775,7 +782,7 @@ export default function AgentPage() {
                             <button onClick={()=> setActiveCaseTabId(tab.id)} className="font-medium whitespace-nowrap">{tab.case_number}</button>
                             <button aria-label="Close" onClick={()=>{
                               setOpenCaseTabs(prev => prev.filter(t => t.id !== tab.id));
-                              setActiveCaseTabId(prev => (prev===tab.id ? (openCaseTabs.find(t=>t.id!==tab.id)?.id ?? null) : prev));
+                              setActiveCaseTabId(prev => (prev===tab.id ? (openCaseTabs.filter(t=>t.id!==tab.id)[0]?.id ?? null) : prev));
                             }}>✕</button>
                           </div>
                         ))}
