@@ -973,8 +973,11 @@ function AdminEmailClient() {
             console.log('Check Now:', j);
             // Reset countdown based on server-reported status
             if (j?.ok !== false && j?.poller) {
-              setPollIntervalSec(j.poller.intervalSec || j.poller.remainingSec || 60);
-              setPollRemaining(Number(j.poller.remainingSec || j.poller.intervalSec || 60));
+              const nextInterval = Number(j.poller.intervalSec || 60);
+              const nextRemaining = Number(j.poller.remainingSec ?? nextInterval);
+              setPollIntervalSec(nextInterval);
+              // If server reports 0/1s (race), show full interval immediately after manual check
+              setPollRemaining(nextRemaining <= 1 ? nextInterval : nextRemaining);
             } else if (pollIntervalSec) {
               setPollRemaining(pollIntervalSec);
             }
