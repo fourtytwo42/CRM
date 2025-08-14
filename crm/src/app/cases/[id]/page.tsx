@@ -35,6 +35,17 @@ export default function CaseDetailPage() {
     } finally { setSaving('idle'); }
   }
 
+  async function reloadCase() {
+    const token = await getAccessToken(); if (!token) return;
+    const res = await fetch(`/api/crm/cases/${caseId}`, { headers: { authorization: `Bearer ${token}` } });
+    const j = await res.json().catch(()=>null);
+    if (!j || !j.ok) return;
+    setData(j.data);
+    setStage(j.data.info?.stage || 'new');
+    setCampaignId(j.data.info?.campaign_id ? String(j.data.info.campaign_id) : '');
+    setCompose((c)=>({ ...c, to: j.data.customer?.email || '' }));
+  }
+
   useEffect(() => { (async () => {
     const token = await getAccessToken(); if (!token) return;
     const res = await fetch(`/api/crm/cases/${caseId}`, { headers: { authorization: `Bearer ${token}` } });
@@ -84,10 +95,24 @@ export default function CaseDetailPage() {
           return (
             <div key={st} className={`flex items-center gap-2 ${idx>0?'pl-2':''}`}>
               {idx>0 && <div className="w-4 h-[1px] bg-black/10 dark:bg-white/20" />}
-              <button onClick={()=>{ setStage(st); saveCase({ stage: st }); }} className={`px-2 py-1 rounded-full border ${isActive ? 'bg-black text-white dark:bg-white dark:text-black' : (isDone ? 'bg-black/5 dark:bg-white/10 text-black dark:text-white' : 'bg-transparent text-black dark:text-white')} border-black/10 dark:border-white/10`}>{st}</button>
+              <button onClick={async ()=>{ setStage(st); await saveCase({ stage: st }); await reloadCase(); }} className={`px-2 py-1 rounded-full border ${isActive ? 'bg-black text-white dark:bg-white dark:text-black' : (isDone ? 'bg-black/5 dark:bg-white/10 text-black dark:text-white' : 'bg-transparent text-black dark:text-white')} border-black/10 dark:border-white/10`}>{st}</button>
             </div>
           );
         })}
+      </div>
+
+      {/* Campaign quick edit */}
+      <div className="mb-4 max-w-sm">
+        <div className="text-xs opacity-70 mb-1">Campaign</div>
+        <select className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 w-full" value={campaignId} onChange={async (e)=>{
+          const val = e.target.value;
+          setCampaignId(val);
+          await saveCase({ campaign_id: val ? Number(val) : null });
+          await reloadCase();
+        }}>
+          <option value="">(none)</option>
+          {campaigns.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+        </select>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 text-sm">
@@ -279,19 +304,17 @@ export default function CaseDetailPage() {
           )}
         </div>
 
-        {/* Right: customer panel */}
-        <div className="xl:col-span-1 space-y-6">
-          <Card>
-            <CardHeader title="Customer" />
-            <CardBody>
-              <CaseCustomerEdit customer={data.customer} caseId={caseId} onSaved={async ()=>{
-                const token = await getAccessToken(); if (!token) return;
-                const r = await fetch(`/api/crm/cases/${caseId}`, { headers: { authorization: `Bearer ${token}` } });
-                const jj = await r.json().catch(()=>null); if (jj && jj.ok) setData(jj.data);
-              }} />
-            </CardBody>
-          </Card>
-        </div>
+        {/* Right: customer panel (Details tab only) */}
+        {viewTab === 'Details' && (
+          <div className="xl:col-span-1 space-y-6">
+            <Card>
+              <CardHeader title="Customer" />
+              <CardBody>
+                <CaseCustomerEdit customer={data.customer} caseId={caseId} onSaved={async ()=>{ await reloadCase(); }} />
+              </CardBody>
+            </Card>
+          </div>
+        )}
       </div>
     </main>
   );
