@@ -935,45 +935,51 @@ function AdminEmailClient() {
     loadStatus();
 
     // Try SSE first for authoritative countdown from server
-    try {
-      const token = await getAccessToken();
-      if (token) {
-        es = new EventSource(`/api/crm/inbound/email/poll/stream?token=${encodeURIComponent(token)}`);
-        es.onopen = () => {
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        if (token && !cancelled) {
+          es = new EventSource(`/api/crm/inbound/email/poll/stream?token=${encodeURIComponent(token)}`);
+                  es.onopen = () => {
           setSseActive(true);
           sseActiveRef.current = true;
-          // console.log('SSE connected');
+          console.log('SSE connected successfully');
         };
-        es.onmessage = (ev) => {
-          try {
-            const data = JSON.parse(ev.data || '{}');
-            if (data && data.ok !== false && data.poller) {
-              setPollIntervalSec(Number(data.poller.intervalSec || 60));
-              setPollRemaining(Number(data.poller.remainingSec ?? data.poller.intervalSec ?? 60));
-            }
-          } catch {}
-        };
-        es.onerror = () => {
-          // console.log('SSE error, falling back to local tick');
+          es.onmessage = (ev) => {
+            try {
+              const data = JSON.parse(ev.data || '{}');
+              if (data && data.ok !== false && data.poller) {
+                setPollIntervalSec(Number(data.poller.intervalSec || 60));
+                setPollRemaining(Number(data.poller.remainingSec ?? data.poller.intervalSec ?? 60));
+              }
+            } catch {}
+          };
+                  es.onerror = (event) => {
+          console.log('SSE error, falling back to local tick:', event);
           setSseActive(false);
           sseActiveRef.current = false;
           try { es && es.close(); } catch {}
           es = null;
         };
+        }
+      } catch {
+        // ignore; fallback to local tick below
       }
-    } catch {
-      // ignore; fallback to local tick below
-    }
+    })();
 
-    // Local fallback tick - always run but only decrement when SSE is not active
+    // Local countdown tick - always run to ensure timer moves
     tickId = setInterval(() => {
       setPollRemaining((prev) => {
         // If SSE is active, don't modify the countdown locally
         if (sseActiveRef.current) return prev;
         
-        if (typeof prev === 'number') return Math.max(0, prev - 1);
-        if (typeof pollIntervalSec === 'number') return Math.max(0, (pollIntervalSec as number) - 1);
-        return prev;
+        if (typeof prev === 'number' && prev > 0) {
+          return prev - 1;
+        }
+        if (typeof pollIntervalSec === 'number') {
+          return pollIntervalSec;
+        }
+        return 60; // fallback
       });
     }, 1000);
     syncId = setInterval(() => { loadStatus(); }, 15000);
