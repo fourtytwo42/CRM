@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import { requireAuth } from '@/lib/guard';
-import { jsonOk, jsonError } from '@/lib/http';
+import { jsonOk, jsonError, methodNotAllowed } from '@/lib/http';
 
 export async function GET(req: NextRequest) {
   const me = await requireAuth(req);
@@ -77,6 +77,33 @@ export async function POST(req: NextRequest) {
   db.prepare(`INSERT OR IGNORE INTO case_versions (case_id, version_no, data, created_at, created_by_user_id) VALUES (?, 1, ?, ?, ?)`)
     .run(id, JSON.stringify({ title: code, stage: 'new' }), now, me.id);
   return jsonOk({ id, case_number: code });
+}
+
+export async function DELETE(req: NextRequest) {
+  const me = await requireAuth(req);
+  if (me.status !== 'active') return jsonError('FORBIDDEN', { status: 403 });
+  const db = getDb();
+  const url = new URL(req.url);
+  let ids: number[] = [];
+  const qpId = Number(url.searchParams.get('id') || '0');
+  if (qpId) ids = [qpId];
+  if (!qpId) {
+    const body = await req.json().catch(() => null) as { ids?: number[] } | null;
+    if (body && Array.isArray(body.ids)) ids = body.ids.map((n) => Number(n)).filter(Number.isFinite);
+  }
+  if (!ids.length) return jsonError('VALIDATION', { status: 400, message: 'No ids provided' });
+  // Constrain to existing ids to produce a deterministic count
+  const existing = db.prepare(`SELECT id FROM cases WHERE id IN (${ids.map(()=>'?').join(',')})`).all(...ids) as Array<{ id: number }>;
+  if (!existing.length) return jsonOk({ deleted: 0 });
+  const idList = existing.map(r => r.id);
+  const placeholders = idList.map(()=>'?').join(',');
+  // Delete dependents then cases
+  db.prepare(`DELETE FROM case_versions WHERE case_id IN (${placeholders})`).run(...idList);
+  try { db.prepare(`DELETE FROM communications WHERE case_id IN (${placeholders})`).run(...idList); } catch {}
+  try { db.prepare(`DELETE FROM notes WHERE case_id IN (${placeholders})`).run(...idList); } catch {}
+  const result = db.prepare(`DELETE FROM cases WHERE id IN (${placeholders})`).run(...idList);
+  const changes = Number(result.changes || 0);
+  return jsonOk({ deleted: changes });
 }
 
 

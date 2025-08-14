@@ -33,6 +33,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     messageId || null,
     new Date().toISOString(),
   );
+  // Also record in site-wide mail_messages so it appears in Admin Sent mailbox
+  try {
+    db.prepare(`
+      INSERT INTO mail_messages (direction, from_email, to_email, subject, body, message_id, created_at, seen)
+      VALUES ('out', ?, ?, ?, ?, ?, ?, 1)
+    `).run(
+      cfg.from_email,
+      to,
+      subject,
+      text,
+      messageId || null,
+      new Date().toISOString(),
+    );
+  } catch {}
   return jsonOk({ messageId });
 }
 

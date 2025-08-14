@@ -34,6 +34,21 @@ export async function POST(req: NextRequest) {
       text: 'This is a test email from your SMTP settings.',
       headers: { 'X-Category': 'test' },
     });
+    // Record in Sent so it appears in the admin Email client
+    try {
+      const db = getDb();
+      db.prepare(`
+        INSERT INTO mail_messages (direction, from_email, to_email, subject, body, message_id, created_at, seen)
+        VALUES ('out', ?, ?, ?, ?, ?, ?, 1)
+      `).run(
+        cfg.from_email,
+        to,
+        'Test Email',
+        'This is a test email from your SMTP settings.',
+        (info as any)?.messageId || null,
+        new Date().toISOString(),
+      );
+    } catch {}
     // eslint-disable-next-line no-console
     console.log('[email:test] sent', {
       to,

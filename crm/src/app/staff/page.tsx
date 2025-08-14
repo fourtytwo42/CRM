@@ -684,6 +684,7 @@ export default function AgentPage() {
                       <th className="px-6 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'username', dir: s.col==='username' && s.dir==='asc' ? 'desc' : 'asc' }))}>Username</th>
                       <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'email', dir: s.col==='email' && s.dir==='asc' ? 'desc' : 'asc' }))}>Email</th>
                       <th className="px-3 py-3 font-medium">Role</th>
+                      <th className="px-3 py-3 font-medium">AI</th>
                       <th className="px-3 py-3 font-medium">Campaigns</th>
                       <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'status', dir: s.col==='status' && s.dir==='asc' ? 'desc' : 'asc' }))}>Status</th>
                       <th className="px-3 py-3 font-medium text-right">Actions</th>
@@ -698,6 +699,7 @@ export default function AgentPage() {
                         <td className="px-6 py-3">{a.username}</td>
                         <td className="px-3 py-3">{a.email}</td>
                         <td className="px-3 py-3">{a.role}</td>
+                        <td className="px-3 py-3">{(a as any).is_ai ? 'Yes' : 'No'}</td>
                         <td className="px-3 py-3">
                           {(a.campaigns && a.campaigns.length) ? (
                             <div className="flex flex-wrap gap-1">
