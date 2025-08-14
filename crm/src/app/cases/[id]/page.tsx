@@ -20,6 +20,20 @@ export default function CaseDetailPage() {
   const [aiBusy, setAiBusy] = useState<'idle'|'generating'>('idle');
   const [aiError, setAiError] = useState<string | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
+  
+  async function saveCase(partial: { stage?: 'new'|'in-progress'|'won'|'lost'|'closed'; campaign_id?: number|null }) {
+    setSaving('saving');
+    try {
+      const token = await getAccessToken(); if (!token) return;
+      const res = await fetch(`/api/crm/cases/${caseId}`, {
+        method: 'PUT',
+        headers: { 'content-type':'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title, stage: partial.stage ?? stage, campaign_id: partial.campaign_id ?? (campaignId ? Number(campaignId) : null) })
+      });
+      const j = await res.json().catch(()=>null);
+      if (!j || !j.ok) { alert(j?.error?.message || 'Failed'); return; }
+    } finally { setSaving('idle'); }
+  }
 
   useEffect(() => { (async () => {
     const token = await getAccessToken(); if (!token) return;
@@ -70,7 +84,7 @@ export default function CaseDetailPage() {
           return (
             <div key={st} className={`flex items-center gap-2 ${idx>0?'pl-2':''}`}>
               {idx>0 && <div className="w-4 h-[1px] bg-black/10 dark:bg-white/20" />}
-              <div className={`px-2 py-1 rounded-full border ${isActive ? 'bg-black text-white dark:bg-white dark:text-black' : (isDone ? 'bg-black/5 dark:bg-white/10 text-black dark:text-white' : 'bg-transparent text-black dark:text-white')} border-black/10 dark:border-white/10`}>{st}</div>
+              <button onClick={()=>{ setStage(st); saveCase({ stage: st }); }} className={`px-2 py-1 rounded-full border ${isActive ? 'bg-black text-white dark:bg-white dark:text-black' : (isDone ? 'bg-black/5 dark:bg-white/10 text-black dark:text-white' : 'bg-transparent text-black dark:text-white')} border-black/10 dark:border-white/10`}>{st}</button>
             </div>
           );
         })}
@@ -117,9 +131,9 @@ export default function CaseDetailPage() {
                 </CardBody>
               </Card>
 
-              <Card>
+          <Card>
                 <CardHeader title="Notes" />
-                <CardBody>
+            <CardBody>
                   <div className="space-y-3 text-sm">
                     {(data.notes || []).map((n:any) => (
                       <div key={n.id} className="p-3 rounded-lg border border-black/10 dark:border-white/10">
@@ -190,14 +204,10 @@ export default function CaseDetailPage() {
 
           {viewTab === 'Details' && (
             <>
-          <Card>
+              <Card>
                 <CardHeader title="Case Details" />
-            <CardBody>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                <div className="md:col-span-2">
-                      <div className="text-xs opacity-70">Case Number</div>
-                      <Input value={title} disabled />
-                </div>
+                <CardBody>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                 <div>
                   <div className="text-xs opacity-70">Stage</div>
                   <select className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 w-full" value={stage} onChange={(e)=>setStage(e.target.value as any)}>
@@ -215,20 +225,12 @@ export default function CaseDetailPage() {
                     {campaigns.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
                   </select>
                 </div>
-                    <div className="text-right md:col-span-4">
-                  <Button disabled={saving!=='idle'} onClick={async ()=>{
-                    setSaving('saving');
-                    try {
-                      const token = await getAccessToken(); if (!token) return;
-                      const res = await fetch(`/api/crm/cases/${caseId}`, { method: 'PUT', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ title, stage, campaign_id: campaignId ? Number(campaignId) : null }) });
-                      const j = await res.json().catch(()=>null);
-                      if (!j || !j.ok) { alert(j?.error?.message || 'Failed'); return; }
-                    } finally { setSaving('idle'); }
-                  }}>{saving==='saving' ? 'Saving…' : 'Save'}</Button>
-                  </div>
+                    <div className="text-right md:col-span-1">
+                      <Button disabled={saving!=='idle'} onClick={()=> saveCase({})}>{saving==='saving' ? 'Saving…' : 'Save'}</Button>
                 </div>
-              </CardBody>
-            </Card>
+              </div>
+            </CardBody>
+          </Card>
 
           {Array.isArray(data.versions) && data.versions.length > 0 && (
             <Card>
@@ -250,8 +252,9 @@ export default function CaseDetailPage() {
           )}
 
           {viewTab === 'Related' && (
+            <>
           <Card>
-              <CardHeader title="Other Cases for Customer" />
+                <CardHeader title="Other Cases for Customer" />
             <CardBody>
               <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[360px] overflow-auto">
                 {(!data.otherCases || data.otherCases.length === 0) ? (
@@ -272,6 +275,7 @@ export default function CaseDetailPage() {
               </div>
             </CardBody>
           </Card>
+            </>
           )}
         </div>
 
