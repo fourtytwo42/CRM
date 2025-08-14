@@ -22,6 +22,7 @@ export function ensureImapPollerRunning(): void {
     const row = db.prepare(`SELECT imap_enabled, imap_poll_seconds FROM email_settings WHERE id = 1`).get() as any;
     const enabled = !!(row && row.imap_enabled);
     const intervalSec = Math.max(15, Math.min(3600, Number(row?.imap_poll_seconds || 60)));
+    
     if (!enabled) {
       if (state.timer) { clearInterval(state.timer); state.timer = null; }
       state.running = false;
@@ -29,19 +30,35 @@ export function ensureImapPollerRunning(): void {
       state.nextRunAtMs = null;
       return;
     }
-    if (state.timer) return; // already scheduled
+    
+    // If interval changed, restart the timer
+    if (state.timer && state.intervalSec !== intervalSec) {
+      clearInterval(state.timer);
+      state.timer = null;
+    }
+    
+    if (state.timer) return; // already scheduled with correct interval
+    
     state.intervalSec = intervalSec;
-    state.timer = setInterval(() => {
-      // Schedule next run after this one completes
-      runOnce().catch(() => {}).finally(() => {
-        state.nextRunAtMs = Date.now() + state.intervalSec * 1000;
-      });
-    }, intervalSec * 1000);
     state.running = true;
-    // Kick immediate
-    state.nextRunAtMs = Date.now() + state.intervalSec * 1000;
-    runOnce().catch(() => {}).finally(() => {
+    
+    // Start with immediate run, then schedule regular intervals
+    const scheduleNext = () => {
+      if (state.timer) clearInterval(state.timer);
       state.nextRunAtMs = Date.now() + state.intervalSec * 1000;
+      state.timer = setInterval(() => {
+        runOnce().catch(() => {}).finally(() => {
+          // Update next run time for the following interval
+          if (state.running && state.timer) {
+            state.nextRunAtMs = Date.now() + state.intervalSec * 1000;
+          }
+        });
+      }, state.intervalSec * 1000);
+    };
+    
+    // Run immediately first, then start the regular timer
+    runOnce().catch(() => {}).finally(() => {
+      scheduleNext();
     });
   } catch {
     // ignore
@@ -67,8 +84,23 @@ export function getImapPollerStatus(): { enabled: boolean; intervalSec: number; 
 }
 
 export function resetImapPollCountdown(): void {
-  // After a manual run, reset countdown from now based on current interval
-  state.nextRunAtMs = Date.now() + (state.intervalSec || 60) * 1000;
+  // After a manual run, restart the automatic timer from now
+  if (state.timer) {
+    clearInterval(state.timer);
+    state.timer = null;
+  }
+  
+  if (state.running) {
+    state.nextRunAtMs = Date.now() + state.intervalSec * 1000;
+    state.timer = setInterval(() => {
+      runOnce().catch(() => {}).finally(() => {
+        // Update next run time for the following interval
+        if (state.running && state.timer) {
+          state.nextRunAtMs = Date.now() + state.intervalSec * 1000;
+        }
+      });
+    }, state.intervalSec * 1000);
+  }
 }
 
 async function runOnce(): Promise<number> {

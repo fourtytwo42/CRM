@@ -884,6 +884,7 @@ function AdminEmailClient() {
   useEffect(() => {
     let cancelled = false;
     let tickId: any = null;
+    let syncId: any = null;
     (async () => {
       try {
         const token = await getAccessToken();
@@ -894,6 +895,17 @@ function AdminEmailClient() {
         if (!cancelled && j && j.ok !== false && j.poller) {
           setPollIntervalSec(Number(j.poller.intervalSec || 60));
           setPollRemaining(Number(j.poller.remainingSec || j.poller.intervalSec || 60));
+        } else if (!cancelled) {
+          // Fallback: fetch settings to get interval and initialize countdown
+          try {
+            const res2 = await fetch('/api/admin/settings/email', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+            const j2 = await res2.json().catch(() => null);
+            if (j2 && j2.ok) {
+              const sec = Number(j2.data?.imap_poll_seconds || 60);
+              setPollIntervalSec(sec);
+              setPollRemaining((prev) => (typeof prev === 'number' ? prev : sec));
+            }
+          } catch {}
         }
       } catch {}
     })();
@@ -920,12 +932,13 @@ function AdminEmailClient() {
     loadStatus();
     tickId = setInterval(() => {
       setPollRemaining((prev) => {
-        const next = typeof prev === 'number' ? Math.max(0, prev - 1) : null;
-        return next;
+        if (typeof prev === 'number') return Math.max(0, prev - 1);
+        if (typeof pollIntervalSec === 'number') return Math.max(0, (pollIntervalSec as number) - 1);
+        return prev;
       });
     }, 1000);
-    const syncId = setInterval(() => { loadStatus(); }, 15000);
-    return () => { cancelled = true; if (tickId) clearInterval(tickId); };
+    syncId = setInterval(() => { loadStatus(); }, 15000);
+    return () => { cancelled = true; if (tickId) clearInterval(tickId); if (syncId) clearInterval(syncId); };
   }, []);
 
   return (

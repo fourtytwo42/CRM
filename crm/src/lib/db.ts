@@ -90,6 +90,25 @@ function getDb(): Database.Database {
   // Save in global for hot-reload reuse
   g.__dbInstance = dbInstance;
   g.__dbMigratedOnce = migratedOnce;
+  
+  // Initialize IMAP email poller after database is ready
+  // Do this async to avoid blocking the database initialization
+  if (!g.__imapPollerInitialized) {
+    g.__imapPollerInitialized = true;
+    setImmediate(() => {
+      try {
+        // Use dynamic import to avoid circular dependencies
+        import('../app/api/crm/inbound/email/poller').then(({ ensureImapPollerRunning }) => {
+          ensureImapPollerRunning();
+        }).catch(() => {
+          // Ignore errors - poller will be initialized on first email admin access
+        });
+      } catch {
+        // Ignore errors - poller will be initialized on first email admin access
+      }
+    });
+  }
+  
   return dbInstance;
 }
 

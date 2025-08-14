@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   } catch {
     return jsonError('FORBIDDEN', { status: 403 });
   }
-  try { ensureImapPollerRunning(); } catch {}
+  // Do NOT trigger the poller here; just report current/derived status.
   const status = getImapPollerStatus();
   return jsonOk({ poller: status });
 }
