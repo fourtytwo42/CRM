@@ -854,6 +854,8 @@ function AdminEmailClient() {
   // Poller countdown UI state (server is source of truth)
   const [pollRemaining, setPollRemaining] = useState<number | null>(null);
   const [pollIntervalSec, setPollIntervalSec] = useState<number | null>(null);
+  const [sseActive, setSseActive] = useState(false);
+  const sseActiveRef = useRef(false);
   const allChecked = items.length > 0 && checkedIds.length === items.length;
 
   useEffect(() => { (async () => {
@@ -934,27 +936,41 @@ function AdminEmailClient() {
 
     // Try SSE first for authoritative countdown from server
     try {
-      // Use absolute path to avoid Next.js base issues in some deployments
-      es = new EventSource('/api/crm/inbound/email/poll/stream');
-      es.onmessage = (ev) => {
-        try {
-          const data = JSON.parse(ev.data || '{}');
-          if (data && data.ok !== false && data.poller) {
-            setPollIntervalSec(Number(data.poller.intervalSec || 60));
-            setPollRemaining(Number(data.poller.remainingSec ?? data.poller.intervalSec ?? 60));
-          }
-        } catch {}
-      };
-      es.onerror = () => {
-        try { es && es.close(); } catch {}
-        es = null;
-      };
+      const token = await getAccessToken();
+      if (token) {
+        es = new EventSource(`/api/crm/inbound/email/poll/stream?token=${encodeURIComponent(token)}`);
+        es.onopen = () => {
+          setSseActive(true);
+          sseActiveRef.current = true;
+          // console.log('SSE connected');
+        };
+        es.onmessage = (ev) => {
+          try {
+            const data = JSON.parse(ev.data || '{}');
+            if (data && data.ok !== false && data.poller) {
+              setPollIntervalSec(Number(data.poller.intervalSec || 60));
+              setPollRemaining(Number(data.poller.remainingSec ?? data.poller.intervalSec ?? 60));
+            }
+          } catch {}
+        };
+        es.onerror = () => {
+          // console.log('SSE error, falling back to local tick');
+          setSseActive(false);
+          sseActiveRef.current = false;
+          try { es && es.close(); } catch {}
+          es = null;
+        };
+      }
     } catch {
       // ignore; fallback to local tick below
     }
 
+    // Local fallback tick - always run but only decrement when SSE is not active
     tickId = setInterval(() => {
       setPollRemaining((prev) => {
+        // If SSE is active, don't modify the countdown locally
+        if (sseActiveRef.current) return prev;
+        
         if (typeof prev === 'number') return Math.max(0, prev - 1);
         if (typeof pollIntervalSec === 'number') return Math.max(0, (pollIntervalSec as number) - 1);
         return prev;
@@ -966,6 +982,8 @@ function AdminEmailClient() {
       if (tickId) clearInterval(tickId);
       if (syncId) clearInterval(syncId);
       try { es && es.close(); } catch {}
+      setSseActive(false);
+      sseActiveRef.current = false;
     };
   }, []);
 
@@ -990,6 +1008,7 @@ function AdminEmailClient() {
             setCheckedIds([]);
           }}>Delete selected</Button>
         )}
+        {sseActive && <span className="text-xs text-green-600">🟢 Live</span>}
         <Button variant="secondary" onClick={async () => {
           setBusy('loading');
           try {

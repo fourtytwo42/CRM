@@ -6,7 +6,19 @@ export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAdmin(req);
+    // SSE can't send auth headers, so accept token via query param
+    const token = req.nextUrl.searchParams.get('token');
+    if (token) {
+      // Create a mock request with the auth header for requireAdmin
+      const mockReq = {
+        ...req,
+        headers: new Headers(req.headers),
+      };
+      mockReq.headers.set('authorization', `Bearer ${token}`);
+      await requireAdmin(mockReq as NextRequest);
+    } else {
+      await requireAdmin(req);
+    }
   } catch {
     return new Response('forbidden', { status: 403 });
   }
