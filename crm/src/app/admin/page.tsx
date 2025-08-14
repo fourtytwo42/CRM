@@ -941,7 +941,14 @@ function AdminEmailClient() {
         const sseUrl = `/api/crm/inbound/email/poll/stream?token=${encodeURIComponent(token)}`;
         console.log('[AdminEmailClient] Connecting to SSE:', sseUrl);
         
-        es = new EventSource(sseUrl);
+        try {
+          console.log('[AdminEmailClient] Creating EventSource...');
+          es = new EventSource(sseUrl);
+          console.log('[AdminEmailClient] EventSource created, waiting for events...');
+        } catch (error) {
+          console.log('[AdminEmailClient] Error creating EventSource:', error);
+          return;
+        }
         
         es.onopen = () => {
           console.log('[AdminEmailClient] SSE connection opened successfully');
