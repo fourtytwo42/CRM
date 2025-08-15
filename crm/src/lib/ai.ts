@@ -133,7 +133,6 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
         system,
         messages: userAndAssistant as any,
         temperature: 1,
-        maxTokens: config.maxTokens || 131072,
       }), timeout, controller.signal);
       return { ok: true, provider, model: config.model || '', content: result.text };
     }
@@ -147,7 +146,6 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
           system,
           messages: userAndAssistant as any,
           temperature: 1,
-          maxTokens: config.maxTokens || 131072,
         }), timeout, controller.signal);
         return { ok: true, provider, model: config.model || '', content: result.text };
       } catch (e: any) {
@@ -164,7 +162,6 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
           },
           body: JSON.stringify({
             model: config.model,
-            max_tokens: config.maxTokens || 131072,
             temperature: 1,
             system,
             messages: userAndAssistant.map((m) => ({ role: m.role, content: m.content })),
@@ -195,8 +192,7 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
         model: config.model, 
         messages, 
         stream: false, 
-        temperature: 1,
-        max_tokens: config.maxTokens || 131072
+        temperature: 1
       };
       const ccRes = await withTimeout(fetch(chatUrl, {
         method: 'POST',
@@ -267,8 +263,7 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
           stream: false,
           messages,
           options: { 
-            temperature: 1,
-            num_predict: config.maxTokens || 131072
+            temperature: 1
           },
         }),
       }), timeout, controller.signal);

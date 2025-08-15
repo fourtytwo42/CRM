@@ -20,9 +20,9 @@ export async function POST(req: NextRequest) {
       }
       if (Array.isArray(json.ai)) {
         const del = db.prepare(`DELETE FROM ai_providers`); del.run();
-        const ins = db.prepare(`INSERT INTO ai_providers (provider,label,base_url,model,enabled,timeout_ms,priority,max_tokens,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?, ?, ?)`);
-        const now = new Date().toISOString();
-        json.ai.forEach((p: any) => ins.run(p.provider, p.label||null, p.baseUrl||null, p.model||null, p.enabled?1:0, p.timeoutMs||null, p.priority||1000, p.maxTokens||131072, now, now));
+                    const ins = db.prepare(`INSERT INTO ai_providers (provider,label,base_url,model,enabled,timeout_ms,priority,max_tokens,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?, ?, ?)`);
+            const now = new Date().toISOString();
+            json.ai.forEach((p: any) => ins.run(p.provider, p.label||null, p.baseUrl||null, p.model||null, p.enabled?1:0, p.timeoutMs||null, p.priority||1000, p.maxTokens||null, now, now));
       }
       if (json.tele) {
         const t = json.tele;

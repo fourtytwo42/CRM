@@ -31,7 +31,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       case 'model': fields.push('model = ?'); values.push(body[key] || null); break;
       case 'enabled': fields.push('enabled = ?'); values.push(body[key] ? 1 : 0); break;
       case 'timeoutMs': fields.push('timeout_ms = ?'); values.push(Number.isFinite(Number(body[key])) ? Number(body[key]) : null); break;
-      case 'maxTokens': fields.push('max_tokens = ?'); values.push(Number.isFinite(Number(body[key])) ? Number(body[key]) : 131072); break;
+                  case 'maxTokens': fields.push('max_tokens = ?'); values.push(Number.isFinite(Number(body[key])) ? Number(body[key]) : null); break;
       case 'priority': fields.push('priority = ?'); values.push(Number.isFinite(Number(body[key])) ? Number(body[key]) : 1000); break;
       case 'settings': fields.push('settings = ?'); values.push(body[key] ? JSON.stringify(body[key]) : null); break;
     }

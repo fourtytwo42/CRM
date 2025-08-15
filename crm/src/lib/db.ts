@@ -147,7 +147,7 @@ function getDb(): Database.Database {
       const hasMaxTokens = cols.some(col => col.name === 'max_tokens');
       if (!hasMaxTokens) {
         // Add max_tokens column with default value
-        dbInstance.exec(`ALTER TABLE ai_providers ADD COLUMN max_tokens INTEGER NOT NULL DEFAULT 131072`);
+                          dbInstance.exec(`ALTER TABLE ai_providers ADD COLUMN max_tokens INTEGER`);
         console.log('[db] Added max_tokens column to ai_providers table');
       }
     }
@@ -267,7 +267,7 @@ function migrate(db: Database.Database): void {
       enabled INTEGER NOT NULL DEFAULT 0,
       timeout_ms INTEGER,
       priority INTEGER NOT NULL DEFAULT 1000,
-      max_tokens INTEGER NOT NULL DEFAULT 131072,
+      max_tokens INTEGER,
       settings TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
