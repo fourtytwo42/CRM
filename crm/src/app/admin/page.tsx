@@ -62,7 +62,7 @@ export default function AdminPage() {
   const [addProviderId, setAddProviderId] = useState<string>('');
   const [addBusy, setAddBusy] = useState<boolean>(false);
   const [editOpenForId, setEditOpenForId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<{ label: string; baseUrl: string; apiKey: string; model: string; timeoutMs: number | '' ; priority: number | '' }|null>(null);
+  const [editForm, setEditForm] = useState<{ label: string; baseUrl: string; apiKey: string; model: string; timeoutMs: number | '' ; maxTokens: number | '' ; priority: number | '' }|null>(null);
   const [editModels, setEditModels] = useState<string[]>([]);
   const [editModelsError, setEditModelsError] = useState<string | null>(null);
   const editingProviderHasKey = useMemo(() => aiProviders.find(x => x.id === editOpenForId)?.hasApiKey || false, [editOpenForId, aiProviders]);
@@ -530,7 +530,7 @@ export default function AdminPage() {
                     }
                   />
                   <CardBody>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="grid grid-cols-3 gap-2 text-sm">
                       <div>
                         <div className="opacity-70 text-xs">Model</div>
                         <div className="font-medium truncate">{p.model || '—'}</div>
@@ -542,6 +542,10 @@ export default function AdminPage() {
                       <div>
                         <div className="opacity-70 text-xs">Timeout</div>
                         <div className="font-medium">{p.timeoutMs ? `${p.timeoutMs} ms` : 'Default'}</div>
+                      </div>
+                      <div>
+                        <div className="opacity-70 text-xs">Max Tokens</div>
+                        <div className="font-medium">{p.maxTokens ? `${p.maxTokens.toLocaleString()}` : 'Auto (smart)'}</div>
                       </div>
                       <div>
                         <div className="opacity-70 text-xs">API Key</div>
@@ -630,6 +634,10 @@ export default function AdminPage() {
                   <label className="text-sm block">
                     <span className="text-xs opacity-70">Timeout (ms)</span>
                     <Input type="number" value={editForm.timeoutMs as any} onChange={(e) => setEditForm({ ...(editForm as any), timeoutMs: e.target.value ? Number(e.target.value) : '' })} placeholder="Default" />
+                  </label>
+                  <label className="text-sm block">
+                    <span className="text-xs opacity-70">Max Tokens</span>
+                    <Input type="number" value={editForm.maxTokens as any} onChange={(e) => setEditForm({ ...(editForm as any), maxTokens: e.target.value ? Number(e.target.value) : '' })} placeholder="Auto (smart default)" />
                   </label>
                   <label className="text-sm block">
                     <span className="text-xs opacity-70">Priority</span>
@@ -738,6 +746,7 @@ export default function AdminPage() {
       apiKey: '',
       model: p.model || '',
       timeoutMs: p.timeoutMs || '',
+      maxTokens: p.maxTokens || '',
       priority: p.priority,
     });
   }
@@ -780,6 +789,7 @@ export default function AdminPage() {
         // Only include apiKey when user entered a value; blank means don't change
         model: editForm.model || null,
         timeoutMs: editForm.timeoutMs || null,
+        maxTokens: editForm.maxTokens || null,
         priority: editForm.priority || 1000,
       };
       if ((editForm.apiKey || '').trim().length > 0) payload.apiKey = editForm.apiKey;
