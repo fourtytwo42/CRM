@@ -115,11 +115,58 @@ export async function fetchModels(config: AiProviderConfig): Promise<string[]> {
   return [];
 }
 
+function getMaxTokensForModel(provider: AiProviderId, model?: string | null): number {
+  // Return appropriate max tokens based on provider and model
+  // These are conservative estimates based on known model limits
+  
+  if (provider === 'anthropic') {
+    const modelName = model?.toLowerCase() || '';
+    if (modelName.includes('claude-3-5-sonnet')) return 8192;
+    if (modelName.includes('claude-3-haiku')) return 4096;
+    if (modelName.includes('claude-sonnet-4')) return 8192; // Conservative for newer models
+    return 4096; // Conservative default for Anthropic
+  }
+  
+  if (provider === 'groq') {
+    const modelName = model?.toLowerCase() || '';
+    if (modelName.includes('llama-3.1-8b')) return 32768;
+    if (modelName.includes('llama-3.1-70b')) return 32768;
+    if (modelName.includes('llama-3.2')) return 32768;
+    if (modelName.includes('mixtral')) return 32768;
+    return 32768; // Good default for Groq
+  }
+  
+  if (provider === 'openai') {
+    const modelName = model?.toLowerCase() || '';
+    if (modelName.includes('gpt-4o')) return 16384;
+    if (modelName.includes('gpt-4-turbo')) return 4096;
+    if (modelName.includes('gpt-4')) return 8192;
+    if (modelName.includes('gpt-3.5')) return 4096;
+    return 4096; // Conservative default for OpenAI
+  }
+  
+  if (provider === 'openrouter') {
+    // OpenRouter varies by model, use a safe default
+    return 4096;
+  }
+  
+  if (provider === 'lmstudio' || provider === 'ollama') {
+    // Local models, can be more generous
+    return 8192;
+  }
+  
+  return 4096; // Conservative fallback
+}
+
 export async function chatCompletion(config: AiProviderConfig, messages: ChatMessage[]): Promise<ChatResult> {
   const provider = config.provider;
   const timeout = (config.timeoutMs ?? (provider === 'ollama' ? 60000 : env.aiRequestTimeoutMs));
   const controller = new AbortController();
   const baseUrl = (config.baseUrl || '').replace(/\/$/, '');
+  
+  // Determine max tokens - use config value if set, otherwise use model-specific defaults
+  const maxTokens = config.maxTokens || getMaxTokensForModel(provider, config.model);
+  
   try {
     // Use Vercel AI SDK where possible for stability and consistent parsing
     const system = messages.find((m) => m.role === 'system')?.content;
@@ -133,6 +180,7 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
         system,
         messages: userAndAssistant as any,
         temperature: 1,
+        maxTokens: maxTokens,
       }), timeout, controller.signal);
       return { ok: true, provider, model: config.model || '', content: result.text };
     }
@@ -146,6 +194,7 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
           system,
           messages: userAndAssistant as any,
           temperature: 1,
+          maxTokens: maxTokens,
         }), timeout, controller.signal);
         return { ok: true, provider, model: config.model || '', content: result.text };
       } catch (e: any) {
@@ -162,6 +211,7 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
           },
           body: JSON.stringify({
             model: config.model,
+            max_tokens: maxTokens,
             temperature: 1,
             system,
             messages: userAndAssistant.map((m) => ({ role: m.role, content: m.content })),
@@ -192,7 +242,8 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
         model: config.model, 
         messages, 
         stream: false, 
-        temperature: 1
+        temperature: 1,
+        max_tokens: maxTokens
       };
       const ccRes = await withTimeout(fetch(chatUrl, {
         method: 'POST',
@@ -263,7 +314,8 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
           stream: false,
           messages,
           options: { 
-            temperature: 1
+            temperature: 1,
+            num_predict: maxTokens
           },
         }),
       }), timeout, controller.signal);
