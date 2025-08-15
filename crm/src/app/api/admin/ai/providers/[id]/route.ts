@@ -42,7 +42,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const db = getDb();
   const info = db.prepare(`UPDATE ai_providers SET ${fields.join(', ')} WHERE id = ?`).run(...values);
   if (info.changes === 0) return jsonError('NOT_FOUND', { status: 404 });
-  const row = db.prepare(`SELECT id, provider, label, api_key, base_url, model, enabled, timeout_ms, priority, settings, created_at, updated_at FROM ai_providers WHERE id = ?`).get(id) as any;
+  const row = db.prepare(`SELECT id, provider, label, api_key, base_url, model, enabled, timeout_ms, max_tokens, priority, settings, created_at, updated_at FROM ai_providers WHERE id = ?`).get(id) as any;
   return jsonOk({
     id: row.id,
     provider: row.provider,
@@ -51,6 +51,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     model: row.model || null,
     enabled: !!row.enabled,
     timeoutMs: row.timeout_ms ?? null,
+    maxTokens: row.max_tokens ?? null,
     priority: row.priority,
     settings: row.settings ? safeJsonParse(row.settings) : null,
     hasApiKey: !!(row.api_key && String(row.api_key).length > 0),
