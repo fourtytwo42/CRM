@@ -17,6 +17,7 @@ type AiProviderRow = {
   model?: string | null;
   enabled: boolean;
   timeoutMs?: number | null;
+  maxTokens?: number | null;
   priority: number;
   settings?: any;
   hasApiKey: boolean;
@@ -25,7 +26,7 @@ type AiProviderRow = {
 };
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'users'|'ai'|'telephony'|'email'>('users');
+  const [activeTab, setActiveTab] = useState<'users'|'ai'|'telephony'|'email'|'website'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<'username'|'role'|'status'|'created_at'|'last_login_at'|'last_seen_at'>('created_at');
@@ -71,6 +72,13 @@ export default function AdminPage() {
   const [chatBusy, setChatBusy] = useState<'idle'|'sending'>('idle');
   const [chatMeta, setChatMeta] = useState<{ provider?: string; model?: string; tried?: Array<{ provider: string; code: string; message: string }>; details?: any } | null>(null);
   // Telephony tab state is local to subcomponents
+  
+  // Website Builder state
+  const [systemMessage, setSystemMessage] = useState('You are a professional web developer. Create a complete, functional HTML page with embedded CSS and JavaScript. Always include modern styling with responsive design. Use semantic HTML5 elements. Ensure the page is production-ready and visually appealing.\n\nCRITICAL REQUIREMENTS:\n1. Output ONLY a single, complete HTML document\n2. Include ALL CSS styles in a <style> tag within the <head>\n3. Include ALL JavaScript in <script> tags within the document\n4. Use modern, responsive design with mobile-first approach\n5. Include proper semantic HTML5 elements\n6. Use a professional color scheme and typography\n7. Ensure all interactive elements work without external dependencies\n8. Do NOT use any external CDN links or resources\n9. Do NOT include markdown code blocks (no ``` backticks)\n10. Do NOT include any explanatory text before or after the HTML');
+  const [userPrompt, setUserPrompt] = useState('');
+  const [websiteBusy, setWebsiteBusy] = useState<'idle' | 'generating'>('idle');
+  const [websiteStatus, setWebsiteStatus] = useState<string>('');
+  const [generatedHtml, setGeneratedHtml] = useState<string>('');
 
   const fetchUsers = useCallback(async (reset = false) => {
     if (loadingRef.current) return;
@@ -250,6 +258,7 @@ export default function AdminPage() {
         <Button variant={activeTab === 'ai' ? 'primary' : 'secondary'} onClick={() => setActiveTab('ai')}>AI</Button>
         <Button variant={activeTab === 'telephony' ? 'primary' : 'secondary'} onClick={() => setActiveTab('telephony')}>Call/SMS</Button>
         <Button variant={activeTab === 'email' ? 'primary' : 'secondary'} onClick={() => setActiveTab('email')}>Email</Button>
+        <Button variant={activeTab === 'website' ? 'primary' : 'secondary'} onClick={() => setActiveTab('website')}>Website</Button>
       </div>
       {activeTab === 'users' ? (
         <>
@@ -637,6 +646,19 @@ export default function AdminPage() {
         </>
       ) : activeTab === 'email' ? (
         <AdminEmailClient />
+      ) : activeTab === 'website' ? (
+        <WebsiteBuilderClient 
+          systemMessage={systemMessage}
+          setSystemMessage={setSystemMessage}
+          userPrompt={userPrompt}
+          setUserPrompt={setUserPrompt}
+          websiteBusy={websiteBusy}
+          setWebsiteBusy={setWebsiteBusy}
+          websiteStatus={websiteStatus}
+          setWebsiteStatus={setWebsiteStatus}
+          generatedHtml={generatedHtml}
+          setGeneratedHtml={setGeneratedHtml}
+        />
       ) : (
         <>
           {/* Telephony: SMS and Call ring-through */}
@@ -859,6 +881,36 @@ function AdminEmailClient() {
   const [authRetryCount, setAuthRetryCount] = useState(0);
   const allChecked = items.length > 0 && checkedIds.length === items.length;
 
+  // Function to refresh email list
+  const refreshEmailList = useCallback(async () => {
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
+      
+      const res = await fetch(`/api/admin/email?box=${box}&page=${page}&pageSize=${pageSize}`, { 
+        headers: { authorization: `Bearer ${token}` }, 
+        cache: 'no-store' 
+      });
+      
+      const json = await res.json();
+      if (json.ok) {
+        const nextItems = json.data.items || [];
+        const sameLength = nextItems.length === items.length;
+        const sameIds = sameLength && nextItems.every((n: any, i: number) => items[i]?.id === n.id && items[i]?.seen === n.seen);
+        if (!sameIds) setItems(nextItems);
+        setTotal(json.data.total || 0);
+        setStats(json.data.stats || { inbox: 0, sent: 0, read_in: 0, unread_in: 0 });
+        if (selected) {
+          const still = nextItems.find((x: any) => x.id === selected.id);
+          setSelected(still || null);
+        }
+        setCheckedIds((prev) => prev.filter((id) => nextItems.some((x: any) => x.id === id)));
+      }
+    } catch (error) {
+      console.error('[AdminEmailClient] Failed to refresh email list:', error);
+    }
+  }, [box, page, pageSize, items, selected]);
+
   // Client-side countdown timer that updates every second
   useEffect(() => {
     if (typeof pollRemaining !== 'number' || pollRemaining <= 0) return;
@@ -924,23 +976,7 @@ function AdminEmailClient() {
   useEffect(() => { (async () => {
     setBusy('loading');
     try {
-      const token = await getAccessToken();
-      if (!token) return;
-      const res = await fetch(`/api/admin/email?box=${box}&page=${page}&pageSize=${pageSize}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-      const json = await res.json();
-      if (json.ok) {
-        const nextItems = json.data.items || [];
-        const sameLength = nextItems.length === items.length;
-        const sameIds = sameLength && nextItems.every((n: any, i: number) => items[i]?.id === n.id && items[i]?.seen === n.seen);
-        if (!sameIds) setItems(nextItems);
-        setTotal(json.data.total || 0);
-        setStats(json.data.stats || { inbox: 0, sent: 0, read_in: 0, unread_in: 0 });
-        if (selected) {
-          const still = nextItems.find((x: any) => x.id === selected.id);
-          setSelected(still || null);
-        }
-        setCheckedIds((prev) => prev.filter((id) => nextItems.some((x: any) => x.id === id)));
-      }
+      await refreshEmailList();
     } finally { setBusy('idle'); }
   })(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [box, page, pageSize]);
@@ -1075,9 +1111,24 @@ function AdminEmailClient() {
           es.onmessage = (ev) => {
             try {
               const data = JSON.parse(ev.data || '{}');
-              if (data && data.ok !== false && data.poller) {
-                setPollIntervalSec(Number(data.poller.intervalSec || 60));
-                setPollRemaining(Number(data.poller.remainingSec ?? data.poller.intervalSec ?? 60));
+              if (data && data.ok !== false) {
+                // Handle poller status updates
+                if (data.poller) {
+                  setPollIntervalSec(Number(data.poller.intervalSec || 60));
+                  setPollRemaining(Number(data.poller.remainingSec ?? data.poller.intervalSec ?? 60));
+                }
+                
+                // Handle email processing events
+                if (data.event === 'email-processed' && data.data) {
+                  console.log('[AdminEmailClient] Email processed event received:', data.data);
+                  // Automatically refresh the email list when new emails are processed
+                  if (data.data.processed > 0) {
+                    // Small delay to ensure the database is updated
+                    setTimeout(() => {
+                      refreshEmailList();
+                    }, 500);
+                  }
+                }
               }
             } catch (error) {
               console.error('[AdminEmailClient] Error parsing SSE message:', error);
@@ -1229,18 +1280,7 @@ function AdminEmailClient() {
              }
              
              // Refresh email list
-             const res2 = await fetch(`/api/admin/email?box=${box}&page=${page}&pageSize=${pageSize}`, { 
-               headers: { authorization: `Bearer ${token}` }, 
-               cache: 'no-store' 
-             });
-             const json2 = await res2.json();
-             if (json2.ok) { 
-               setItems(json2.data.items || []); 
-               setTotal(json2.data.total || 0); 
-               setStats(json2.data.stats || stats);
-             } else {
-               console.error('[AdminEmailClient] Failed to refresh email list:', json2);
-             }
+             await refreshEmailList();
            } finally { 
              setBusy('idle'); 
            }
@@ -1561,6 +1601,202 @@ function TelephonyCallRingForm() {
           }
         }}>{busy === 'idle' ? 'Ring Number' : 'Requesting…'}</Button>
       </div>
+    </div>
+  );
+}
+
+// Website Builder Client Component
+function WebsiteBuilderClient({ 
+  systemMessage, setSystemMessage, 
+  userPrompt, setUserPrompt,
+  websiteBusy, setWebsiteBusy,
+  websiteStatus, setWebsiteStatus,
+  generatedHtml, setGeneratedHtml
+}: {
+  systemMessage: string;
+  setSystemMessage: (msg: string) => void;
+  userPrompt: string;
+  setUserPrompt: (prompt: string) => void;
+  websiteBusy: 'idle' | 'generating';
+  setWebsiteBusy: (busy: 'idle' | 'generating') => void;
+  websiteStatus: string;
+  setWebsiteStatus: (status: string) => void;
+  generatedHtml: string;
+  setGeneratedHtml: (html: string) => void;
+}) {
+  const handleGenerateWebsite = async () => {
+    if (!userPrompt.trim()) {
+      setWebsiteStatus('Please enter a prompt for the website');
+      return;
+    }
+
+    setWebsiteBusy('generating');
+    setWebsiteStatus('Initializing website generation...');
+    setGeneratedHtml('');
+    
+    console.log('[WebsiteBuilder] Starting website generation with prompt:', userPrompt.trim());
+
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        setWebsiteStatus('Not authorized. Please sign in again.');
+        setWebsiteBusy('idle');
+        return;
+      }
+
+      setWebsiteStatus('Connecting to AI service...');
+      console.log('[WebsiteBuilder] Sending request to AI service...');
+
+      const response = await fetch('/api/admin/website/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          systemMessage: systemMessage.trim(),
+          userPrompt: userPrompt.trim()
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
+        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+      }
+
+      setWebsiteStatus('Processing AI response...');
+      console.log('[WebsiteBuilder] Received response from AI service');
+
+      const data = await response.json();
+      
+      if (!data.ok) {
+        throw new Error(data.error?.message || 'Failed to generate website');
+      }
+
+      const cleanHtml = data.data.html;
+      setGeneratedHtml(cleanHtml);
+      setWebsiteStatus(`Website generated successfully! ${cleanHtml.length} characters`);
+      console.log('[WebsiteBuilder] Website generated successfully, length:', cleanHtml.length);
+
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Unknown error occurred';
+      setWebsiteStatus(`Error: ${errorMessage}`);
+      console.error('[WebsiteBuilder] Generation failed:', error);
+    } finally {
+      setWebsiteBusy('idle');
+    }
+  };
+
+  const handleDownloadHtml = () => {
+    if (!generatedHtml) {
+      setWebsiteStatus('No generated HTML to download');
+      return;
+    }
+
+    try {
+      const blob = new Blob([generatedHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `website-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.html`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      
+      setWebsiteStatus('HTML file downloaded successfully');
+      console.log('[WebsiteBuilder] HTML file downloaded');
+    } catch (error: any) {
+      setWebsiteStatus(`Download failed: ${error?.message || 'Unknown error'}`);
+      console.error('[WebsiteBuilder] Download failed:', error);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-semibold">Website Builder</h2>
+        {websiteBusy === 'generating' && (
+          <span className="text-xs opacity-70 inline-flex items-center gap-1">
+            <span className="inline-block size-2 rounded-full animate-pulse bg-blue-500" />
+            Generating...
+          </span>
+        )}
+      </div>
+
+      {/* System Message */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-2">AI System Instructions (Hidden from user)</label>
+        <textarea
+          className="w-full rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 min-h-[100px] text-sm"
+          value={systemMessage}
+          onChange={(e) => setSystemMessage(e.target.value)}
+          placeholder="Instructions for the AI on how to build websites..."
+          disabled={websiteBusy === 'generating'}
+        />
+        <p className="text-xs opacity-70 mt-1">These instructions guide the AI's behavior and are not visible to end users</p>
+      </div>
+
+      {/* User Prompt */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-2">Website Description</label>
+        <textarea
+          className="w-full rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 min-h-[120px]"
+          value={userPrompt}
+          onChange={(e) => setUserPrompt(e.target.value)}
+          placeholder="Describe the website you want to create. Be specific about layout, colors, content, and functionality..."
+          disabled={websiteBusy === 'generating'}
+        />
+      </div>
+
+      {/* Generate Button */}
+      <div className="flex items-center gap-3 mb-4">
+        <Button
+          onClick={handleGenerateWebsite}
+          disabled={websiteBusy === 'generating' || !userPrompt.trim()}
+          variant="primary"
+        >
+          {websiteBusy === 'generating' ? 'Generating Website...' : 'Generate Website'}
+        </Button>
+
+        {generatedHtml && (
+          <Button
+            onClick={handleDownloadHtml}
+            disabled={websiteBusy === 'generating'}
+            variant="secondary"
+          >
+            Download HTML
+          </Button>
+        )}
+      </div>
+
+      {/* Status */}
+      {websiteStatus && (
+        <div className={`text-sm p-3 rounded-lg mb-4 ${
+          websiteStatus.includes('Error') 
+            ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' 
+            : websiteStatus.includes('successfully')
+            ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
+            : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+        }`}>
+          {websiteStatus}
+        </div>
+      )}
+
+      {/* Preview */}
+      {generatedHtml && (
+        <div className="border border-black/10 dark:border-white/10 rounded-lg">
+          <div className="bg-black/5 dark:bg-white/10 px-3 py-2 border-b border-black/10 dark:border-white/10">
+            <span className="text-sm font-medium">Generated HTML Preview</span>
+            <span className="text-xs opacity-70 ml-2">({generatedHtml.length} characters)</span>
+          </div>
+          <div className="p-3 max-h-[400px] overflow-auto">
+            <pre className="text-xs bg-gray-50 dark:bg-gray-900 p-3 rounded border overflow-x-auto">
+              <code>{generatedHtml.length > 2000 ? `${generatedHtml.slice(0, 2000)}...` : generatedHtml}</code>
+            </pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

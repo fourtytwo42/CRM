@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/guard';
-import { getImapPollerStatus, ensureImapPollerRunning } from '../../poller';
+import { getImapPollerStatus, ensureImapPollerRunning, addPollerListener } from '../../poller';
 
 export const runtime = 'nodejs';
 
@@ -112,10 +112,20 @@ export async function GET(req: NextRequest) {
         }
       }, 1000);
 
+      // Listen for email processing events
+      console.log('[SSE] Setting up email event listener...');
+      const removeListener = addPollerListener((event, data) => {
+        if (event === 'email-processed') {
+          console.log('[SSE] Email processed event received:', data);
+          send({ ok: true, event: 'email-processed', data });
+        }
+      });
+
       // On close, cleanup
       const close = () => {
         console.log('[SSE] Stream closing, cleaning up...');
         clearInterval(tickId);
+        removeListener(); // Remove the email event listener
         try { controller.close(); } catch (error) {
           console.log('[SSE] Error closing controller:', error);
         }

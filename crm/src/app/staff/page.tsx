@@ -305,12 +305,12 @@ export default function AgentPage() {
   const [rows, setRows] = useState<Customer[]>([]);
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [agentQ, setAgentQ] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'all'|'manager'|'lead'|'agent'>('all');
+     const [roleFilter, setRoleFilter] = useState<'all'|'manager'|'lead'|'agent'|'ai_manager'|'ai_lead'|'ai_agent'>('all');
   const [agentSort, setAgentSort] = useState<{ col: 'username'|'email'|'status'; dir: 'asc'|'desc' }>({ col: 'username', dir: 'asc' });
   const [selectedAgentIds, setSelectedAgentIds] = useState<number[]>([]);
   const [agentsPage, setAgentsPage] = useState(1);
   const agentsPageSize = 25;
-  const [bulkRole, setBulkRole] = useState<'agent'|'lead'|'manager'>('agent');
+     const [bulkRole, setBulkRole] = useState<'agent'|'lead'|'manager'|'ai_agent'|'ai_lead'|'ai_manager'>('agent');
   const [agentBulkOpen, setAgentBulkOpen] = useState(false);
   const [agentBulkVerticalId, setAgentBulkVerticalId] = useState<string>('');
   const [agentBulkCampaignIds, setAgentBulkCampaignIds] = useState<number[]>([]);
@@ -373,13 +373,16 @@ export default function AgentPage() {
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>([]);
   const [customerBulkVerticalId, setCustomerBulkVerticalId] = useState<string>('');
   const [customerBulkCampaignId, setCustomerBulkCampaignId] = useState<string>('');
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'agent'|'manager'|'lead'>('agent');
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiUsername, setAiUsername] = useState('');
-  const [aiRole, setAiRole] = useState<'agent'|'manager'|'lead'>('agent');
-  const [aiPersonality, setAiPersonality] = useState('');
+     const [inviteOpen, setInviteOpen] = useState(false);
+   const [inviteEmail, setInviteEmail] = useState('');
+   const [inviteName, setInviteName] = useState('');
+   const [inviteCampaignId, setInviteCampaignId] = useState<string>('');
+      const [inviteRole, setInviteRole] = useState<'agent'|'manager'|'lead'>('agent');
+     const [aiOpen, setAiOpen] = useState(false);
+   const [aiName, setAiName] = useState('');
+   const [aiCampaignId, setAiCampaignId] = useState<string>('');
+   const [aiRole, setAiRole] = useState<'ai_agent'|'ai_manager'|'ai_lead'>('ai_agent');
+   const [aiPersonality, setAiPersonality] = useState('');
   const [aiBusy, setAiBusy] = useState<'idle'|'saving'>('idle');
   const [aiError, setAiError] = useState<string | null>(null);
   const [verticals, setVerticals] = useState<Array<{ id:number; name:string }>>([]);
@@ -397,6 +400,7 @@ export default function AgentPage() {
   const [casesSort, setCasesSort] = useState<{ col: 'case_number'|'title'|'customer_name'|'campaign_name'|'vertical_name'|'stage'|'created_at'; dir: 'asc'|'desc' }>({ col: 'created_at', dir: 'desc' });
   const [openCaseTabs, setOpenCaseTabs] = useState<Array<{ id:number; case_number:string }>>([]);
   const [activeCaseTabId, setActiveCaseTabId] = useState<number | null>(null);
+  const [selectedCaseIds, setSelectedCaseIds] = useState<number[]>([]);
   const tabsScrollRef = useRef<HTMLDivElement|null>(null);
   const tabsRestoredRef = useRef(false);
   const setOpenCaseTabsImmediate = (next: Array<{ id:number; case_number:string }>) => {
@@ -547,6 +551,66 @@ export default function AgentPage() {
   }, [casesSorted, casesPage]);
   useEffect(() => { setCasesPage(1); }, [casesQ, casesVertical, casesCampaign, casesRows.length]);
 
+  const handleBulkDeleteCases = async () => {
+    if (!confirm(`Are you sure you want to delete ${selectedCaseIds.length} selected case(s)?`)) return;
+    
+    const token = await getAccessToken();
+    if (!token) return;
+    
+    try {
+      const res = await fetch('/api/crm/cases', { 
+        method: 'DELETE', 
+        headers: { 
+          'content-type': 'application/json', 
+          authorization: `Bearer ${token}` 
+        }, 
+        body: JSON.stringify({ ids: selectedCaseIds }) 
+      });
+      
+      if (res.ok) {
+        setCasesRows(prev => prev.filter(r => !selectedCaseIds.includes(r.id)));
+        setSelectedCaseIds([]);
+        // Close any open case tabs that were deleted
+        setOpenCaseTabs(prev => prev.filter(tab => !selectedCaseIds.includes(tab.id)));
+        if (activeCaseTabId && selectedCaseIds.includes(activeCaseTabId)) {
+          setActiveCaseTabId(null);
+        }
+      } else {
+        alert('Failed to delete cases');
+      }
+    } catch (error) {
+      alert('Error deleting cases');
+    }
+  };
+
+  const handleDeleteCase = async (caseId: number) => {
+    if (!confirm('Are you sure you want to delete this case?')) return;
+    
+    const token = await getAccessToken();
+    if (!token) return;
+    
+    try {
+      const res = await fetch(`/api/crm/cases/${caseId}`, { 
+        method: 'DELETE', 
+        headers: { authorization: `Bearer ${token}` } 
+      });
+      
+      if (res.ok) {
+        setCasesRows(prev => prev.filter(r => r.id !== caseId));
+        setSelectedCaseIds(prev => prev.filter(id => id !== caseId));
+        // Close case tab if it was open
+        setOpenCaseTabs(prev => prev.filter(tab => tab.id !== caseId));
+        if (activeCaseTabId === caseId) {
+          setActiveCaseTabId(null);
+        }
+      } else {
+        alert('Failed to delete case');
+      }
+    } catch (error) {
+      alert('Error deleting case');
+    }
+  };
+
   return (
     <main className="container-hero py-8">
       <div className="flex items-center justify-between mb-6">
@@ -593,18 +657,8 @@ export default function AgentPage() {
             key={tab}
             className={`px-3 py-1.5 rounded-lg text-sm border ${activeTab===tab ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-transparent'} border-black/10 dark:border-white/10`}
             onClick={() => setActiveTab(tab)}
-            disabled={(() => {
-              const role = (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('auth.user')||'{}')?.role || 'agent') : 'agent');
-              if (role === 'agent') return !(tab === 'Customers' || tab === 'Cases');
-              if (role === 'lead') return !(tab === 'Agents' || tab === 'Customers' || tab === 'Cases');
-              return false;
-            })()}
-            title={(() => {
-              const role = (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('auth.user')||'{}')?.role || 'agent') : 'agent');
-              if (role === 'agent' && !(tab === 'Customers' || tab === 'Cases')) return 'Insufficient permissions';
-              if (role === 'lead' && !(tab === 'Agents' || tab === 'Customers' || tab === 'Cases')) return 'Insufficient permissions';
-              return '';
-            })()}
+            disabled={false}
+            title=""
           >{tab}</button>
         ))}
       </div>
@@ -615,20 +669,23 @@ export default function AgentPage() {
           <Card>
             <CardHeader title="Agents" subtitle="Manage and browse agents" actions={
               <div className="hidden md:flex items-center gap-2">
-                <Button variant="primary" onClick={() => setInviteOpen(true)}>Invite Agent</Button>
-                <Button variant="secondary" onClick={() => { setAiUsername(''); setAiRole('agent'); setAiPersonality(''); setAiError(null); setAiOpen(true); }}>Create AI Agent</Button>
+                                 <Button variant="primary" onClick={() => { setInviteEmail(''); setInviteName(''); setInviteRole('agent'); setInviteCampaignId(''); setInviteOpen(true); }}>Invite Agent</Button>
+                                 <Button variant="secondary" onClick={() => { setAiName(''); setAiRole('ai_agent'); setAiPersonality(''); setAiCampaignId(''); setAiError(null); setAiOpen(true); }}>Create AI Agent</Button>
               </div>
             } />
             <CardBody>
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-4">
                 <div className="md:col-span-4"><Input placeholder="Search by username or email" value={agentQ} onChange={(e) => setAgentQ(e.target.value)} /></div>
                 <div className="md:col-span-4">
-                  <Select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as any)}>
-                    <option value="all">All Roles</option>
-                    <option value="manager">Managers</option>
-                    <option value="lead">Team Leads</option>
-                    <option value="agent">Agents</option>
-                  </Select>
+                                     <Select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as any)}>
+                     <option value="all">All Roles</option>
+                     <option value="manager">Managers</option>
+                     <option value="lead">Team Leads</option>
+                     <option value="agent">Agents</option>
+                     <option value="ai_manager">AI Managers</option>
+                     <option value="ai_lead">AI Team Leads</option>
+                     <option value="ai_agent">AI Agents</option>
+                   </Select>
                 </div>
               </div>
               <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[420px] overflow-auto -mx-6">
@@ -648,11 +705,14 @@ export default function AgentPage() {
                       } catch {}
                       setSelectedAgentIds([]);
                     }}>Delete</Button>
-                    <Select value={bulkRole} onChange={(e) => setBulkRole(e.target.value as any)}>
-                      <option value="agent">Agent</option>
-                      <option value="lead">Team Lead</option>
-                      <option value="manager">Manager</option>
-                    </Select>
+                                         <Select value={bulkRole} onChange={(e) => setBulkRole(e.target.value as any)}>
+                       <option value="agent">Agent</option>
+                       <option value="lead">Team Lead</option>
+                       <option value="manager">Manager</option>
+                       <option value="ai_agent">AI Agent</option>
+                       <option value="ai_lead">AI Team Lead</option>
+                       <option value="ai_manager">AI Manager</option>
+                     </Select>
                     <Button variant="secondary" onClick={async () => {
                       if (!confirm(`Set role to ${bulkRole} for ${selectedAgentIds.length} agents?`)) return;
                       const token = await getAccessToken(); if (!token) return;
@@ -683,9 +743,8 @@ export default function AgentPage() {
                       </th>
                       <th className="px-6 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'username', dir: s.col==='username' && s.dir==='asc' ? 'desc' : 'asc' }))}>Username</th>
                       <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'email', dir: s.col==='email' && s.dir==='asc' ? 'desc' : 'asc' }))}>Email</th>
-                      <th className="px-3 py-3 font-medium">Role</th>
-                      <th className="px-3 py-3 font-medium">AI</th>
-                      <th className="px-3 py-3 font-medium">Campaigns</th>
+                                             <th className="px-3 py-3 font-medium">Role</th>
+                       <th className="px-3 py-3 font-medium">Campaigns</th>
                       <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setAgentSort(s => ({ col: 'status', dir: s.col==='status' && s.dir==='asc' ? 'desc' : 'asc' }))}>Status</th>
                       <th className="px-3 py-3 font-medium text-right">Actions</th>
                     </tr>
@@ -698,9 +757,17 @@ export default function AgentPage() {
                         }} /></td>
                         <td className="px-6 py-3">{a.username}</td>
                         <td className="px-3 py-3">{a.email}</td>
-                        <td className="px-3 py-3">{a.role}</td>
-                        <td className="px-3 py-3">{(a as any).is_ai ? 'Yes' : 'No'}</td>
-                        <td className="px-3 py-3">
+                                                 <td className="px-3 py-3">
+                           {a.role.startsWith('ai_') ? (
+                             <span className="inline-flex items-center gap-1">
+                               <span className="text-blue-600 dark:text-blue-400">🤖</span>
+                               {a.role.replace('ai_', 'AI ').replace(/\b\w/g, l => l.toUpperCase())}
+                             </span>
+                           ) : (
+                             a.role.replace(/\b\w/g, l => l.toUpperCase())
+                           )}
+                         </td>
+                         <td className="px-3 py-3">
                           {(a.campaigns && a.campaigns.length) ? (
                             <div className="flex flex-wrap gap-1">
                               {a.campaigns.slice(0, 3).map((c) => (
@@ -715,56 +782,68 @@ export default function AgentPage() {
                           )}
                         </td>
                         <td className="px-3 py-3">{a.status}</td>
-                        <td className="px-3 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <a href={`/agent/${a.id}`} aria-label="Open" title="Open" className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10"><IconEye size={16} /></a>
-                            {a.status === 'suspended' && (
-                              <button
-                                aria-label="Resend Invite"
-                                title="Resend Invite"
-                                className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10"
-                                onClick={async () => {
-                                  const token = await getAccessToken();
-                                  if (!token) return;
-                                  try {
-                                    const res = await fetch(`/api/admin/agents/${a.id}/resend`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` } });
-                                    const j = await res.json().catch(() => null);
-                                    if (j && j.ok) {
-                                      alert(j.data?.sent ? 'Invite email sent.' : 'Invite queued (no SMTP). Check outbox.');
-                                    } else {
-                                      alert('Failed to resend invite.');
-                                    }
-                                  } catch {
-                                    alert('Failed to resend invite.');
-                                  }
-                                }}
-                              >
-                                <IconSend size={16} />
-                              </button>
-                            )}
-                            <button
-                              aria-label="Delete"
-                              title="Delete"
-                              className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-red-600"
-                              onClick={async () => {
-                                if (!confirm('Delete this user? This cannot be undone.')) return;
-                                const token = await getAccessToken();
-                                if (!token) return;
-                                await fetch(`/api/admin/agents/${a.id}?force=1`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
-                                // Refresh agents list
-                                try {
-                                  const qs = new URLSearchParams();
-                                  if (agentQ) qs.set('q', agentQ);
-                                  const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
-                                  const ja = await resAgents.json().catch(() => null);
-                                  if (ja && ja.ok) setAgents(ja.data.agents || []);
-                                } catch {}
-                              }}
-                            >
-                              <IconTrash size={16} />
-                            </button>
-                          </div>
-                        </td>
+                                                 <td className="px-3 py-3 text-right">
+                           <div className="flex items-center justify-end gap-2">
+                             <button
+                               aria-label="Manage Campaigns"
+                               title="Manage Campaigns"
+                               className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-blue-600"
+                               onClick={() => {
+                                 setAgentBulkOpen(true);
+                                 setSelectedAgentIds([a.id]);
+                                 setAgentBulkCampaignIds(a.campaigns ? [] : []);
+                               }}
+                             >
+                               <IconCategory2 size={16} />
+                             </button>
+                             <a href={`/agent/${a.id}`} aria-label="Open" title="Open" className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10"><IconEye size={16} /></a>
+                             {a.status === 'suspended' && (
+                               <button
+                                 aria-label="Resend Invite"
+                                 title="Resend Invite"
+                                 className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10"
+                                 onClick={async () => {
+                                   const token = await getAccessToken();
+                                   if (!token) return;
+                                   try {
+                                     const res = await fetch(`/api/admin/agents/${a.id}/resend`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` } });
+                                     const j = await res.json().catch(() => null);
+                                     if (j && j.ok) {
+                                       alert(j.data?.sent ? 'Invite email sent.' : 'Invite queued (no SMTP). Check outbox.');
+                                     } else {
+                                       alert('Failed to resend invite.');
+                                     }
+                                   } catch {
+                                     alert('Failed to resend invite.');
+                                   }
+                                 }}
+                               >
+                                 <IconSend size={16} />
+                               </button>
+                             )}
+                             <button
+                               aria-label="Delete"
+                               title="Delete"
+                               className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-red-600"
+                               onClick={async () => {
+                                 if (!confirm('Delete this user? This cannot be undone.')) return;
+                                 const token = await getAccessToken();
+                                 if (!token) return;
+                                 await fetch(`/api/admin/agents/${a.id}?force=1`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+                                 // Refresh agents list
+                                 try {
+                                   const qs = new URLSearchParams();
+                                   if (agentQ) qs.set('q', agentQ);
+                                   const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
+                                   const ja = await resAgents.json().catch(() => null);
+                                   if (ja && ja.ok) setAgents(ja.data.agents || []);
+                                 } catch {}
+                               }}
+                             >
+                               <IconTrash size={16} />
+                             </button>
+                           </div>
+                         </td>
                       </tr>
                     ))}
                   </tbody>
@@ -828,12 +907,31 @@ export default function AgentPage() {
                         </Select>
                       </div>
                     </div>
+                    
+                    {/* Bulk actions */}
+                    {selectedCaseIds.length > 0 && (
+                      <div className="mb-4 flex items-center gap-2">
+                        <Button variant="destructive" onClick={handleBulkDeleteCases}>
+                          Delete {selectedCaseIds.length} selected
+                        </Button>
+                      </div>
+                    )}
+                    
                     <div className="rounded-xl border border-black/10 dark:border-white/10 max-h-[420px] overflow-auto -mx-6">
                       <table className="min-w-full table-auto text-sm">
                         <thead className="sticky top-0 bg-white/80 dark:bg-black/60 backdrop-blur">
                           <tr className="text-left">
-                            <th className="px-6 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'case_number', dir: s.col==='case_number' && s.dir==='asc' ? 'desc' : 'asc' }))}>Case #</th>
-                            <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'title', dir: s.col==='title' && s.dir==='asc' ? 'desc' : 'asc' }))}>Title</th>
+                            <th className="px-6 py-3">
+                              <input 
+                                type="checkbox" 
+                                className="size-4" 
+                                checked={casesDisplay.length > 0 && selectedCaseIds.length === casesDisplay.length} 
+                                onChange={(e) => {
+                                  setSelectedCaseIds(e.target.checked ? casesDisplay.map((cs) => cs.id) : []);
+                                }} 
+                              />
+                            </th>
+                            <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'case_number', dir: s.col==='case_number' && s.dir==='asc' ? 'desc' : 'asc' }))}>Case #</th>
                             <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'customer_name', dir: s.col==='customer_name' && s.dir==='asc' ? 'desc' : 'asc' }))}>Customer</th>
                             <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'campaign_name', dir: s.col==='campaign_name' && s.dir==='asc' ? 'desc' : 'asc' }))}>Campaign</th>
                             <th className="px-3 py-3 font-medium cursor-pointer" onClick={() => setCasesSort(s => ({ col: 'vertical_name', dir: s.col==='vertical_name' && s.dir==='asc' ? 'desc' : 'asc' }))}>Vertical</th>
@@ -846,11 +944,24 @@ export default function AgentPage() {
                           {casesDisplay.map(cs => (
                             <tr key={cs.id} className="border-t border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
                               <td className="px-6 py-3">
+                                <input 
+                                  type="checkbox" 
+                                  className="size-4" 
+                                  checked={selectedCaseIds.includes(cs.id)} 
+                                  onChange={(e) => {
+                                    setSelectedCaseIds(prev => 
+                                      e.target.checked 
+                                        ? [...prev, cs.id]
+                                        : prev.filter(id => id !== cs.id)
+                                    );
+                                  }} 
+                                />
+                              </td>
+                              <td className="px-3 py-3">
                                 <a className="underline cursor-pointer" href={`/cases/${cs.id}`} onClick={(e)=>{ e.preventDefault(); const nextTabs = (openCaseTabs.some(t=>t.id===cs.id) ? openCaseTabs : [...openCaseTabs, { id: cs.id, case_number: cs.case_number }]); setOpenCaseTabsImmediate(nextTabs); setActiveCaseTabIdImmediate(cs.id); }}>
                                   {cs.case_number}
                                 </a>
                               </td>
-                              <td className="px-3 py-3 truncate max-w-[280px]" title={cs.title}>{cs.title}</td>
                               <td className="px-3 py-3">
                                 <div className="font-medium truncate max-w-[240px]" title={cs.customer_name}>{cs.customer_name}</div>
                                 <div className="opacity-60 text-xs truncate max-w-[240px]" title={cs.customer_email || cs.customer_phone || ''}>{cs.customer_email || cs.customer_phone || '—'}</div>
@@ -860,7 +971,15 @@ export default function AgentPage() {
                               <td className="px-3 py-3">{cs.stage}</td>
                               <td className="px-3 py-3">{new Date(cs.created_at).toLocaleString()}</td>
                               <td className="px-3 py-3 text-right">
-                                <button className="underline" onClick={(e)=>{ e.preventDefault(); const nextTabs = (openCaseTabs.some(t=>t.id===cs.id) ? openCaseTabs : [...openCaseTabs, { id: cs.id, case_number: cs.case_number }]); setOpenCaseTabsImmediate(nextTabs); setActiveCaseTabIdImmediate(cs.id); }}>Open</button>
+                                <div className="flex items-center justify-end gap-2">
+                                  <button 
+                                    className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300" 
+                                    title="Delete case"
+                                    onClick={() => handleDeleteCase(cs.id)}
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -881,37 +1000,52 @@ export default function AgentPage() {
           </Card>
         )}
 
-        {/* Agent bulk set campaigns dialog */}
-        <Dialog open={agentBulkOpen} onOpenChange={setAgentBulkOpen} title="Set campaigns for selected agents">
-          <div className="space-y-3 text-sm">
-            <label className="text-sm block">
-              <span className="text-xs opacity-70">Filter by vertical (optional)</span>
-              <Select value={agentBulkVerticalId} onChange={(e) => setAgentBulkVerticalId(e.target.value)}>
-                <option value="">All</option>
-                {verticals.map(v => <option key={v.id} value={String(v.id)}>{v.name}</option>)}
-              </Select>
-            </label>
-            <div>
-              <div className="text-xs opacity-70 mb-1">Select campaigns</div>
-              <div className="max-h-48 overflow-auto rounded-lg border border-black/10 dark:border-white/10 p-2">
-                {(campaigns.filter(c => agentBulkVerticalId ? String(c.vertical_id||'')===agentBulkVerticalId : true)).map(c => (
-                  <label key={c.id} className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={agentBulkCampaignIds.includes(c.id)} onChange={(e) => setAgentBulkCampaignIds(prev => e.target.checked ? Array.from(new Set([...prev, c.id])) : prev.filter(id => id !== c.id))} />
-                    <span>{c.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-          <DialogActions>
-            <Button variant="secondary" onClick={() => setAgentBulkOpen(false)}>Cancel</Button>
-            <Button onClick={async () => {
-              const token = await getAccessToken(); if (!token) return;
-              await Promise.allSettled(selectedAgentIds.map(id => fetch(`/api/admin/agents/${id}/campaigns`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ campaign_ids: agentBulkCampaignIds }) })));
-              setAgentBulkOpen(false); setSelectedAgentIds([]);
-            }}>Save</Button>
-          </DialogActions>
-        </Dialog>
+                 {/* Agent bulk set campaigns dialog */}
+         <Dialog open={agentBulkOpen} onOpenChange={setAgentBulkOpen} title="Manage campaigns for selected agents">
+           <div className="space-y-3 text-sm">
+             <div className="text-xs opacity-70 mb-2">
+               {selectedAgentIds.length === 1 ? 'Managing campaigns for 1 agent' : `Managing campaigns for ${selectedAgentIds.length} agents`}
+             </div>
+             <label className="text-sm block">
+               <span className="text-xs opacity-70">Filter by vertical (optional)</span>
+               <Select value={agentBulkVerticalId} onChange={(e) => setAgentBulkVerticalId(e.target.value)}>
+                 <option value="">All</option>
+                 {verticals.map(v => <option key={v.id} value={String(v.id)}>{v.name}</option>)}
+               </Select>
+             </label>
+             <div>
+               <div className="text-xs opacity-70 mb-1">Select campaigns to assign</div>
+               <div className="max-h-48 overflow-auto rounded-lg border border-black/10 dark:border-white/10 p-2">
+                 {(campaigns.filter(c => agentBulkVerticalId ? String(c.vertical_id||'')===agentBulkVerticalId : true)).map(c => (
+                   <label key={c.id} className="flex items-center gap-2 text-sm">
+                     <input type="checkbox" checked={agentBulkCampaignIds.includes(c.id)} onChange={(e) => setAgentBulkCampaignIds(prev => e.target.checked ? Array.from(new Set([...prev, c.id])) : prev.filter(id => id !== c.id))} />
+                     <span>{c.name}</span>
+                   </label>
+                 ))}
+               </div>
+             </div>
+             <div className="text-xs opacity-70">
+               Note: This will replace all current campaign assignments for the selected agents.
+             </div>
+           </div>
+           <DialogActions>
+             <Button variant="secondary" onClick={() => setAgentBulkOpen(false)}>Cancel</Button>
+             <Button onClick={async () => {
+               const token = await getAccessToken(); if (!token) return;
+               await Promise.allSettled(selectedAgentIds.map(id => fetch(`/api/admin/agents/${id}/campaigns`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ campaign_ids: agentBulkCampaignIds }) })));
+               // Refresh agents list to show updated campaigns
+               try {
+                 const qs = new URLSearchParams(); if (agentQ) qs.set('q', agentQ);
+                 const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
+                 const ja = await resAgents.json().catch(() => null);
+                 if (ja && ja.ok) setAgents(ja.data.agents || []);
+               } catch {}
+               setAgentBulkOpen(false); 
+               setSelectedAgentIds([]);
+               setAgentBulkCampaignIds([]);
+             }}>Save</Button>
+           </DialogActions>
+         </Dialog>
 
         {/* Verticals management */}
         {activeTab === 'Verticals' && (
@@ -1194,63 +1328,97 @@ export default function AgentPage() {
             />
         )}
 
-        {/* Invite Agent Dialog */}
-          <Dialog open={inviteOpen} onOpenChange={setInviteOpen} title="Invite Agent">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <Input placeholder="Agent email" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
-              <Select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as any)}>
-                <option value="agent">Agent</option>
-                <option value="manager">Manager</option>
-                <option value="lead">Lead</option>
-              </Select>
-            </div>
+                 {/* Invite Agent Dialog */}
+           <Dialog open={inviteOpen} onOpenChange={setInviteOpen} title="Invite Agent">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+               <Input placeholder="Agent name" value={inviteName} onChange={(e) => setInviteName(e.target.value)} />
+               <Input placeholder="Agent email" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+               <Select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as any)}>
+                 <option value="agent">Agent</option>
+                 <option value="manager">Manager</option>
+                 <option value="lead">Lead</option>
+               </Select>
+               <Select value={inviteCampaignId} onChange={(e) => setInviteCampaignId(e.target.value)}>
+                 <option value="">Select campaign (optional)</option>
+                 {campaigns.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+               </Select>
+             </div>
             <DialogActions>
               <Button variant="secondary" onClick={() => setInviteOpen(false)}>Cancel</Button>
-              <Button onClick={async () => {
-                const token = await getAccessToken();
-                if (!token || !inviteEmail) { setInviteOpen(false); return; }
-                await fetch('/api/admin/agents/invite', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ email: inviteEmail, role: inviteRole }) });
-                setInviteOpen(false);
-                setInviteEmail('');
-                setInviteRole('agent');
-              }}>Send Invite</Button>
+                             <Button onClick={async () => {
+                 const token = await getAccessToken();
+                 if (!token || !inviteEmail || !inviteName.trim()) { 
+                   if (!inviteName.trim()) alert('Agent name is required');
+                   if (!inviteEmail) alert('Agent email is required');
+                   return; 
+                 }
+                 await fetch('/api/admin/agents/invite', { 
+                   method: 'POST', 
+                   headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, 
+                   body: JSON.stringify({ 
+                     email: inviteEmail, 
+                     name: inviteName.trim(),
+                     role: inviteRole,
+                     campaign_id: inviteCampaignId ? Number(inviteCampaignId) : undefined
+                   }) 
+                 });
+                 setInviteOpen(false);
+                 setInviteEmail('');
+                 setInviteName('');
+                 setInviteCampaignId('');
+                 setInviteRole('agent');
+               }}>Send Invite</Button>
             </DialogActions>
         </Dialog>
 
-        {/* Create AI Agent Dialog */}
-        <Dialog open={aiOpen} onOpenChange={setAiOpen} title="Create AI Agent">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {aiError && <div className="md:col-span-2 text-sm text-red-600">{aiError}</div>}
-            <Input placeholder="Username (a-z0-9_)" value={aiUsername} onChange={(e) => setAiUsername(e.target.value)} />
-            <Select value={aiRole} onChange={(e) => setAiRole(e.target.value as any)}>
-              <option value="agent">Agent</option>
-              <option value="manager">Manager</option>
-              <option value="lead">Lead</option>
-            </Select>
-            <textarea className="md:col-span-2 rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 min-h-[120px]" placeholder="AI personality/system message" value={aiPersonality} onChange={(e)=>setAiPersonality(e.target.value)} />
-          </div>
+                 {/* Create AI Agent Dialog */}
+         <Dialog open={aiOpen} onOpenChange={setAiOpen} title="Create AI Agent">
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {aiError && <div className="md:col-span-2 text-sm text-red-600">{aiError}</div>}
+              <Input placeholder="AI Agent name" value={aiName} onChange={(e) => setAiName(e.target.value)} />
+              <Select value={aiRole} onChange={(e) => setAiRole(e.target.value as any)}>
+                <option value="ai_agent">AI Agent</option>
+                <option value="ai_manager">AI Manager</option>
+                <option value="ai_lead">AI Lead</option>
+              </Select>
+              <Select value={aiCampaignId} onChange={(e) => setAiCampaignId(e.target.value)}>
+                <option value="">Select campaign (optional)</option>
+                {campaigns.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+              </Select>
+              <textarea className="md:col-span-2 rounded-lg border px-3 py-2 bg-white dark:bg-gray-900 text-black dark:text-white border-black/10 dark:border-white/10 min-h-[120px]" placeholder="AI personality/system message" value={aiPersonality} onChange={(e)=>setAiPersonality(e.target.value)} />
+            </div>
           <DialogActions>
             <Button variant="secondary" onClick={() => setAiOpen(false)}>Cancel</Button>
-            <Button disabled={aiBusy!=='idle'} onClick={async () => {
-              setAiError(null);
-              const uname = aiUsername.trim().toLowerCase();
-              if (!/^[a-z0-9_]{3,20}$/.test(uname)) { setAiError('Username must be 3-20 chars (a-z, 0-9, _)'); return; }
-              setAiBusy('saving');
-              try {
-                const token = await getAccessToken(); if (!token) { setAiError('Not authorized'); return; }
-                const res = await fetch('/api/admin/agents', { method: 'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'createAiAgent', username: uname, role: aiRole, personality: aiPersonality }) });
-                const j = await res.json().catch(()=>null);
-                if (!j || !j.ok) { setAiError(j?.error?.message || 'Failed to create AI agent'); return; }
-                // reload agents
+                         <Button disabled={aiBusy!=='idle'} onClick={async () => {
+                               setAiError(null);
+                const name = aiName.trim();
+                if (!name) { setAiError('AI Agent name is required'); return; }
+                setAiBusy('saving');
                 try {
-                  const qs = new URLSearchParams(); if (agentQ) qs.set('q', agentQ);
-                  const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
-                  const ja = await resAgents.json().catch(() => null);
-                  if (ja && ja.ok) setAgents(ja.data.agents || []);
-                } catch {}
-                setAiOpen(false);
-              } finally { setAiBusy('idle'); }
-            }}>{aiBusy==='saving' ? 'Creating…' : 'Create'}</Button>
+                  const token = await getAccessToken(); if (!token) { setAiError('Not authorized'); return; }
+                  const res = await fetch('/api/admin/agents', { 
+                    method: 'POST', 
+                    headers: { 'content-type':'application/json', authorization: `Bearer ${token}` }, 
+                    body: JSON.stringify({ 
+                      action: 'createAiAgent', 
+                      name: name,
+                      role: aiRole, 
+                      personality: aiPersonality,
+                      campaign_id: aiCampaignId ? Number(aiCampaignId) : undefined
+                    }) 
+                  });
+                 const j = await res.json().catch(()=>null);
+                 if (!j || !j.ok) { setAiError(j?.error?.message || 'Failed to create AI agent'); return; }
+                 // reload agents
+                 try {
+                   const qs = new URLSearchParams(); if (agentQ) qs.set('q', agentQ);
+                   const resAgents = await fetch(`/api/admin/agents?sort=${agentSort.col}&dir=${agentSort.dir}&${qs.toString()}`, { headers: { authorization: `Bearer ${token}` } });
+                   const ja = await resAgents.json().catch(() => null);
+                   if (ja && ja.ok) setAgents(ja.data.agents || []);
+                 } catch {}
+                 setAiOpen(false);
+               } finally { setAiBusy('idle'); }
+             }}>{aiBusy==='saving' ? 'Creating…' : 'Create'}</Button>
           </DialogActions>
         </Dialog>
 

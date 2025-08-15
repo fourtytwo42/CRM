@@ -16,7 +16,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   let body: any; try { body = await req.json(); } catch { body = {}; }
   const fields: string[] = [];
   const values: any[] = [];
-  const allowed = new Set(['label','baseUrl','apiKey','model','enabled','timeoutMs','priority','settings']);
+  const allowed = new Set(['label','baseUrl','apiKey','model','enabled','timeoutMs','maxTokens','priority','settings']);
   for (const key of Object.keys(body || {})) {
     if (!allowed.has(key)) continue;
     switch (key) {
@@ -31,6 +31,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       case 'model': fields.push('model = ?'); values.push(body[key] || null); break;
       case 'enabled': fields.push('enabled = ?'); values.push(body[key] ? 1 : 0); break;
       case 'timeoutMs': fields.push('timeout_ms = ?'); values.push(Number.isFinite(Number(body[key])) ? Number(body[key]) : null); break;
+      case 'maxTokens': fields.push('max_tokens = ?'); values.push(Number.isFinite(Number(body[key])) ? Number(body[key]) : 131072); break;
       case 'priority': fields.push('priority = ?'); values.push(Number.isFinite(Number(body[key])) ? Number(body[key]) : 1000); break;
       case 'settings': fields.push('settings = ?'); values.push(body[key] ? JSON.stringify(body[key]) : null); break;
     }

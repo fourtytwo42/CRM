@@ -10,10 +10,13 @@ export async function POST(req: NextRequest) {
   const me = await requireAuth(req);
   if (!(me.role === 'admin' || me.role === 'power')) return jsonError('FORBIDDEN', { status: 403 });
   const db = getDb();
-  const body = await req.json().catch(() => null) as { email?: string; role?: 'agent'|'manager'|'lead' } | null;
+  const body = await req.json().catch(() => null) as { email?: string; name?: string; role?: 'agent'|'manager'|'lead'; campaign_id?: number } | null;
   const email = String(body?.email || '').toLowerCase().trim();
+  const name = String(body?.name || '').trim();
   const role = (body?.role || 'agent');
+  const campaignId = body?.campaign_id;
   if (!email) return jsonError('VALIDATION', { status: 400, message: 'Email required' });
+  if (!name) return jsonError('VALIDATION', { status: 400, message: 'Name required' });
   if (!['agent','manager','lead'].includes(role)) return jsonError('VALIDATION', { status: 400, message: 'Invalid role' });
 
   const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(email) as { id: number } | undefined;
@@ -24,10 +27,25 @@ export async function POST(req: NextRequest) {
   const placeholderUsername = `agent_${code.slice(0, 8)}`;
   const placeholderHash = '';
 
-  db.prepare(`
+  const result = db.prepare(`
     INSERT INTO users (username, email, password_hash, role, status, email_verification_code, email_verification_sent_at, created_at, updated_at)
     VALUES (?, ?, ?, ?, 'suspended', ?, ?, ?, ?)
   `).run(placeholderUsername, email, placeholderHash, role, code, now, now, now);
+  
+  const userId = result.lastInsertRowid as number;
+  
+  // If campaign_id is provided, assign the user to that campaign
+  if (campaignId && userId) {
+    try {
+      db.prepare(`
+        INSERT INTO agent_campaigns (agent_user_id, campaign_id, assigned_at)
+        VALUES (?, ?, ?)
+      `).run(userId, campaignId, now);
+    } catch (error) {
+      // Campaign assignment is optional, don't fail the invite if it fails
+      console.error('Failed to assign user to campaign:', error);
+    }
+  }
 
   const url = new URL('/api/auth/invite', (process.env.PUBLIC_BASE_URL || '').trim() || req.url);
   url.searchParams.set('code', code);

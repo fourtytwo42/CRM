@@ -8,11 +8,12 @@ type PollerState = {
   running: boolean;
   intervalSec: number;
   nextRunAtMs: number | null;
+  listeners: Set<(event: 'email-processed' | 'poller-status', data?: any) => void>;
 };
 
 const g = globalThis as any;
 if (!g.__imapPoller) {
-  g.__imapPoller = { timer: null, running: false, intervalSec: 60, nextRunAtMs: null } as PollerState;
+  g.__imapPoller = { timer: null, running: false, intervalSec: 60, nextRunAtMs: null, listeners: new Set() } as PollerState;
 }
 const state: PollerState = g.__imapPoller;
 
@@ -103,6 +104,22 @@ export function resetImapPollCountdown(): void {
   }
 }
 
+// Event system for real-time updates
+export function addPollerListener(listener: (event: 'email-processed' | 'poller-status', data?: any) => void): () => void {
+  state.listeners.add(listener);
+  return () => state.listeners.delete(listener);
+}
+
+export function emitPollerEvent(event: 'email-processed' | 'poller-status', data?: any): void {
+  state.listeners.forEach(listener => {
+    try {
+      listener(event, data);
+    } catch (error) {
+      console.error('[poller] Error in event listener:', error);
+    }
+  });
+}
+
 async function runOnce(): Promise<number> {
   try {
     const db = getDb();
@@ -122,15 +139,31 @@ async function runOnce(): Promise<number> {
       if (fromCfg && fromCfg.from_email) ourEmailLower = String(fromCfg.from_email).toLowerCase();
     } catch {}
     const lastUid = Number(row.imap_last_uid || 0);
+    
+    // Get current mailbox status to understand UID validity
+    const mailboxStatus = await client.status('INBOX', { uidNext: true, uidValidity: true });
+    const currentUidNext = Number(mailboxStatus.uidNext || 1);
+    
     // Build explicit UID range; on first run fetch 1:*
-    const range = lastUid > 0 ? `${lastUid + 1}:*` : '1:*';
+    // For better reliability, also check a small overlap to catch timing issues
+    const range = lastUid > 0 ? `${Math.max(1, lastUid - 2)}:*` : '1:*';
     let processed = 0;
     const uids: number[] = [];
-    for await (const msg of client.fetch(range, { uid: true }, { uid: true })) { uids.push(Number(msg.uid)); }
+    
+    // Only fetch if there are potentially new messages
+    if (currentUidNext > lastUid + 1) {
+      for await (const msg of client.fetch(range, { uid: true }, { uid: true })) { uids.push(Number(msg.uid)); }
+    }
+    
     // eslint-disable-next-line no-console
-    console.log('[imap] fetch range', { lastUid, range, count: uids.length, min: uids[0], max: uids[uids.length - 1] });
-    uids.sort((a,b) => a - b);
-    for (const uid of uids) {
+    console.log('[imap] fetch range', { lastUid, range, count: uids.length, min: uids[0], max: uids[uids.length - 1], uidNext: currentUidNext });
+    
+    // Filter out UIDs we've already processed to avoid duplicates
+    const newUids = uids.filter(uid => uid > lastUid);
+    newUids.sort((a,b) => a - b);
+    
+    // Process only new UIDs to avoid duplicates
+    for (const uid of newUids) {
       const it = client.fetchOne(uid, { uid: true, envelope: true, bodyStructure: true, source: true, flags: true }, { uid: true });
       const msg: any = await it;
       const msgUid = Number(msg.uid);
@@ -256,7 +289,23 @@ async function runOnce(): Promise<number> {
       await client.logout();
     }
     // eslint-disable-next-line no-console
-    console.log('[imap] processed', { processed, lastUid: (uids.length ? uids[uids.length - 1] : lastUid) });
+    console.log('[imap] processed', { processed, newEmails: newUids.length, lastUid: (newUids.length ? newUids[newUids.length - 1] : lastUid) });
+    
+    // Emit event for real-time updates if new emails were processed
+    if (processed > 0) {
+      try {
+        const { emitPollerEvent } = await import('./poller');
+        emitPollerEvent('email-processed', { 
+          processed, 
+          newEmails: newUids.length, 
+          lastUid: (newUids.length ? newUids[newUids.length - 1] : lastUid),
+          timestamp: Date.now()
+        });
+      } catch (error) {
+        console.error('[imap] Failed to emit email-processed event:', error);
+      }
+    }
+    
     // If poller is running, ensure countdown reflects next run
     if (state.running) state.nextRunAtMs = Date.now() + state.intervalSec * 1000;
     return processed;
@@ -296,7 +345,7 @@ async function maybeAutoReplyAi(db: any, customerId: number, caseId: number): Pr
     const system = `${personaLine}You are ${agentName}, a professional support assistant for our company. Always sign emails with your name as "${agentName}". Reply to the customer's most recent email in a helpful, concise, and friendly tone. Do not disclose that you are an AI or internal system. Keep it short unless the customer asked for details.`;
     const user = `Context (entire email thread, oldest to newest):\n\n${history}\n\nTask: Write a direct plain-text reply to the latest customer email.`;
     // Load enabled AI providers from DB for failover
-    const rows = db.prepare(`SELECT id, provider, api_key, base_url, model, enabled, timeout_ms, priority FROM ai_providers WHERE enabled = 1 ORDER BY priority ASC`).all() as Array<any>;
+    const rows = db.prepare(`SELECT id, provider, api_key, base_url, model, enabled, timeout_ms, priority, max_tokens FROM ai_providers WHERE enabled = 1 ORDER BY priority ASC`).all() as Array<any>;
     const providers: AiProviderConfig[] = rows.map((r) => ({
       id: r.id,
       provider: (r.provider || 'openai') as any,
@@ -304,6 +353,7 @@ async function maybeAutoReplyAi(db: any, customerId: number, caseId: number): Pr
       baseUrl: r.base_url || undefined,
       model: r.model || undefined,
       timeoutMs: r.timeout_ms || undefined,
+      maxTokens: r.max_tokens || undefined,
     }));
     let reply = `Thank you for your email. We will follow up shortly.`;
     if (providers.length > 0) {

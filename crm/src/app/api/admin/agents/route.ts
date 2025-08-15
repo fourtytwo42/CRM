@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const rows = db.prepare(`
     SELECT id, username, email, role, status, created_at, last_login_at, last_seen_at, is_ai
     FROM users
-    WHERE role IN ('power','manager','lead','agent')
+    WHERE role IN ('power','manager','lead','agent','ai_manager','ai_lead','ai_agent')
       AND (LOWER(username) LIKE ? OR LOWER(COALESCE(email,'')) LIKE ?)
     ORDER BY ${sortCol} ${dir}
     LIMIT 200
@@ -54,17 +54,51 @@ export async function POST(req: NextRequest) {
   if (!body || !body.action) return jsonError('VALIDATION', { status: 400 });
   try {
     switch (body.action) {
-      case 'createAiAgent': {
-        const username = String(body.username || '').trim().toLowerCase();
-        const role = (['agent','lead','manager'].includes(String(body.role)) ? String(body.role) : 'agent');
-        if (!username.match(/^[a-z0-9_]{3,20}$/)) return jsonError('VALIDATION', { status: 400, message: 'Invalid username' });
-        const exists = db.prepare(`SELECT id FROM users WHERE username = ?`).get(username) as any;
-        if (exists) return jsonError('VALIDATION', { status: 400, message: 'Username taken' });
-        db.prepare(`INSERT INTO users (username, email, password_hash, role, status, is_ai, ai_personality, created_at, updated_at) VALUES (?, NULL, '', ?, 'active', 1, ?, ?, ?)`)
-          .run(username, role, String(body.personality || ''), now, now);
-        const row = db.prepare(`SELECT id FROM users WHERE username = ?`).get(username) as any;
-        return jsonOk({ id: row?.id });
-      }
+             case 'createAiAgent': {
+         const role = (['ai_agent','ai_lead','ai_manager'].includes(String(body.role)) ? String(body.role) : 'ai_agent');
+         const name = String(body.name || '').trim();
+         const campaignId = body.campaign_id;
+         if (!name) return jsonError('VALIDATION', { status: 400, message: 'Name is required' });
+         
+         // Use the name directly as username, with simple cleanup
+         const baseUsername = name.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20) || 'aiagent';
+         let username = baseUsername;
+         let counter = 1;
+         
+         // Ensure username is unique and at least 3 characters
+         while (username.length < 3 || db.prepare(`SELECT id FROM users WHERE username = ?`).get(username)) {
+           if (username.length < 3) {
+             username = `${baseUsername}ai${counter}`;
+           } else {
+             username = `${baseUsername}${counter}`;
+           }
+           counter++;
+           if (counter > 999) break; // Safety break
+         }
+         
+         try {
+           const result = db.prepare(`INSERT INTO users (username, email, password_hash, role, status, is_ai, ai_personality, created_at, updated_at) VALUES (?, NULL, '', ?, 'active', 1, ?, ?, ?)`)
+             .run(username, role, String(body.personality || ''), now, now);
+           const userId = result.lastInsertRowid as number;
+           
+           // If campaign_id is provided, assign the AI agent to that campaign
+           if (campaignId && userId) {
+             try {
+               db.prepare(`
+                 INSERT INTO agent_campaigns (agent_user_id, campaign_id, assigned_at)
+                 VALUES (?, ?, ?)
+               `).run(userId, campaignId, now);
+             } catch (error) {
+               console.error('Failed to assign AI agent to campaign:', error);
+             }
+           }
+           
+           return jsonOk({ id: userId });
+         } catch (error) {
+           console.error('Failed to create AI agent:', error);
+           return jsonError('DATABASE_ERROR', { status: 500, message: 'Failed to create AI agent' });
+         }
+       }
       case 'assignSupervisor': {
         const { agent_user_id, supervisor_user_id, kind } = body;
         if (!agent_user_id || !supervisor_user_id || (kind !== 'manager' && kind !== 'lead')) return jsonError('VALIDATION', { status: 400 });

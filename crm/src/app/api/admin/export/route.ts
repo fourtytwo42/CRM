@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
     }
     case 'settings': {
       const email = db.prepare(`SELECT host, port, secure, username, from_email, from_name, imap_host, imap_port, imap_secure, imap_username, imap_enabled, imap_poll_seconds FROM email_settings WHERE id = 1`).get();
-      const ai = db.prepare(`SELECT provider, label, base_url as baseUrl, model, enabled, timeout_ms as timeoutMs, priority FROM ai_providers`).all();
+      const ai = db.prepare(`SELECT provider, label, base_url as baseUrl, model, enabled, timeout_ms as timeoutMs, priority, max_tokens as maxTokens FROM ai_providers`).all();
       const tele = db.prepare(`SELECT provider, bulkvs_base_url, bulkvs_from_did, twilio_account_sid, twilio_from_number, twilio_messaging_service_sid FROM telephony_settings WHERE id = 1`).get();
       return jsonOk({ email, ai, tele });
     }

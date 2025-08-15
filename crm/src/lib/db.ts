@@ -80,12 +80,80 @@ function getDb(): Database.Database {
     `).run(new Date().toISOString());
   } catch {}
 
+  // Ensure users table supports AI roles
+  try {
+    const cols = dbInstance.prepare(`PRAGMA table_info(users)`).all() as Array<{ name: string }>;
+    if (cols && cols.length > 0) {
+      // Check if the role column constraint needs updating for AI roles
+      const tableInfo = dbInstance.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get() as { sql: string } | undefined;
+      if (tableInfo && !tableInfo.sql.includes("'ai_agent'")) {
+        // Create a temporary table with the new schema
+        dbInstance.exec(`
+          CREATE TABLE users_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            email TEXT,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL CHECK (role IN ('admin','power','manager','lead','agent','user','ai_manager','ai_lead','ai_agent')),
+            status TEXT NOT NULL CHECK (status IN ('active','suspended','banned')),
+            ban_reason TEXT,
+            avatar_url TEXT,
+            theme_preference TEXT NOT NULL DEFAULT 'system' CHECK (theme_preference IN ('light','dark','system')),
+            token_version INTEGER NOT NULL DEFAULT 0,
+            email_verified_at TEXT,
+            email_verification_code TEXT,
+            email_verification_sent_at TEXT,
+            new_email TEXT,
+            new_email_verification_code TEXT,
+            new_email_verification_sent_at TEXT,
+            last_login_at TEXT,
+            last_seen_at TEXT,
+            is_ai INTEGER NOT NULL DEFAULT 0,
+            ai_personality TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          )
+        `);
+        
+        // Copy data from old table to new table
+        dbInstance.exec(`INSERT INTO users_new SELECT * FROM users`);
+        
+        // Drop old table and rename new table
+        dbInstance.exec(`DROP TABLE users`);
+        dbInstance.exec(`ALTER TABLE users_new RENAME TO users`);
+        
+        // Recreate indexes
+        dbInstance.exec(`CREATE INDEX IF NOT EXISTS idx_users_last_seen_at ON users(last_seen_at)`);
+        dbInstance.exec(`CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at)`);
+        dbInstance.exec(`CREATE INDEX IF NOT EXISTS idx_users_last_login_at ON users(last_login_at)`);
+        dbInstance.exec(`CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`);
+        dbInstance.exec(`CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)`);
+        dbInstance.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique ON users(username)`);
+      }
+    }
+  } catch {}
+
   // Ensure demo users exist only when explicitly enabled via env.seedDemo in non-production
   try {
     if (process.env.NODE_ENV !== 'production' && env.seedDemo) {
       ensureDemoUsers(dbInstance);
     }
   } catch {}
+
+  // Ensure ai_providers table has max_tokens field
+  try {
+    const cols = dbInstance.prepare(`PRAGMA table_info(ai_providers)`).all() as Array<{ name: string }>;
+    if (cols && cols.length > 0) {
+      const hasMaxTokens = cols.some(col => col.name === 'max_tokens');
+      if (!hasMaxTokens) {
+        // Add max_tokens column with default value
+        dbInstance.exec(`ALTER TABLE ai_providers ADD COLUMN max_tokens INTEGER NOT NULL DEFAULT 131072`);
+        console.log('[db] Added max_tokens column to ai_providers table');
+      }
+    }
+  } catch (error) {
+    console.error('[db] Error updating ai_providers table schema:', error);
+  }
 
   // Save in global for hot-reload reuse
   g.__dbInstance = dbInstance;
@@ -199,6 +267,7 @@ function migrate(db: Database.Database): void {
       enabled INTEGER NOT NULL DEFAULT 0,
       timeout_ms INTEGER,
       priority INTEGER NOT NULL DEFAULT 1000,
+      max_tokens INTEGER NOT NULL DEFAULT 131072,
       settings TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL

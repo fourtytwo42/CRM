@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   if (messages.length === 0) return jsonError('BAD_REQUEST', { status: 400, message: 'messages required' });
   const db = getDb();
   const rows = db.prepare(`
-    SELECT provider, api_key, base_url, model, enabled, timeout_ms, priority, settings
+    SELECT provider, api_key, base_url, model, enabled, timeout_ms, priority, max_tokens, settings
     FROM ai_providers
     WHERE enabled = 1
     ORDER BY priority ASC, id ASC
@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
     baseUrl: r.base_url || undefined,
     model: r.model || undefined,
     timeoutMs: r.timeout_ms || undefined,
+    maxTokens: r.max_tokens || undefined,
     settings: r.settings ? safeJsonParse(r.settings) : undefined,
   }));
   if (configs.length === 0) return jsonError('NO_PROVIDERS', { status: 400, message: 'No enabled providers' });

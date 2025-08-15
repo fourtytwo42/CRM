@@ -91,9 +91,28 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   return jsonOk();
 }
 
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const me = await requireAuth(req);
+  if (me.status !== 'active') return jsonError('FORBIDDEN', { status: 403 });
+  const db = getDb();
+  const id = Number(params.id);
+  
+  // Check if case exists
+  const existing = db.prepare(`SELECT id FROM cases WHERE id = ?`).get(id) as { id: number } | undefined;
+  if (!existing) return jsonError('NOT_FOUND', { status: 404 });
+  
+  // Delete dependents then case
+  db.prepare(`DELETE FROM case_versions WHERE case_id = ?`).run(id);
+  try { db.prepare(`DELETE FROM communications WHERE case_id = ?`).run(id); } catch {}
+  try { db.prepare(`DELETE FROM notes WHERE case_id = ?`).run(id); } catch {}
+  const result = db.prepare(`DELETE FROM cases WHERE id = ?`).run(id);
+  
+  const changes = Number(result.changes || 0);
+  return jsonOk({ deleted: changes });
+}
+
 function safeJson(s: string): any { try { return JSON.parse(s); } catch { return s; } }
 
-export function POST() { return methodNotAllowed(['GET','PUT']); }
-export function DELETE() { return methodNotAllowed(['GET','PUT']); }
+export function POST() { return methodNotAllowed(['GET','PUT','DELETE']); }
 
 

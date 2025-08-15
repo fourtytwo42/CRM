@@ -14,6 +14,7 @@ export type AiProviderConfig = {
   model?: string | null;
   enabled?: boolean;
   timeoutMs?: number | null;
+  maxTokens?: number | null;
   label?: string | null;
   settings?: Record<string, any> | null;
 };
@@ -132,6 +133,7 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
         system,
         messages: userAndAssistant as any,
         temperature: 1,
+        maxTokens: config.maxTokens || 131072,
       }), timeout, controller.signal);
       return { ok: true, provider, model: config.model || '', content: result.text };
     }
@@ -145,6 +147,7 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
           system,
           messages: userAndAssistant as any,
           temperature: 1,
+          maxTokens: config.maxTokens || 131072,
         }), timeout, controller.signal);
         return { ok: true, provider, model: config.model || '', content: result.text };
       } catch (e: any) {
@@ -161,7 +164,7 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
           },
           body: JSON.stringify({
             model: config.model,
-            max_tokens: 512,
+            max_tokens: config.maxTokens || 131072,
             temperature: 1,
             system,
             messages: userAndAssistant.map((m) => ({ role: m.role, content: m.content })),
@@ -188,7 +191,13 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
 
       // First try Chat Completions
       const chatUrl = `${base}/chat/completions`;
-      const payload = { model: config.model, messages, stream: false, temperature: 1 };
+      const payload = { 
+        model: config.model, 
+        messages, 
+        stream: false, 
+        temperature: 1,
+        max_tokens: config.maxTokens || 131072
+      };
       const ccRes = await withTimeout(fetch(chatUrl, {
         method: 'POST',
         signal: controller.signal,
@@ -257,7 +266,10 @@ export async function chatCompletion(config: AiProviderConfig, messages: ChatMes
           model: config.model,
           stream: false,
           messages,
-          options: { temperature: 1 },
+          options: { 
+            temperature: 1,
+            num_predict: config.maxTokens || 131072
+          },
         }),
       }), timeout, controller.signal);
       if (!res.ok) return { ok: false, error: { code: `HTTP_${res.status}`, message: await safeText(res) } };

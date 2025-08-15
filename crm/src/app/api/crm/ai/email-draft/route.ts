@@ -43,12 +43,20 @@ ${(lastInbound?.body || '').slice(0, 4000)}
 
   // Load enabled AI providers
   const rows = db.prepare(`
-    SELECT provider, api_key, base_url, model, enabled, timeout_ms, priority, settings
+    SELECT provider, api_key, base_url, model, enabled, timeout_ms, priority, max_tokens, settings
     FROM ai_providers
     WHERE enabled = 1
     ORDER BY priority ASC, id ASC
   `).all() as Array<any>;
-  const configs = rows.map((r) => ({ provider: r.provider, apiKey: r.api_key || undefined, baseUrl: r.base_url || undefined, model: r.model || undefined, timeoutMs: r.timeout_ms || undefined, settings: r.settings ? safeJsonParse(r.settings) : undefined }));
+  const configs = rows.map((r) => ({ 
+    provider: r.provider, 
+    apiKey: r.api_key || undefined, 
+    baseUrl: r.base_url || undefined, 
+    model: r.model || undefined, 
+    timeoutMs: r.timeout_ms || undefined, 
+    maxTokens: r.max_tokens || undefined,
+    settings: r.settings ? safeJsonParse(r.settings) : undefined 
+  }));
   if (configs.length === 0) return jsonError('NO_PROVIDERS', { status: 400, message: 'No enabled AI providers' });
 
   const result = await chatWithFailover(configs as any, [sys, user]);

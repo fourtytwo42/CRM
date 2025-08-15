@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const db = getDb();
   const rows = db
     .prepare(
-      `SELECT id, provider, label, api_key, base_url, model, enabled, timeout_ms, priority, settings, created_at, updated_at FROM ai_providers ORDER BY priority ASC, id ASC`
+      `SELECT id, provider, label, api_key, base_url, model, enabled, timeout_ms, priority, max_tokens, settings, created_at, updated_at FROM ai_providers ORDER BY priority ASC, id ASC`
     )
     .all() as Array<any>;
   const providers = rows.map((r) => ({
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
     model: r.model || null,
     enabled: !!r.enabled,
     timeoutMs: r.timeout_ms ?? null,
+    maxTokens: r.max_tokens ?? null,
     priority: r.priority,
     settings: r.settings ? safeJsonParse(r.settings) : null,
     hasApiKey: !!(r.api_key && String(r.api_key).length > 0),

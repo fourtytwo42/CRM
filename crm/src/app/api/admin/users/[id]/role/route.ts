@@ -14,7 +14,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const body = await req.json().catch(() => null) as { role?: string };
   const role = body?.role;
-  if (!role || !['admin','power','user'].includes(role)) return jsonError('VALIDATION', { status: 400, message: 'Invalid role' });
+  if (!role || !['admin','power','user','manager','lead','agent','ai_manager','ai_lead','ai_agent'].includes(role)) return jsonError('VALIDATION', { status: 400, message: 'Invalid role' });
 
   const db = getDb();
   const user = db.prepare('SELECT id, role FROM users WHERE id = ?').get(Number(params.id)) as any;
